@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-base text-zinc-100 antialiased;
+  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-base-border rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-accent-dim;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
