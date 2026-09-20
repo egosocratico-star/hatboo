@@ -6,6 +6,11 @@ export interface Conversation {
   updatedAt: number;
 }
 
+export interface Attachment {
+  name: string;
+  text: string;
+}
+
 export interface Message {
   id: string;
   conversationId: string;
@@ -13,6 +18,7 @@ export interface Message {
   content: string;
   provider: string | null;
   createdAt: number;
+  attachments: Attachment[];
 }
 
 export interface Settings {
@@ -23,6 +29,7 @@ export interface Settings {
   localModel: string;
   theme: string;
   runCommandEnabled: boolean;
+  assistantName: string;
 }
 
 export type MascotState =
@@ -32,12 +39,51 @@ export type MascotState =
   | "happy"
   | "surprised";
 
+export type ApprovalLevel =
+  | "ask_always"
+  | "approve_for_me"
+  | "auto_sandbox"
+  | "full_access";
+
+export const APPROVAL_LEVELS: Array<{
+  id: ApprovalLevel;
+  label: string;
+  short: string;
+  help: string;
+}> = [
+  {
+    id: "ask_always",
+    label: "Preguntar siempre",
+    short: "Preguntar",
+    help: "Pide aprobación antes de cualquier tool call, incluidas lecturas.",
+  },
+  {
+    id: "approve_for_me",
+    label: "Aprobar por mí (recomendado)",
+    short: "Aprobar por mí",
+    help: "Corre sola las tools de bajo riesgo (leer, listar, buscar, git status/diff/log); pide aprobación para escribir, ejecutar comandos o commitear.",
+  },
+  {
+    id: "auto_sandbox",
+    label: "Automático en sandbox",
+    short: "Automático",
+    help: "Corre todo sin preguntar, siempre dentro de la carpeta del proyecto.",
+  },
+  {
+    id: "full_access",
+    label: "Acceso total",
+    short: "Acceso total",
+    help: "Sin aprobaciones. IMPORTANTE: por diseño de Hatboo las tools siguen restringidas a la carpeta del proyecto — el sandbox de rutas NO se relaja.",
+  },
+];
+
 export interface Project {
   id: string;
   name: string;
   rootPath: string;
   createdAt: number;
   lastOpenedAt: number;
+  approvalLevel: ApprovalLevel;
 }
 
 export interface Task {

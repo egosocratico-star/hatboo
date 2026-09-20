@@ -1,7 +1,16 @@
 use rusqlite::{params, Connection};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 const SCHEMA: &str = include_str!("schema.sql");
+
+/// Documento de texto adjuntado a un mensaje del chat normal (M2, Chat with Files).
+/// Solo texto ya extraído: las imágenes (payload multimodal) son una tanda futura.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Attachment {
+    pub name: String,
+    pub text: String,
+}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -22,6 +31,7 @@ pub struct Message {
     pub content: String,
     pub provider: Option<String>,
     pub created_at: i64,
+    pub attachments: Vec<Attachment>,
 }
 
 fn now_ms() -> i64 {
@@ -51,6 +61,14 @@ fn migrate(conn: &Connection) -> Result<(), String> {
     // ALTER no es idempotente: ignorar si la columna ya existe (DB de Fase 1).
     let _ = conn.execute(
         "ALTER TABLE conversations ADD COLUMN project_id TEXT REFERENCES projects(id)",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE projects ADD COLUMN approval_level TEXT NOT NULL DEFAULT 'approve_for_me'",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE messages ADD COLUMN attachments TEXT",
         [],
     );
     Ok(())
@@ -131,6 +149,22 @@ pub fn add_message(
     content: &str,
     provider: Option<&str>,
 ) -> Result<Message, String> {
+    add_message_with_attachments(conn, conversation_id, role, content, provider, &[])
+}
+
+pub fn add_message_with_attachments(
+    conn: &Connection,
+    conversation_id: &str,
+    role: &str,
+    content: &str,
+    provider: Option<&str>,
+    attachments: &[Attachment],
+) -> Result<Message, String> {
+    let attachments_json = if attachments.is_empty() {
+        None
+    } else {
+        Some(serde_json::to_string(attachments).map_err(|e| e.to_string())?)
+    };
     let msg = Message {
         id: new_id(),
         conversation_id: conversation_id.to_string(),
@@ -138,11 +172,20 @@ pub fn add_message(
         content: content.to_string(),
         provider: provider.map(|s| s.to_string()),
         created_at: now_ms(),
+        attachments: attachments.to_vec(),
     };
     conn.execute(
-        "INSERT INTO messages (id, conversation_id, role, content, provider, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        params![msg.id, msg.conversation_id, msg.role, msg.content, msg.provider, msg.created_at],
+        "INSERT INTO messages (id, conversation_id, role, content, provider, created_at, attachments)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![
+            msg.id,
+            msg.conversation_id,
+            msg.role,
+            msg.content,
+            msg.provider,
+            msg.created_at,
+            attachments_json
+        ],
     )
     .map_err(|e| e.to_string())?;
     touch_conversation(conn, conversation_id)?;
@@ -152,12 +195,16 @@ pub fn add_message(
 pub fn list_messages(conn: &Connection, conversation_id: &str) -> Result<Vec<Message>, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, conversation_id, role, content, provider, created_at
+            "SELECT id, conversation_id, role, content, provider, created_at, attachments
              FROM messages WHERE conversation_id = ?1 ORDER BY created_at ASC",
         )
         .map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map(params![conversation_id], |row| {
+            let raw: Option<String> = row.get(6)?;
+            let attachments = raw
+                .and_then(|s| serde_json::from_str::<Vec<Attachment>>(&s).ok())
+                .unwrap_or_default();
             Ok(Message {
                 id: row.get(0)?,
                 conversation_id: row.get(1)?,
@@ -165,10 +212,38 @@ pub fn list_messages(conn: &Connection, conversation_id: &str) -> Result<Vec<Mes
                 content: row.get(3)?,
                 provider: row.get(4)?,
                 created_at: row.get(5)?,
+                attachments,
             })
         })
         .map_err(|e| e.to_string())?;
     rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+}
+
+pub fn delete_last_assistant_message(conn: &Connection, conversation_id: &str) -> Result<(), String> {
+    let deleted = conn
+        .execute(
+            "DELETE FROM messages WHERE id = (
+               SELECT id FROM messages
+               WHERE conversation_id = ?1 AND role = 'assistant'
+               ORDER BY created_at DESC LIMIT 1
+             )",
+            params![conversation_id],
+        )
+        .map_err(|e| e.to_string())?;
+    if deleted == 0 {
+        return Err("No hay respuesta que regenerar.".into());
+    }
+    Ok(())
+}
+
+/// Borra todos los mensajes de una conversación, conservando la conversación.
+pub fn clear_messages(conn: &Connection, conversation_id: &str) -> Result<(), String> {
+    conn.execute(
+        "DELETE FROM messages WHERE conversation_id = ?1",
+        params![conversation_id],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 pub fn get_setting(conn: &Connection, key: &str) -> Result<Option<String>, String> {
@@ -203,6 +278,8 @@ pub struct Project {
     pub root_path: String,
     pub created_at: i64,
     pub last_opened_at: i64,
+    /// 'ask_always' | 'approve_for_me' | 'auto_sandbox' | 'full_access'
+    pub approval_level: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -235,6 +312,7 @@ pub fn create_project(conn: &Connection, name: &str, root_path: &str) -> Result<
         root_path: root_path.to_string(),
         created_at: now_ms(),
         last_opened_at: now_ms(),
+        approval_level: "approve_for_me".to_string(),
     };
     conn.execute(
         "INSERT INTO projects (id, name, root_path, created_at, last_opened_at)
@@ -248,7 +326,7 @@ pub fn create_project(conn: &Connection, name: &str, root_path: &str) -> Result<
 pub fn list_projects(conn: &Connection) -> Result<Vec<Project>, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, name, root_path, created_at, last_opened_at
+            "SELECT id, name, root_path, created_at, last_opened_at, approval_level
              FROM projects ORDER BY last_opened_at DESC",
         )
         .map_err(|e| e.to_string())?;
@@ -260,6 +338,7 @@ pub fn list_projects(conn: &Connection) -> Result<Vec<Project>, String> {
                 root_path: row.get(2)?,
                 created_at: row.get(3)?,
                 last_opened_at: row.get(4)?,
+                approval_level: row.get(5)?,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -268,7 +347,7 @@ pub fn list_projects(conn: &Connection) -> Result<Vec<Project>, String> {
 
 pub fn get_project(conn: &Connection, id: &str) -> Result<Project, String> {
     conn.query_row(
-        "SELECT id, name, root_path, created_at, last_opened_at FROM projects WHERE id = ?1",
+        "SELECT id, name, root_path, created_at, last_opened_at, approval_level FROM projects WHERE id = ?1",
         params![id],
         |row| {
             Ok(Project {
@@ -277,10 +356,20 @@ pub fn get_project(conn: &Connection, id: &str) -> Result<Project, String> {
                 root_path: row.get(2)?,
                 created_at: row.get(3)?,
                 last_opened_at: row.get(4)?,
+                approval_level: row.get(5)?,
             })
         },
     )
     .map_err(|e| e.to_string())
+}
+
+pub fn set_project_approval_level(conn: &Connection, id: &str, level: &str) -> Result<(), String> {
+    conn.execute(
+        "UPDATE projects SET approval_level = ?2 WHERE id = ?1",
+        params![id, level],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 pub fn touch_project(conn: &Connection, id: &str) -> Result<(), String> {

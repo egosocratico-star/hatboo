@@ -1,4 +1,4 @@
-use super::{AgentTool, ToolError};
+use super::{AgentTool, RiskLevel, ToolError};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::path::Path;
@@ -20,8 +20,8 @@ impl AgentTool for SearchFilesTool {
         "Busca un texto (sin distinción de mayúsculas) en todos los archivos del proyecto, tipo grep. Devuelve archivo:línea:contenido."
     }
 
-    fn requires_approval(&self) -> bool {
-        false
+    fn risk_level(&self) -> RiskLevel {
+        RiskLevel::Low
     }
 
     fn input_schema(&self) -> Value {

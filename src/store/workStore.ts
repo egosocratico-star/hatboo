@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useChatStore } from "./chatStore";
 import type {
+  ApprovalLevel,
   Conversation,
   Message,
   PendingApproval,
@@ -18,19 +19,54 @@ interface StepLine {
   brief: string;
 }
 
-interface WorkStore {
-  projects: Project[];
-  activeProjectId: string | null;
-  activeSessionId: string | null;
+export interface GitInfo {
+  isRepo: boolean;
+  branch: string | null;
+  dirtyCount: number;
+}
+
+/// Estado independiente por pestaña de proyecto.
+interface TabState {
+  sessionId: string | null;
   messages: Message[];
   tasks: Task[];
   stepLines: StepLine[];
   agentStatus: AgentStatus;
   approval: PendingApproval | null;
+  error: string | null;
+  git: GitInfo | null;
+  approvalLevel: ApprovalLevel;
+}
+
+const emptyTab = (): TabState => ({
+  sessionId: null,
+  messages: [],
+  tasks: [],
+  stepLines: [],
+  agentStatus: "idle",
+  approval: null,
+  error: null,
+  git: null,
+  approvalLevel: "approve_for_me",
+});
+
+interface WorkStore {
+  projects: Project[];
+  activeProjectId: string | null;
+  tabs: Record<string, TabState>;
   toolSupport: boolean | null;
   error: string | null;
   newProjectDraft: { parentPath: string } | null;
   treeVersion: number;
+
+  // Derivados de la pestaña activa (shorthand para la UI)
+  readonly activeSessionId: string | null;
+  readonly messages: Message[];
+  readonly tasks: Task[];
+  readonly stepLines: StepLine[];
+  readonly agentStatus: AgentStatus;
+  readonly approval: PendingApproval | null;
+  readonly approvalLevel: ApprovalLevel;
 
   loadProjects: () => Promise<void>;
   openProjectPicker: () => Promise<void>;
@@ -38,16 +74,19 @@ interface WorkStore {
   confirmCreateProject: (name: string) => Promise<void>;
   cancelCreateProject: () => void;
   selectProject: (id: string) => Promise<void>;
+  closeTab: (id: string) => void;
+  refreshGit: (projectId: string) => Promise<void>;
   removeProject: (id: string) => Promise<void>;
   newWorkSession: (projectId: string) => Promise<string>;
   selectSession: (conversationId: string) => Promise<void>;
   startTask: (request: string) => Promise<void>;
   cancelTask: () => Promise<void>;
+  setApprovalLevel: (projectId: string, level: ApprovalLevel) => Promise<void>;
   respond: (approved: boolean) => Promise<void>;
   refreshToolSupport: () => Promise<void>;
   clearError: () => void;
 
-  // Handlers de eventos del agente
+  // Handlers de eventos del agente (ruteados por sesión → pestaña)
   onPlan: (conversationId: string, tasks: Task[]) => void;
   onStepResult: (
     conversationId: string,
@@ -62,226 +101,345 @@ interface WorkStore {
   onCancelled: (conversationId: string) => void;
 }
 
-export const useWorkStore = create<WorkStore>((set, get) => ({
-  projects: [],
-  activeProjectId: null,
-  activeSessionId: null,
-  messages: [],
-  tasks: [],
-  stepLines: [],
-  agentStatus: "idle",
-  approval: null,
-  toolSupport: null,
-  error: null,
-  newProjectDraft: null,
-  treeVersion: 0,
+function projectOfSession(
+  tabs: Record<string, TabState>,
+  sessionId: string,
+): string | null {
+  for (const [projectId, tab] of Object.entries(tabs)) {
+    if (tab.sessionId === sessionId) return projectId;
+  }
+  return null;
+}
 
-  loadProjects: async () => {
-    const projects = await invoke<Project[]>("list_projects");
-    set({ projects });
-  },
+type StoreSnapshot = Pick<WorkStore, "tabs" | "activeProjectId">;
 
-  openProjectPicker: async () => {
-    const dir = await open({ directory: true, title: "Abrir carpeta del proyecto" });
-    if (!dir) return;
-    const project = await invoke<Project>("open_project", { path: dir });
-    await get().loadProjects();
-    await get().selectProject(project.id);
-  },
+function activeTab(s: StoreSnapshot): TabState | undefined {
+  return s.activeProjectId ? s.tabs[s.activeProjectId] : undefined;
+}
 
-  startCreateProject: async () => {
-    const dir = await open({ directory: true, title: "Elige dónde crear el proyecto" });
-    if (!dir) return;
-    set({ newProjectDraft: { parentPath: dir } });
-  },
-
-  confirmCreateProject: async (name) => {
-    const draft = get().newProjectDraft;
-    if (!draft || !name.trim()) return;
-    const project = await invoke<Project>("create_project", {
-      parentPath: draft.parentPath,
-      name: name.trim(),
-    });
-    set({ newProjectDraft: null });
-    await get().loadProjects();
-    await get().selectProject(project.id);
-  },
-
-  cancelCreateProject: () => set({ newProjectDraft: null }),
-
-  selectProject: async (id) => {
-    const convs = await invoke<Conversation[]>("list_conversations");
-    const sessions = convs
-      .filter((c) => c.projectId === id)
-      .sort((a, b) => b.updatedAt - a.updatedAt);
-    set({
-      activeProjectId: id,
-      error: null,
-      approval: null,
-      stepLines: [],
-    });
-    if (sessions.length > 0) {
-      await get().selectSession(sessions[0].id);
-    } else {
-      await get().newWorkSession(id);
-    }
-    void get().refreshToolSupport();
-  },
-
-  removeProject: async (id) => {
-    await invoke("delete_project", { projectId: id });
-    if (get().activeProjectId === id) {
-      set({ activeProjectId: null, activeSessionId: null, messages: [], tasks: [] });
-    }
-    await get().loadProjects();
-  },
-
-  newWorkSession: async (projectId) => {
-    const conv = await invoke<Conversation>("create_conversation", {
-      title: "Sesión de trabajo",
-      projectId,
-    });
-    set({
-      activeProjectId: projectId,
-      activeSessionId: conv.id,
-      messages: [],
-      tasks: [],
-      stepLines: [],
-      agentStatus: "idle",
-      error: null,
-    });
-    return conv.id;
-  },
-
-  selectSession: async (conversationId) => {
-    const [messages, tasks] = await Promise.all([
-      invoke<Message[]>("list_messages", { conversationId }),
-      invoke<Task[]>("get_tasks", { conversationId }),
-    ]);
-    const convs = await invoke<Conversation[]>("list_conversations");
-    const conv = convs.find((c) => c.id === conversationId);
-    set({
-      activeSessionId: conversationId,
-      activeProjectId: conv?.projectId ?? get().activeProjectId,
-      messages,
-      tasks,
-      stepLines: [],
-      agentStatus: "idle",
-      error: null,
-      approval: null,
-    });
-  },
-
-  startTask: async (request) => {
-    const { activeSessionId, activeProjectId } = get();
-    if (!activeProjectId) return;
-    const sessionId =
-      activeSessionId ?? (await get().newWorkSession(activeProjectId));
-
-    set({
-      agentStatus: "running",
-      tasks: [],
-      stepLines: [],
-      error: null,
-      messages: [
-        ...get().messages,
-        {
-          id: "pending-user",
-          conversationId: sessionId,
-          role: "user",
-          content: request,
-          provider: null,
-          createdAt: Date.now(),
-        },
-      ],
+export const useWorkStore = create<WorkStore>((set, get) => {
+  const patchTab = (projectId: string, patch: Partial<TabState>) =>
+    set((s) => {
+      const tab = s.tabs[projectId];
+      if (!tab) return {};
+      return { tabs: { ...s.tabs, [projectId]: { ...tab, ...patch } } };
     });
 
-    try {
-      await invoke("start_work_task", {
-        conversationId: sessionId,
-        projectId: activeProjectId,
-        request,
+  const patchSession = (conversationId: string, patch: Partial<TabState>) => {
+    const projectId = projectOfSession(get().tabs, conversationId);
+    if (projectId) patchTab(projectId, patch);
+  };
+
+  const reloadMessages = (conversationId: string) => {
+    void invoke<Message[]>("list_messages", { conversationId }).then(
+      (messages) => patchSession(conversationId, { messages }),
+    );
+  };
+
+  return {
+    projects: [],
+    activeProjectId: null,
+    tabs: {},
+    toolSupport: null,
+    error: null,
+    newProjectDraft: null,
+    treeVersion: 0,
+
+    get activeSessionId() {
+      return activeTab(get())?.sessionId ?? null;
+    },
+    get messages() {
+      return activeTab(get())?.messages ?? [];
+    },
+    get tasks() {
+      return activeTab(get())?.tasks ?? [];
+    },
+    get stepLines() {
+      return activeTab(get())?.stepLines ?? [];
+    },
+    get agentStatus() {
+      return activeTab(get())?.agentStatus ?? "idle";
+    },
+    get approval() {
+      return activeTab(get())?.approval ?? null;
+    },
+    get approvalLevel() {
+      return activeTab(get())?.approvalLevel ?? "approve_for_me";
+    },
+
+    loadProjects: async () => {
+      const projects = await invoke<Project[]>("list_projects");
+      set({ projects });
+    },
+
+    openProjectPicker: async () => {
+      const dir = await open({ directory: true, title: "Abrir carpeta del proyecto" });
+      if (!dir) return;
+      const project = await invoke<Project>("open_project", { path: dir });
+      await get().loadProjects();
+      await get().selectProject(project.id);
+    },
+
+    startCreateProject: async () => {
+      const dir = await open({ directory: true, title: "Elige dónde crear el proyecto" });
+      if (!dir) return;
+      set({ newProjectDraft: { parentPath: dir } });
+    },
+
+    confirmCreateProject: async (name) => {
+      const draft = get().newProjectDraft;
+      if (!draft || !name.trim()) return;
+      const project = await invoke<Project>("create_project", {
+        parentPath: draft.parentPath,
+        name: name.trim(),
       });
-    } catch (e) {
-      set({ agentStatus: "error", error: String(e) });
-    }
-  },
+      set({ newProjectDraft: null });
+      await get().loadProjects();
+      await get().selectProject(project.id);
+    },
 
-  cancelTask: async () => {
-    const { activeSessionId } = get();
-    if (!activeSessionId) return;
-    try {
-      await invoke("cancel_work_task", { conversationId: activeSessionId });
-    } catch (e) {
-      set({ agentStatus: "idle", error: String(e) });
-    }
-  },
+    cancelCreateProject: () => set({ newProjectDraft: null }),
 
-  respond: async (approved) => {
-    const approval = get().approval;
-    if (!approval) return;
-    await invoke("respond_to_approval", {
-      toolCallId: approval.toolCallId,
-      approved,
-    });
-    set({ approval: null, agentStatus: "running" });
-  },
+    selectProject: async (id) => {
+      if (!get().tabs[id]) {
+        const convs = await invoke<Conversation[]>("list_conversations");
+        const sessions = convs
+          .filter((c) => c.projectId === id)
+          .sort((a, b) => b.updatedAt - a.updatedAt);
+        let tab = emptyTab();
+        const project = get().projects.find((p) => p.id === id);
+        if (project?.approvalLevel) tab.approvalLevel = project.approvalLevel;
+        if (sessions.length > 0) {
+          const [messages, tasks] = await Promise.all([
+            invoke<Message[]>("list_messages", { conversationId: sessions[0].id }),
+            invoke<Task[]>("get_tasks", { conversationId: sessions[0].id }),
+          ]);
+          tab = { ...tab, sessionId: sessions[0].id, messages, tasks };
+        } else {
+          const conv = await invoke<Conversation>("create_conversation", {
+            title: "Sesión de trabajo",
+            projectId: id,
+          });
+          tab = { ...tab, sessionId: conv.id };
+          void useChatStore.getState().loadConversations();
+        }
+        set((s) => ({ tabs: { ...s.tabs, [id]: tab } }));
+        void get().refreshGit(id);
+      }
+      set({ activeProjectId: id, error: null });
+      void get().refreshToolSupport();
+    },
 
-  refreshToolSupport: async () => {
-    try {
-      const support = await invoke<boolean>("check_tool_support");
-      set({ toolSupport: support });
-    } catch {
-      set({ toolSupport: null });
-    }
-  },
+    closeTab: (id) => {
+      set((s) => {
+        const tabs = { ...s.tabs };
+        delete tabs[id];
+        const remaining = Object.keys(tabs);
+        const activeProjectId =
+          s.activeProjectId === id ? remaining[remaining.length - 1] ?? null : s.activeProjectId;
+        return { tabs, activeProjectId };
+      });
+    },
 
-  clearError: () => set({ error: null, agentStatus: "idle" }),
+    refreshGit: async (projectId) => {
+      try {
+        const git = await invoke<GitInfo>("project_git_info", { projectId });
+        patchTab(projectId, { git });
+      } catch {
+        patchTab(projectId, { git: null });
+      }
+    },
 
-  onPlan: (conversationId, tasks) => {
-    if (conversationId !== get().activeSessionId) return;
-    set({ tasks, stepLines: [], agentStatus: "running" });
-  },
+    removeProject: async (id) => {
+      await invoke("delete_project", { projectId: id });
+      set((s) => {
+        const tabs = { ...s.tabs };
+        delete tabs[id];
+        const remaining = Object.keys(tabs);
+        const activeProjectId =
+          s.activeProjectId === id ? remaining[remaining.length - 1] ?? null : s.activeProjectId;
+        return { tabs, activeProjectId };
+      });
+      await get().loadProjects();
+    },
 
-  onStepResult: (conversationId, tasks, toolName, ok, brief) => {
-    if (conversationId !== get().activeSessionId) return;
-    set((s) => ({
-      tasks,
-      stepLines: [...s.stepLines, { toolName, ok, brief }].slice(-30),
-      treeVersion:
-        toolName === "write_file" && ok ? s.treeVersion + 1 : s.treeVersion,
-    }));
-  },
+    newWorkSession: async (projectId) => {
+      const tab = get().tabs[projectId];
+      // Reutilizar la sesión en blanco: si la actual todavía no tiene ningún
+      // mensaje, no se crea otra fila (evita acumular sesiones vacías al spammar "+").
+      if (
+        tab &&
+        tab.sessionId &&
+        tab.agentStatus === "idle" &&
+        !tab.approval &&
+        tab.messages.length === 0 &&
+        tab.tasks.length === 0
+      ) {
+        set({ activeProjectId: projectId });
+        return tab.sessionId;
+      }
+      const conv = await invoke<Conversation>("create_conversation", {
+        title: "Sesión de trabajo",
+        projectId,
+      });
+      patchTab(projectId, {
+        sessionId: conv.id,
+        messages: [],
+        tasks: [],
+        stepLines: [],
+        agentStatus: "idle",
+        approval: null,
+        error: null,
+      });
+      set({ activeProjectId: projectId });
+      void useChatStore.getState().loadConversations();
+      return conv.id;
+    },
 
-  onApprovalNeeded: (approval) => {
-    if (approval.conversationId !== get().activeSessionId) return;
-    set({ approval, agentStatus: "awaiting" });
-  },
+    selectSession: async (conversationId) => {
+      const convs = await invoke<Conversation[]>("list_conversations");
+      const conv = convs.find((c) => c.id === conversationId);
+      const projectId =
+        projectOfSession(get().tabs, conversationId) ?? conv?.projectId ?? get().activeProjectId;
+      if (!projectId) return;
+      const [messages, tasks] = await Promise.all([
+        invoke<Message[]>("list_messages", { conversationId }),
+        invoke<Task[]>("get_tasks", { conversationId }),
+      ]);
+      patchTab(projectId, {
+        sessionId: conversationId,
+        messages,
+        tasks,
+        stepLines: [],
+        agentStatus: "idle",
+        error: null,
+        approval: null,
+      });
+      set({ activeProjectId: projectId });
+    },
 
-  onDone: (conversationId) => {
-    if (conversationId !== get().activeSessionId) return;
-    set({ agentStatus: "idle" });
-    void invoke<Message[]>("list_messages", { conversationId }).then((messages) =>
-      set({ messages }),
-    );
-    void useChatStore.getState().loadConversations();
-  },
+    startTask: async (request) => {
+      const { activeProjectId } = get();
+      if (!activeProjectId) return;
+      let sessionId = get().tabs[activeProjectId]?.sessionId ?? null;
+      if (!sessionId) sessionId = await get().newWorkSession(activeProjectId);
 
-  onError: (conversationId, message) => {
-    if (conversationId !== get().activeSessionId) return;
-    set({ agentStatus: "error", error: message });
-    void invoke<Message[]>("list_messages", { conversationId }).then((messages) =>
-      set({ messages }),
-    );
-    void useChatStore.getState().loadConversations();
-  },
+      patchTab(activeProjectId, {
+        agentStatus: "running",
+        tasks: [],
+        stepLines: [],
+        error: null,
+        messages: [
+          ...get().tabs[activeProjectId]?.messages ?? [],
+          {
+            id: "pending-user",
+            conversationId: sessionId,
+            role: "user",
+            content: request,
+            provider: null,
+            createdAt: Date.now(),
+            attachments: [],
+          },
+        ],
+      });
 
-  onCancelled: (conversationId) => {
-    if (conversationId !== get().activeSessionId) return;
-    set({ agentStatus: "idle", approval: null });
-    void invoke<Message[]>("list_messages", { conversationId }).then((messages) =>
-      set({ messages }),
-    );
-    void useChatStore.getState().loadConversations();
-  },
-}));
+      try {
+        await invoke("start_work_task", {
+          conversationId: sessionId,
+          projectId: activeProjectId,
+          request,
+        });
+      } catch (e) {
+        patchTab(activeProjectId, { agentStatus: "error", error: String(e) });
+      }
+    },
+
+    cancelTask: async () => {
+      const { activeSessionId } = get();
+      if (!activeSessionId) return;
+      try {
+        await invoke("cancel_work_task", { conversationId: activeSessionId });
+      } catch (e) {
+        patchSession(activeSessionId, { agentStatus: "idle", error: String(e) });
+      }
+    },
+
+    setApprovalLevel: async (projectId, level) => {
+      await invoke("set_project_approval_level", { projectId, level });
+      patchTab(projectId, { approvalLevel: level });
+      set((s) => ({
+        projects: s.projects.map((p) =>
+          p.id === projectId ? { ...p, approvalLevel: level } : p,
+        ),
+      }));
+    },
+
+    respond: async (approved) => {
+      const approval = get().approval;
+      if (!approval) return;
+      await invoke("respond_to_approval", {
+        toolCallId: approval.toolCallId,
+        approved,
+      });
+      patchSession(approval.conversationId, {
+        approval: null,
+        agentStatus: "running",
+      });
+    },
+
+    refreshToolSupport: async () => {
+      try {
+        const support = await invoke<boolean>("check_tool_support");
+        set({ toolSupport: support });
+      } catch {
+        set({ toolSupport: null });
+      }
+    },
+
+    clearError: () => {
+      const projectId = get().activeProjectId;
+      if (projectId) patchTab(projectId, { error: null, agentStatus: "idle" });
+    },
+
+    onPlan: (conversationId, tasks) => {
+      patchSession(conversationId, { tasks, stepLines: [], agentStatus: "running" });
+    },
+
+    onStepResult: (conversationId, tasks, toolName, ok, brief) => {
+      const projectId = projectOfSession(get().tabs, conversationId);
+      if (!projectId) return;
+      const tab = get().tabs[projectId];
+      if (!tab) return;
+      patchTab(projectId, {
+        tasks,
+        stepLines: [...tab.stepLines, { toolName, ok, brief }].slice(-30),
+      });
+      if (toolName === "write_file" && ok) {
+        set((s) => ({ treeVersion: s.treeVersion + 1 }));
+        void get().refreshGit(projectId);
+      }
+    },
+
+    onApprovalNeeded: (approval) => {
+      patchSession(approval.conversationId, { approval, agentStatus: "awaiting" });
+    },
+
+    onDone: (conversationId) => {
+      patchSession(conversationId, { agentStatus: "idle" });
+      reloadMessages(conversationId);
+      void useChatStore.getState().loadConversations();
+    },
+
+    onError: (conversationId, message) => {
+      patchSession(conversationId, { agentStatus: "error", error: message });
+      reloadMessages(conversationId);
+      void useChatStore.getState().loadConversations();
+    },
+
+    onCancelled: (conversationId) => {
+      patchSession(conversationId, { agentStatus: "idle", approval: null });
+      reloadMessages(conversationId);
+      void useChatStore.getState().loadConversations();
+    },
+  };
+});

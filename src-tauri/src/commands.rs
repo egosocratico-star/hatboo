@@ -84,7 +84,26 @@ pub fn delete_api_key(provider: String) -> Result<(), String> {
     providers::delete_api_key(&provider)
 }
 
+/// Lista los modelos instalados en un servidor Ollama para el selector de Ajustes.
+#[tauri::command]
+pub async fn list_local_models(endpoint: String) -> Result<Vec<String>, String> {
+    providers::list_ollama_models(&endpoint).await
+}
+
+/// Prueba de conexión para un proveedor (sin enviar un mensaje real).
+#[tauri::command]
+pub async fn test_provider(
+    provider: String,
+    model: String,
+    endpoint: String,
+) -> Result<String, String> {
+    providers::test_connection(&provider, &model, &endpoint).await
+}
+
 /// Carga el historial de la conversación en formato de proveedor.
+/// El texto de los adjuntos se antepone al contenido para el modelo, pero no se
+/// guarda en `content` (así la burbuja del chat sigue mostrando solo el mensaje
+/// del usuario y el archivo "vive con la conversación" al reenviarse cada turno).
 fn history(app: &AppState, conversation_id: &str) -> Result<Vec<ChatMessage>, String> {
     let conn = app.db.lock().map_err(|e| e.to_string())?;
     let messages = db::list_messages(&conn, conversation_id)?;
@@ -92,7 +111,15 @@ fn history(app: &AppState, conversation_id: &str) -> Result<Vec<ChatMessage>, St
         .into_iter()
         .map(|m| ChatMessage {
             role: m.role,
-            content: m.content,
+            content: if m.attachments.is_empty() {
+                m.content
+            } else {
+                let mut block = String::new();
+                for a in &m.attachments {
+                    block.push_str(&format!("[Archivo adjunto: {}]\n{}\n\n", a.name, a.text));
+                }
+                format!("{}{}", block, m.content)
+            },
         })
         .collect())
 }
@@ -102,13 +129,21 @@ pub async fn send_message(
     app: tauri::AppHandle,
     conversation_id: String,
     content: String,
+    attachments: Option<Vec<db::Attachment>>,
 ) -> Result<db::Message, String> {
-    let state = app.state::<AppState>();
-
+    let attachments = attachments.unwrap_or_default();
     // 1. Guardar el mensaje del usuario.
     let user_message = {
+        let state = app.state::<AppState>();
         let conn = state.db.lock().map_err(|e| e.to_string())?;
-        let msg = db::add_message(&conn, &conversation_id, "user", &content, None)?;
+        let msg = db::add_message_with_attachments(
+            &conn,
+            &conversation_id,
+            "user",
+            &content,
+            None,
+            &attachments,
+        )?;
         let conv_title: String = conn
             .query_row(
                 "SELECT title FROM conversations WHERE id = ?1",
@@ -123,12 +158,100 @@ pub async fn send_message(
         msg
     };
 
-    // 2. Resolver proveedor activo antes de hacer spawn.
+    // 2. Streaming en segundo plano con el historial recién guardado.
+    spawn_chat_stream(app, conversation_id)?;
+    Ok(user_message)
+}
+
+/// Regenera la última respuesta del asistente: la borra y vuelve a streaming
+/// con el historial restante (sin añadir un mensaje nuevo del usuario).
+#[tauri::command]
+pub async fn regenerate_response(
+    app: tauri::AppHandle,
+    conversation_id: String,
+) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    {
+        let conn = state.db.lock().map_err(|e| e.to_string())?;
+        db::delete_last_assistant_message(&conn, &conversation_id)?;
+    }
+    spawn_chat_stream(app, conversation_id)
+}
+
+/// Borra todos los mensajes de una conversación (More → Limpiar conversación),
+/// conservando la conversación misma.
+#[tauri::command]
+pub fn clear_conversation_messages(
+    app: State<AppState>,
+    conversation_id: String,
+) -> Result<(), String> {
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    db::clear_messages(&conn, &conversation_id)
+}
+
+/// Máximo de bytes que se leen de un archivo adjunto de texto (M2).
+const ATTACHMENT_MAX_BYTES: usize = 200_000;
+const ATTACHMENT_IMAGE_EXTS: [&str; 7] =
+    ["png", "jpg", "jpeg", "gif", "webp", "bmp", "ico"];
+
+/// Lee un archivo elegido por el usuario como texto para adjuntarlo a un mensaje.
+/// Solo texto: las imágenes (payload multimodal) y los binarios se rechazan con
+/// un aviso explícito. El contenido se trunca para no comerse la ventana de contexto.
+#[tauri::command]
+pub fn read_attachment(path: String) -> Result<db::Attachment, String> {
+    let canonical = std::path::Path::new(&path)
+        .canonicalize()
+        .map_err(|_| "No se encontró el archivo.".to_string())?;
+    if !canonical.is_file() {
+        return Err("La ruta seleccionada no es un archivo.".into());
+    }
+    let name = canonical
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "archivo".to_string());
+    let ext = canonical
+        .extension()
+        .map(|e| e.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    if ATTACHMENT_IMAGE_EXTS.contains(&ext.as_str()) {
+        return Err(format!(
+            "«{name}» es una imagen. Adjuntar imágenes llegará en una próxima \
+             versión; por ahora puedes adjuntar solo archivos de texto."
+        ));
+    }
+    let bytes = std::fs::read(&canonical).map_err(|e| format!("No se pudo leer: {e}"))?;
+    if bytes.contains(&0) {
+        return Err(format!(
+            "«{name}» parece un archivo binario y no se puede adjuntar como texto."
+        ));
+    }
+    let truncated = bytes.len() > ATTACHMENT_MAX_BYTES;
+    let slice = &bytes[..bytes.len().min(ATTACHMENT_MAX_BYTES)];
+    let mut text = String::from_utf8_lossy(slice).into_owned();
+    if truncated {
+        text.push_str("\n\n[... el archivo se truncó por tamaño ...]");
+    }
+    Ok(db::Attachment { name, text })
+}
+
+/// Lanza el streaming del proveedor para la conversación y emite chat:*.
+fn spawn_chat_stream(app: tauri::AppHandle, conversation_id: String) -> Result<(), String> {
+    let state = app.state::<AppState>();
     let provider = state::build_provider(&state)?;
-    let messages = history(&state, &conversation_id)?;
+    let mut messages = history(&state, &conversation_id)?;
+    let assistant_name = state::load_settings(&state).assistant_name;
+    let name = assistant_name.trim();
+    if !name.is_empty() {
+        messages.insert(
+            0,
+            ChatMessage {
+                role: "system".into(),
+                content: format!("El usuario prefiere que lo llames «{name}»."),
+            },
+        );
+    }
     let provider_name = provider.name().to_string();
 
-    // 3. Streaming en segundo plano: canal -> eventos Tauri.
     let (tx, mut rx) = tokio::sync::mpsc::channel::<String>(64);
     let conv_id = conversation_id.clone();
     let app_for_task = app.clone();
@@ -202,7 +325,7 @@ pub async fn send_message(
         }
     });
 
-    Ok(user_message)
+    Ok(())
 }
 
 // ---------- Fase 2: modo trabajo ----------
@@ -216,9 +339,17 @@ pub struct FileEntry {
 }
 
 fn register_project(app: &AppState, path: &str) -> Result<db::Project, String> {
-    let root = std::path::Path::new(path)
+    let mut root = std::path::Path::new(path)
         .canonicalize()
         .map_err(|e| format!("No se pudo abrir la carpeta: {e}"))?;
+    // Si llegó un archivo en vez de una carpeta, se registra su carpeta padre
+    // para que el proyecto se nombre por la carpeta y no por el archivo.
+    if root.is_file() {
+        root = root
+            .parent()
+            .ok_or("No se pudo determinar la carpeta del proyecto.")?
+            .to_path_buf();
+    }
     if !root.is_dir() {
         return Err("La ruta seleccionada no es una carpeta.".into());
     }
@@ -301,6 +432,57 @@ pub fn list_project_dir(
     Ok(out)
 }
 
+/// Busca archivos por nombre (sin distinguir mayúsculas) dentro del proyecto.
+#[tauri::command]
+pub async fn search_project_files(
+    app: State<'_, AppState>,
+    project_id: String,
+    query: String,
+) -> Result<Vec<String>, String> {
+    let root = {
+        let conn = app.db.lock().map_err(|e| e.to_string())?;
+        PathBuf::from(db::get_project(&conn, &project_id)?.root_path)
+    };
+    let needle = query.trim().to_lowercase();
+    if needle.is_empty() {
+        return Ok(Vec::new());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        const SKIP_DIRS: [&str; 5] = ["node_modules", "target", "dist", "build", ".git"];
+        let mut out: Vec<String> = Vec::new();
+        let mut stack = vec![root.clone()];
+        let mut visited = 0usize;
+        while let Some(dir) = stack.pop() {
+            if out.len() >= 100 || visited >= 20_000 {
+                break;
+            }
+            let Ok(read_dir) = std::fs::read_dir(&dir) else { continue };
+            for entry in read_dir.flatten() {
+                visited += 1;
+                let name = entry.file_name().to_string_lossy().into_owned();
+                let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
+                if is_dir {
+                    if name.starts_with('.') || SKIP_DIRS.contains(&name.as_str()) {
+                        continue;
+                    }
+                    stack.push(entry.path());
+                } else if name.to_lowercase().contains(&needle) {
+                    if let Ok(rel) = entry.path().strip_prefix(&root) {
+                        out.push(rel.to_string_lossy().replace('\\', "/"));
+                    }
+                    if out.len() >= 100 {
+                        break;
+                    }
+                }
+            }
+        }
+        out.sort();
+        Ok(out)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 pub fn get_tasks(app: State<AppState>, conversation_id: String) -> Result<Vec<db::Task>, String> {
     let conn = app.db.lock().map_err(|e| e.to_string())?;
@@ -316,7 +498,7 @@ pub async fn start_work_task(
     request: String,
 ) -> Result<(), String> {
     let state = app.state::<AppState>();
-    let root = {
+    let (root, approval_level) = {
         let conn = state.db.lock().map_err(|e| e.to_string())?;
         let project = db::get_project(&conn, &project_id)?;
         db::add_message(&conn, &conversation_id, "user", &request, Some("agent"))?;
@@ -332,8 +514,9 @@ pub async fn start_work_task(
             let _ = db::rename_conversation(&conn, &conversation_id, short.trim());
         }
         db::touch_project(&conn, &project_id)?;
-        PathBuf::from(project.root_path)
+        (PathBuf::from(project.root_path), project.approval_level)
     };
+    let assistant_name = state::load_settings(&state).assistant_name;
 
     let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel::<()>();
     state
@@ -348,12 +531,29 @@ pub async fn start_work_task(
             app_for_task,
             conversation_id,
             root,
+            approval_level,
+            assistant_name,
             request,
             cancel_rx,
         )
         .await;
     });
     Ok(())
+}
+
+/// Cambia el nivel de aprobación de un proyecto (config por proyecto).
+#[tauri::command]
+pub fn set_project_approval_level(
+    app: State<AppState>,
+    project_id: String,
+    level: String,
+) -> Result<(), String> {
+    const VALID: [&str; 4] = ["ask_always", "approve_for_me", "auto_sandbox", "full_access"];
+    if !VALID.contains(&level.as_str()) {
+        return Err(format!("Nivel de aprobación desconocido: {level}"));
+    }
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    db::set_project_approval_level(&conn, &project_id, &level)
 }
 
 /// Pide cancelar una tarea del agente en curso.
@@ -403,4 +603,43 @@ pub async fn check_tool_support(app: State<'_, AppState>) -> Result<bool, String
         .await),
         other => Err(format!("Proveedor desconocido: {other}")),
     }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitInfo {
+    pub is_repo: bool,
+    pub branch: Option<String>,
+    pub dirty_count: usize,
+}
+
+/// Estado git del proyecto para la cabecera de la vista de trabajo.
+#[tauri::command]
+pub async fn project_git_info(
+    app: State<'_, AppState>,
+    project_id: String,
+) -> Result<GitInfo, String> {
+    let root = {
+        let conn = app.db.lock().map_err(|e| e.to_string())?;
+        PathBuf::from(db::get_project(&conn, &project_id)?.root_path)
+    };
+    let info = tauri::async_runtime::spawn_blocking(move || {
+        use crate::agent::tools::git;
+        if !git::is_git_repo(&root) {
+            return GitInfo {
+                is_repo: false,
+                branch: None,
+                dirty_count: 0,
+            };
+        }
+        let (branch, dirty_count) = git::repo_summary(&root).unwrap_or_default();
+        GitInfo {
+            is_repo: true,
+            branch: Some(branch),
+            dirty_count,
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(info)
 }

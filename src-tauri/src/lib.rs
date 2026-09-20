@@ -24,6 +24,11 @@ pub fn run() {
             commands::delete_conversation,
             commands::list_messages,
             commands::send_message,
+            commands::regenerate_response,
+            commands::clear_conversation_messages,
+            commands::read_attachment,
+            commands::list_local_models,
+            commands::test_provider,
             commands::get_settings,
             commands::update_settings,
             commands::set_api_key,
@@ -34,11 +39,14 @@ pub fn run() {
             commands::list_projects,
             commands::delete_project,
             commands::list_project_dir,
+            commands::search_project_files,
             commands::get_tasks,
             commands::start_work_task,
+            commands::set_project_approval_level,
             commands::cancel_work_task,
             commands::respond_to_approval,
-            commands::check_tool_support
+            commands::check_tool_support,
+            commands::project_git_info
         ])
         .run(tauri::generate_context!())
         .expect("error while running Hatboo");

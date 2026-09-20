@@ -1,4 +1,4 @@
-use hatboo_lib::agent::tools::{self, AgentTool};
+use hatboo_lib::agent::tools;
 use hatboo_lib::providers::tool_calling::{
     local_supports_tools, AgentMessage, AgentResponse, ToolCallingProvider,
 };

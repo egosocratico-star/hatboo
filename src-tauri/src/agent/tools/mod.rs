@@ -1,3 +1,4 @@
+pub mod git;
 pub mod list_dir;
 pub mod read_file;
 pub mod run_command;
@@ -9,6 +10,7 @@ use serde::Serialize;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
+pub use git::{GitCommitTool, GitDiffTool, GitLogTool, GitStatusTool};
 pub use list_dir::ListDirTool;
 pub use read_file::ReadFileTool;
 pub use run_command::RunCommandTool;
@@ -25,6 +27,12 @@ pub enum ToolError {
     Other(String),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RiskLevel {
+    Low,
+    High,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolDefinition {
@@ -37,7 +45,7 @@ pub struct ToolDefinition {
 pub trait AgentTool: Send + Sync {
     fn name(&self) -> &str;
     fn description(&self) -> &str;
-    fn requires_approval(&self) -> bool;
+    fn risk_level(&self) -> RiskLevel;
     fn input_schema(&self) -> Value;
 
     fn definition(&self) -> ToolDefinition {
@@ -102,6 +110,10 @@ pub fn build_tools(run_command_enabled: bool) -> Vec<Box<dyn AgentTool>> {
         Box::new(ListDirTool),
         Box::new(SearchFilesTool),
         Box::new(WriteFileTool),
+        Box::new(GitStatusTool),
+        Box::new(GitDiffTool),
+        Box::new(GitLogTool),
+        Box::new(GitCommitTool),
     ];
     if run_command_enabled {
         tools.push(Box::new(RunCommandTool));

@@ -4,6 +4,7 @@ import { useWorkStore } from "../../store/workStore";
 
 export default function ToolApprovalModal() {
   const approval = useWorkStore((s) => s.approval);
+  const approvalLevel = useWorkStore((s) => s.approvalLevel);
   const respond = useWorkStore((s) => s.respond);
   const [busy, setBusy] = useState(false);
 
@@ -28,6 +29,11 @@ export default function ToolApprovalModal() {
             El agente quiere ejecutar{" "}
             <span className="text-accent-soft font-mono">{approval.toolName}</span>
           </h2>
+          {approvalLevel === "ask_always" && (
+            <span className="ml-auto text-[10px] uppercase tracking-wider text-amber-300/80 shrink-0">
+              Preguntar siempre
+            </span>
+          )}
         </div>
 
         <div className="px-5 py-4 space-y-3 max-h-[55vh] overflow-y-auto">

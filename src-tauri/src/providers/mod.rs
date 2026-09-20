@@ -135,3 +135,134 @@ pub fn delete_api_key(provider: &str) -> Result<(), String> {
         Err(e) => Err(e.to_string()),
     }
 }
+
+// ---------- Sonda de conexión y catálogo de modelos ----------
+
+/// Lista los modelos disponibles en un servidor Ollama (`GET /api/tags`).
+pub async fn list_ollama_models(endpoint: &str) -> Result<Vec<String>, String> {
+    let base = endpoint.trim_end_matches('/');
+    let url = format!("{base}/api/tags");
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(6))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("No se pudo conectar con {url}: {e}"))?;
+    let response = match check_response(response, "Ollama").await {
+        Ok(r) => r,
+        Err(e) => return Err(e.to_string()),
+    };
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Respuesta inesperada de Ollama: {e}"))?;
+    let models = value["models"]
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|m| m["name"].as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default();
+    Ok(models)
+}
+
+/// Prueba la conexión de un proveedor sin enviar un mensaje real.
+/// Devuelve un mensaje legible con el resultado.
+pub async fn test_connection(
+    provider: &str,
+    model: &str,
+    endpoint: &str,
+) -> Result<String, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    match provider {
+        "local" => {
+            let models = list_ollama_models(endpoint).await?;
+            Ok(format!(
+                "Conexión correcta. {} modelo(s) disponible(s).",
+                models.len()
+            ))
+        }
+        "anthropic" => {
+            let key = get_api_key("anthropic")
+                .ok_or_else(|| "Falta la API key de Anthropic.".to_string())?;
+            let response = client
+                .get("https://api.anthropic.com/v1/models")
+                .header("x-api-key", &key)
+                .header("anthropic-version", "2023-06-01")
+                .send()
+                .await
+                .map_err(|e| format!("No se pudo conectar con Anthropic: {e}"))?;
+            let status = response.status();
+            if status == reqwest::StatusCode::UNAUTHORIZED {
+                return Err("API key inválida para Anthropic (401).".into());
+            }
+            if !status.is_success() {
+                let body = response.text().await.unwrap_or_default();
+                return Err(format!("Anthropic devolvió {status}: {body}"));
+            }
+            let value: serde_json::Value = response
+                .json()
+                .await
+                .map_err(|e| format!("Respuesta inesperada: {e}"))?;
+            let known = value["data"]
+                .as_array()
+                .map(|arr| {
+                    arr.iter()
+                        .any(|m| m["id"].as_str() == Some(model))
+                })
+                .unwrap_or(false);
+            if known {
+                Ok(format!("Conexión correcta. Modelo «{model}» disponible."))
+            } else {
+                Ok(format!(
+                    "Conexión correcta, pero «{model}» no aparece en tu lista de modelos."
+                ))
+            }
+        }
+        "openai" => {
+            let key = get_api_key("openai")
+                .ok_or_else(|| "Falta la API key de OpenAI.".to_string())?;
+            let response = client
+                .get("https://api.openai.com/v1/models")
+                .bearer_auth(&key)
+                .send()
+                .await
+                .map_err(|e| format!("No se pudo conectar con OpenAI: {e}"))?;
+            let status = response.status();
+            if status == reqwest::StatusCode::UNAUTHORIZED {
+                return Err("API key inválida para OpenAI (401).".into());
+            }
+            if !status.is_success() {
+                let body = response.text().await.unwrap_or_default();
+                return Err(format!("OpenAI devolvió {status}: {body}"));
+            }
+            let value: serde_json::Value = response
+                .json()
+                .await
+                .map_err(|e| format!("Respuesta inesperada: {e}"))?;
+            let known = value["data"]
+                .as_array()
+                .map(|arr| {
+                    arr.iter()
+                        .any(|m| m["id"].as_str() == Some(model))
+                })
+                .unwrap_or(false);
+            if known {
+                Ok(format!("Conexión correcta. Modelo «{model}» disponible."))
+            } else {
+                Ok(format!(
+                    "Conexión correcta, pero «{model}» no aparece en tu lista de modelos."
+                ))
+            }
+        }
+        other => Err(format!("Proveedor desconocido: {other}")),
+    }
+}

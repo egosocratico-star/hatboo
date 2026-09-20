@@ -1,4 +1,4 @@
-use crate::agent::tools::{self, ToolDefinition};
+use crate::agent::tools::{self, RiskLevel, ToolDefinition};
 use crate::db;
 use crate::providers::tool_calling::{AgentMessage, AgentResponse, ToolCallRequest};
 use crate::state::{self, AppState};
@@ -85,8 +85,56 @@ fn meta_tool_definitions() -> Vec<ToolDefinition> {
     ]
 }
 
-fn system_prompt(project_root: &Path) -> String {
+/// Cruce entre el nivel de aprobación elegido por el usuario y el riesgo de la tool.
+/// `auto_sandbox` y `full_access` nunca piden aprobación: hoy todas las tools ya
+/// operan dentro del sandbox del proyecto (Acceso total no lo relaja).
+fn needs_approval(approval_level: &str, risk: RiskLevel) -> bool {
+    match approval_level {
+        "ask_always" => true,
+        "auto_sandbox" | "full_access" => false,
+        // 'approve_for_me' y cualquier valor desconocido: el default conservador.
+        _ => matches!(risk, RiskLevel::High),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{needs_approval, RiskLevel};
+
+    #[test]
+    fn approval_levels_cross_with_risk() {
+        let low = RiskLevel::Low;
+        let high = RiskLevel::High;
+        assert!(needs_approval("ask_always", low));
+        assert!(needs_approval("ask_always", high));
+        assert!(!needs_approval("approve_for_me", low));
+        assert!(needs_approval("approve_for_me", high));
+        assert!(!needs_approval("auto_sandbox", low));
+        assert!(!needs_approval("auto_sandbox", high));
+        assert!(!needs_approval("full_access", low));
+        assert!(!needs_approval("full_access", high));
+        // Un valor desconocido se comporta como el default conservador.
+        assert!(!needs_approval("", low));
+        assert!(needs_approval("", high));
+    }
+}
+
+fn system_prompt(project_root: &Path, approval_level: &str, assistant_name: &str) -> String {
     let listing = list_dir_brief(project_root);
+    let approval_rule = match approval_level {
+        "ask_always" => "El usuario aprueba TODAS tus acciones (incluidas lecturas); no te sorprendas si cada tool call pide confirmación.".to_string(),
+        "auto_sandbox" => "Ejecutas todas las herramientas sin pedir aprobación (dentro del proyecto).".to_string(),
+        "full_access" => "Ejecutas todas las herramientas sin pedir aprobación (dentro del proyecto).".to_string(),
+        _ => "write_file, run_command y git_commit pedirán aprobación al usuario; las demás corren solas.".to_string(),
+    };
+    let name_rule = if assistant_name.trim().is_empty() {
+        String::new()
+    } else {
+        format!(
+            "8. El usuario prefiere que lo llames «{}».\n",
+            assistant_name.trim()
+        )
+    };
     format!(
         "Eres Hatboo, un agente de trabajo que opera DENTRO del proyecto del usuario.\n\
          Raíz del proyecto: {}\n\n\
@@ -94,12 +142,16 @@ fn system_prompt(project_root: &Path) -> String {
          Reglas obligatorias:\n\
          1. Primero llama a submit_plan con los pasos necesarios (máximo 6, concretos).\n\
          2. Antes de trabajar en un paso márcalo con update_step a in_progress; al acabarlo, a done.\n\
-         3. Usa read_file / list_dir / search_files sin problema; write_file y run_command pidenán aprobación al usuario.\n\
+         3. {}\n\
          4. Todas las rutas son relativas a la raíz del proyecto; nunca intentes salir de ella.\n\
-         5. Cuando hayas terminado todos los pasos, responde SOLO con un resumen final en español, sin tool calls.\n\
-         6. Responde siempre en español al usuario.",
+         5. Si el proyecto es un repositorio git, revisa git_status antes de proponer un commit, y nunca propongas git_commit sin que el usuario lo pida explícitamente.\n\
+         6. Cuando hayas terminado todos los pasos, responde SOLO con un resumen final en español, sin tool calls.\n\
+         7. Responde siempre en español al usuario.\n\
+         {}",
         project_root.display(),
-        listing
+        listing,
+        approval_rule,
+        name_rule
     )
 }
 
@@ -145,11 +197,20 @@ pub async fn run_work_task(
     app: tauri::AppHandle,
     conversation_id: String,
     project_root: PathBuf,
+    approval_level: String,
+    assistant_name: String,
     user_request: String,
     mut cancel_rx: tokio::sync::oneshot::Receiver<()>,
 ) {
     let result = {
-        let inner = run_loop(&app, &conversation_id, &project_root, &user_request);
+        let inner = run_loop(
+            &app,
+            &conversation_id,
+            &project_root,
+            &approval_level,
+            &assistant_name,
+            &user_request,
+        );
         tokio::select! {
             res = inner => res,
             _ = &mut cancel_rx => Err(CANCEL_MARK.to_string()),
@@ -208,6 +269,8 @@ async fn run_loop(
     app: &tauri::AppHandle,
     conversation_id: &str,
     project_root: &Path,
+    approval_level: &str,
+    assistant_name: &str,
     user_request: &str,
 ) -> Result<(), String> {
     let state = app.state::<AppState>();
@@ -220,7 +283,7 @@ async fn run_loop(
     let mut messages = vec![
         AgentMessage {
             role: "system".into(),
-            content: system_prompt(project_root),
+            content: system_prompt(project_root, approval_level, assistant_name),
             tool_calls: Vec::new(),
             tool_call_id: None,
         },
@@ -263,7 +326,15 @@ async fn run_loop(
                     } else if call.name == "update_step" {
                         handle_update_step(app, conversation_id, &call).await?
                     } else {
-                        handle_agent_tool(app, conversation_id, project_root, &agent_tools, &call).await?
+                        handle_agent_tool(
+                            app,
+                            conversation_id,
+                            project_root,
+                            approval_level,
+                            &agent_tools,
+                            &call,
+                        )
+                        .await?
                     };
                     messages.push(AgentMessage {
                         role: "tool".into(),
@@ -350,6 +421,7 @@ async fn handle_agent_tool(
     app: &tauri::AppHandle,
     conversation_id: &str,
     project_root: &Path,
+    approval_level: &str,
     agent_tools: &[Box<dyn tools::AgentTool>],
     call: &ToolCallRequest,
 ) -> Result<(String, bool), String> {
@@ -368,7 +440,7 @@ async fn handle_agent_tool(
     let tool_call_id = uuid::Uuid::new_v4().to_string();
     let mut has_approval_row = false;
 
-    if tool.requires_approval() {
+    if needs_approval(approval_level, tool.risk_level()) {
         has_approval_row = true;
         let preview = tool.preview(&call.input, project_root);
         {

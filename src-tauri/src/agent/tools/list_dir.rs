@@ -1,4 +1,4 @@
-use super::{resolve_in_project, AgentTool, ToolError};
+use super::{resolve_in_project, AgentTool, RiskLevel, ToolError};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::path::Path;
@@ -15,8 +15,8 @@ impl AgentTool for ListDirTool {
         "Lista el contenido de una carpeta del proyecto (nombre, si es archivo o directorio y tamaño). Ruta vacía = raíz del proyecto."
     }
 
-    fn requires_approval(&self) -> bool {
-        false
+    fn risk_level(&self) -> RiskLevel {
+        RiskLevel::Low
     }
 
     fn input_schema(&self) -> Value {

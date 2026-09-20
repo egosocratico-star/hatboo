@@ -1,4 +1,4 @@
-use super::{resolve_in_project, AgentTool, ToolError};
+use super::{resolve_in_project, AgentTool, RiskLevel, ToolError};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use similar::{ChangeTag, TextDiff};
@@ -62,8 +62,8 @@ impl AgentTool for WriteFileTool {
         "Crea o sobreescribe un archivo de texto dentro del proyecto. Requiere aprobación del usuario; se muestra un diff antes de aplicar."
     }
 
-    fn requires_approval(&self) -> bool {
-        true
+    fn risk_level(&self) -> RiskLevel {
+        RiskLevel::High
     }
 
     fn input_schema(&self) -> Value {

@@ -1,12 +1,19 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, Send, Square, X, FolderTree, Plus } from "lucide-react";
+import {
+  AlertCircle,
+  Send,
+  Square,
+  X,
+  FolderTree,
+  GitBranch,
+} from "lucide-react";
 import { useWorkStore } from "../../store/workStore";
-import { useChatStore } from "../../store/chatStore";
 import MessageBubble from "../MessageBubble";
 import Mascot from "../mascot/Mascot";
 import FileTree from "./FileTree";
 import TaskList from "./TaskList";
 import ToolApprovalModal from "./ToolApprovalModal";
+import ApprovalLevelPicker from "./ApprovalLevelPicker";
 import type { MascotState } from "../../types";
 
 export default function ProjectView() {
@@ -21,21 +28,27 @@ export default function ProjectView() {
   const error = useWorkStore((s) => s.error);
   const newProjectDraft = useWorkStore((s) => s.newProjectDraft);
   const treeVersion = useWorkStore((s) => s.treeVersion);
-  const activeSessionId = useWorkStore((s) => s.activeSessionId);
+  const git = useWorkStore((s) => s.tabs[s.activeProjectId ?? ""]?.git ?? null);
+  const approvalLevel = useWorkStore(
+    (s) => s.tabs[s.activeProjectId ?? ""]?.approvalLevel ?? "approve_for_me",
+  );
   const startTask = useWorkStore((s) => s.startTask);
   const cancelTask = useWorkStore((s) => s.cancelTask);
   const clearError = useWorkStore((s) => s.clearError);
   const confirmCreateProject = useWorkStore((s) => s.confirmCreateProject);
   const cancelCreateProject = useWorkStore((s) => s.cancelCreateProject);
-  const newWorkSession = useWorkStore((s) => s.newWorkSession);
-  const selectSession = useWorkStore((s) => s.selectSession);
+  const selectProject = useWorkStore((s) => s.selectProject);
+  const closeTab = useWorkStore((s) => s.closeTab);
+  const refreshGit = useWorkStore((s) => s.refreshGit);
 
-  const allConversations = useChatStore((s) => s.conversations);
-  const sessions = allConversations
-    .filter((c) => c.projectId === project?.id)
-    .sort((a, b) => b.updatedAt - a.updatedAt);
+  const activeProjectId = useWorkStore((s) => s.activeProjectId);
+  const tabs = useWorkStore((s) => s.tabs);
+  const openProjectIds = Object.keys(tabs);
 
-  const [input, setInput] = useState("");
+  const [inputByProject, setInputByProject] = useState<Record<string, string>>({});
+  const input = activeProjectId ? (inputByProject[activeProjectId] ?? "") : "";
+  const setInput = (value: string) =>
+    setInputByProject((m) => ({ ...m, [activeProjectId ?? ""]: value }));
   const [treeOpen, setTreeOpen] = useState(true);
   const [newName, setNewName] = useState("");
   const [happy, setHappy] = useState(false);
@@ -45,6 +58,11 @@ export default function ProjectView() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, tasks, stepLines]);
+
+  // Al terminar una tarea (o escribir archivos), refrescamos el estado git.
+  useEffect(() => {
+    if (activeProjectId && agentStatus === "idle") void refreshGit(activeProjectId);
+  }, [activeProjectId, agentStatus, treeVersion, refreshGit]);
 
   useEffect(() => {
     if (prevStatus.current === "running" && agentStatus === "idle") {
@@ -82,23 +100,74 @@ export default function ProjectView() {
     }
   };
 
+  const TabBar = (
+    <div className="shrink-0 flex items-center gap-1 px-2 pt-2 overflow-x-auto">
+      {openProjectIds.map((id) => {
+        const p = useWorkStore.getState().projects.find((pr) => pr.id === id);
+        const status = tabs[id]?.agentStatus ?? "idle";
+        const isActive = id === activeProjectId;
+        return (
+          <div
+            key={id}
+            className={`group flex items-center gap-1.5 max-w-44 rounded-t-lg border border-b-0 px-3 py-1.5 text-xs cursor-pointer transition-colors ${
+              isActive
+                ? "bg-base-raised border-base-border text-zinc-100"
+                : "bg-transparent border-transparent text-zinc-500 hover:bg-base-hover hover:text-zinc-300"
+            }`}
+            onClick={() => void selectProject(id)}
+            title={p?.rootPath}
+          >
+            <span
+              className={`w-1.5 h-1.5 shrink-0 rounded-full ${
+                status === "running"
+                  ? "bg-accent-soft animate-pulse"
+                  : status === "awaiting"
+                    ? "bg-amber-400"
+                    : status === "error"
+                      ? "bg-red-400"
+                      : "bg-zinc-600"
+              }`}
+            />
+            <span className="truncate">{p?.name ?? "Proyecto"}</span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                closeTab(id);
+              }}
+              disabled={status === "running" || status === "awaiting"}
+              className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-base text-zinc-500 hover:text-white transition-all disabled:cursor-not-allowed"
+              title="Cerrar pestaña"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+
   if (!project) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6">
-        <Mascot state="idle" size={140} />
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Modo <span className="text-accent-soft">Trabajo</span>
-        </h1>
-        <p className="text-sm text-zinc-500 max-w-md text-center">
-          Abre una carpeta existente o crea un proyecto nuevo desde la barra
-          lateral para que Hatboo pueda leer, escribir y ejecutar dentro de él.
-        </p>
+      <div className="flex-1 flex flex-col min-h-0">
+        {openProjectIds.length > 0 && TabBar}
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6">
+          <Mascot state="idle" size={140} />
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Modo <span className="text-accent-soft">Trabajo</span>
+          </h1>
+          <p className="text-sm text-zinc-500 max-w-md text-center">
+            Abre una carpeta existente o crea un proyecto nuevo desde la barra
+            lateral para que Hatboo pueda leer, escribir y ejecutar dentro de él.
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 flex h-full min-w-0">
+    <div className="flex-1 flex flex-col min-h-0">
+      {openProjectIds.length > 0 && TabBar}
+      <div className="flex-1 flex min-h-0">
       {treeOpen && (
         <div className="w-60 shrink-0 border-r border-base-border bg-base-raised/40">
           <div className="flex items-center gap-2 px-3 py-2 border-b border-base-border text-xs font-medium text-zinc-400 uppercase tracking-wider">
@@ -122,37 +191,35 @@ export default function ProjectView() {
             <div className="text-sm font-medium truncate">{project.name}</div>
             <div className="text-[10px] text-zinc-600 truncate">{project.rootPath}</div>
           </div>
+          {git?.isRepo && git.branch && (
+            <button
+              onClick={() => void refreshGit(project.id)}
+              className="shrink-0 flex items-center gap-1.5 rounded-lg border border-base-border bg-base-raised px-2 py-1 text-[11px] text-zinc-400 hover:border-accent/50 hover:text-zinc-200 transition-colors"
+              title={`Rama ${git.branch} · ${git.dirtyCount} archivo(s) con cambios`}
+            >
+              <GitBranch className="w-3.5 h-3.5 text-accent-soft" />
+              <span className="font-mono max-w-28 truncate">{git.branch}</span>
+              {git.dirtyCount > 0 && (
+                <span className="rounded-full bg-amber-500/20 text-amber-300 px-1.5 text-[10px] font-medium">
+                  {git.dirtyCount}
+                </span>
+              )}
+            </button>
+          )}
           <div className="ml-auto flex items-center gap-2">
-            {project && sessions.length > 0 && (
-              <>
-                <select
-                  value={activeSessionId ?? ""}
-                  onChange={(e) => {
-                    if (e.target.value) void selectSession(e.target.value);
-                  }}
-                  disabled={agentStatus === "running" || agentStatus === "awaiting"}
-                  className="max-w-48 rounded-lg border border-base-border bg-base px-2 py-1.5 text-xs text-zinc-300 outline-none focus:border-accent/70 disabled:opacity-50"
-                  title="Sesiones de este proyecto"
-                >
-                  {sessions.map((sess) => (
-                    <option key={sess.id} value={sess.id}>
-                      {sess.title}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  onClick={() => void newWorkSession(project.id)}
-                  disabled={agentStatus === "running" || agentStatus === "awaiting"}
-                  className="p-1.5 rounded-lg border border-base-border text-zinc-400 hover:text-white hover:border-accent/50 transition-colors disabled:opacity-40"
-                  title="Nueva sesión de trabajo"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
-              </>
-            )}
+            <ApprovalLevelPicker projectId={project.id} />
             <Mascot state={mascotState} size={32} />
           </div>
         </header>
+
+        {approvalLevel === "full_access" && (
+          <div className="mx-4 mt-3 rounded-lg border border-red-500/50 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+            <span className="font-semibold">Acceso total activo:</span> el agente
+            ejecuta todas las acciones sin pedir aprobación, incluida escritura
+            de archivos y comandos. Las rutas siguen limitadas a la carpeta del
+            proyecto.
+          </div>
+        )}
 
         {toolSupport === false && (
           <div className="mx-4 mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
@@ -205,6 +272,7 @@ export default function ProjectView() {
         <div className="shrink-0 border-t border-base-border bg-base-raised/60 px-6 py-4">
           <div className="flex items-end gap-2 rounded-xl border border-base-border bg-base px-3 py-2 focus-within:border-accent/70 transition-colors">
             <textarea
+              id="work-task-input"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
@@ -286,6 +354,7 @@ export default function ProjectView() {
           </form>
         </div>
       )}
+      </div>
     </div>
   );
 }

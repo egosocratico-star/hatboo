@@ -1,9 +1,11 @@
-use super::{resolve_in_project, AgentTool, ToolError};
+use super::{resolve_in_project, AgentTool, RiskLevel, ToolError};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::path::Path;
 
 const MAX_BYTES: u64 = 200_000;
+
+const IMAGE_EXTS: [&str; 7] = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "ico"];
 
 pub struct ReadFileTool;
 
@@ -14,11 +16,11 @@ impl AgentTool for ReadFileTool {
     }
 
     fn description(&self) -> &str {
-        "Lee el contenido de texto de un archivo dentro del proyecto. Recibe una ruta relativa a la raíz del proyecto."
+        "Lee el contenido de texto de un archivo dentro del proyecto. Recibe una ruta relativa a la raíz del proyecto. Solo funciona con archivos de texto: no lee imágenes ni binarios."
     }
 
-    fn requires_approval(&self) -> bool {
-        false
+    fn risk_level(&self) -> RiskLevel {
+        RiskLevel::Low
     }
 
     fn input_schema(&self) -> Value {
@@ -41,6 +43,17 @@ impl AgentTool for ReadFileTool {
             .map_err(|_| ToolError::Other(format!("No existe el archivo: {rel}")))?;
         if !meta.is_file() {
             return Err(ToolError::Other(format!("No es un archivo: {rel}")));
+        }
+        let ext = path
+            .extension()
+            .map(|e| e.to_string_lossy().to_ascii_lowercase())
+            .unwrap_or_default();
+        if IMAGE_EXTS.contains(&ext.as_str()) {
+            return Err(ToolError::Other(format!(
+                "{rel} es una imagen. El agente solo maneja texto y no puede ver imágenes; \
+                 no hay modelo (con o sin visión) que reciba la imagen por esta vía. \
+                 Trabaja a partir del HTML/CSS del mockup o pide al usuario que describa el diseño."
+            )));
         }
         if meta.len() > MAX_BYTES {
             return Err(ToolError::Other(format!(

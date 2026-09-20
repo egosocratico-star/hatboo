@@ -34,6 +34,8 @@ pub struct Settings {
     pub theme: String,
     #[serde(default)]
     pub run_command_enabled: bool,
+    #[serde(default)]
+    pub assistant_name: String,
 }
 
 impl Default for Settings {
@@ -46,6 +48,7 @@ impl Default for Settings {
             local_model: "llama3.2".to_string(),
             theme: "dark".to_string(),
             run_command_enabled: false,
+            assistant_name: String::new(),
         }
     }
 }

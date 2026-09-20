@@ -33,3 +33,65 @@ fn crud_roundtrip() {
 
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn attachments_roundtrip_and_clear_messages() {
+    let dir = std::env::temp_dir().join(format!("hatboo-test-{}", uuid::Uuid::new_v4()));
+    let conn = db::connect(&dir.join("test.db")).expect("connect+migrate");
+
+    let conv = db::create_conversation(&conn, "T", None).unwrap();
+    let atts = [
+        db::Attachment { name: "notas.md".into(), text: "# hola".into() },
+        db::Attachment { name: "datos.csv".into(), text: "a,b\n1,2".into() },
+    ];
+    db::add_message_with_attachments(&conn, &conv.id, "user", "mira esto", None, &atts)
+        .unwrap();
+    db::add_message(&conn, &conv.id, "assistant", "ok", Some("local")).unwrap();
+
+    let msgs = db::list_messages(&conn, &conv.id).unwrap();
+    // El texto del adjunto NO se mezcla con content: la burbuja sigue limpia.
+    assert_eq!(msgs[0].content, "mira esto");
+    assert_eq!(msgs[0].attachments.len(), 2);
+    assert_eq!(msgs[0].attachments[0].name, "notas.md");
+    assert_eq!(msgs[0].attachments[1].text, "a,b\n1,2");
+    // Mensaje sin adjuntos → lista vacía, no nula.
+    assert!(msgs[1].attachments.is_empty());
+
+    // Limpiar conserva la conversación y vacía los mensajes.
+    db::clear_messages(&conn, &conv.id).unwrap();
+    assert!(db::list_messages(&conn, &conv.id).unwrap().is_empty());
+    assert_eq!(db::list_conversations(&conn).unwrap().len(), 1);
+
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn delete_last_assistant_message_removes_only_the_last() {
+    let dir = std::env::temp_dir().join(format!("hatboo-test-{}", uuid::Uuid::new_v4()));
+    let conn = db::connect(&dir.join("test.db")).expect("connect+migrate");
+
+    let conv = db::create_conversation(&conn, "T", None).unwrap();
+    db::add_message(&conn, &conv.id, "user", "pregunta", None).unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(5));
+    db::add_message(&conn, &conv.id, "assistant", "primera", Some("local")).unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(5));
+    db::add_message(&conn, &conv.id, "assistant", "segunda", Some("local")).unwrap();
+
+    db::delete_last_assistant_message(&conn, &conv.id).unwrap();
+    let remaining: Vec<String> = db::list_messages(&conn, &conv.id)
+        .unwrap()
+        .into_iter()
+        .map(|m| m.content)
+        .collect();
+    assert_eq!(remaining, ["pregunta", "primera"]);
+
+    // Sin respuestas assistant ya no queda nada que borrar.
+    db::delete_last_assistant_message(&conn, &conv.id).unwrap();
+    assert!(db::list_messages(&conn, &conv.id)
+        .unwrap()
+        .iter()
+        .all(|m| m.role == "user"));
+    assert!(db::delete_last_assistant_message(&conn, &conv.id).is_err());
+
+    let _ = std::fs::remove_dir_all(dir);
+}

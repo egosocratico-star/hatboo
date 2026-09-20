@@ -1,4 +1,4 @@
-use super::{AgentTool, ToolError};
+use super::{AgentTool, RiskLevel, ToolError};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::path::Path;
@@ -19,8 +19,8 @@ impl AgentTool for RunCommandTool {
         "Ejecuta un comando de shell dentro de la carpeta del proyecto. Siempre requiere aprobación explícita del usuario."
     }
 
-    fn requires_approval(&self) -> bool {
-        true
+    fn risk_level(&self) -> RiskLevel {
+        RiskLevel::High
     }
 
     fn input_schema(&self) -> Value {
