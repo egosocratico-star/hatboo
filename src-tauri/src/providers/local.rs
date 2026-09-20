@@ -23,6 +23,13 @@ impl LocalProvider {
     pub(crate) fn openai_inner(&self) -> &super::openai::OpenAiProvider {
         &self.inner
     }
+
+    /// Ollama expone el mismo campo `reasoning_effort` en su endpoint
+    /// compatible con OpenAI; `"off"` deja la petición como siempre.
+    pub fn with_reasoning(mut self, effort: &str) -> Self {
+        self.inner = self.inner.with_reasoning(effort);
+        self
+    }
 }
 
 #[async_trait]

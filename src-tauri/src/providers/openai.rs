@@ -11,6 +11,8 @@ pub struct OpenAiProvider {
     api_key: String,
     model: String,
     base_url: String,
+    /// `low` | `medium` | `high`; `None` = no se manda el campo (comportamiento actual).
+    reasoning_effort: Option<String>,
 }
 
 impl OpenAiProvider {
@@ -19,6 +21,7 @@ impl OpenAiProvider {
             api_key,
             model,
             base_url: OPENAI_URL.to_string(),
+            reasoning_effort: None,
         }
     }
 
@@ -27,7 +30,18 @@ impl OpenAiProvider {
             api_key,
             model,
             base_url,
+            reasoning_effort: None,
         }
+    }
+
+    /// Activa el razonamiento extendido. `"off"` o un valor desconocido dejan
+    /// el cuerpo de petición intacto.
+    pub fn with_reasoning(mut self, effort: &str) -> Self {
+        self.reasoning_effort = match effort {
+            "low" | "medium" | "high" => Some(effort.to_string()),
+            _ => None,
+        };
+        self
     }
 
     pub(crate) fn model(&self) -> &str {
@@ -61,6 +75,9 @@ impl OpenAiProvider {
             })
             .collect();
         let mut body = json!({ "model": self.model, "messages": chat });
+        if let Some(effort) = &self.reasoning_effort {
+            body["reasoning_effort"] = json!(effort);
+        }
         if stream {
             body["stream"] = json!(true);
         }
@@ -167,5 +184,27 @@ mod tests {
             content[1]["image_url"]["url"],
             json!("data:image/jpeg;base64,AAAA")
         );
+    }
+
+    fn one_message() -> Vec<ChatMessage> {
+        vec![ChatMessage {
+            role: "user".into(),
+            content: "hola".into(),
+            images: Vec::new(),
+        }]
+    }
+
+    #[test]
+    fn reasoning_off_omits_the_field() {
+        let body = provider().with_reasoning("off").client_body(&one_message(), false);
+        assert!(body.get("reasoning_effort").is_none());
+    }
+
+    #[test]
+    fn reasoning_level_is_forwarded() {
+        let body = provider()
+            .with_reasoning("medium")
+            .client_body(&one_message(), false);
+        assert_eq!(body["reasoning_effort"], json!("medium"));
     }
 }

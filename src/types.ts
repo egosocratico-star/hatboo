@@ -32,7 +32,21 @@ export interface Settings {
   theme: string;
   runCommandEnabled: boolean;
   assistantName: string;
+  reasoningEffort: ReasoningEffort;
 }
+
+export type ReasoningEffort = "off" | "low" | "medium" | "high";
+
+export const REASONING_LEVELS: {
+  id: ReasoningEffort;
+  label: string;
+  short: string;
+}[] = [
+  { id: "off", label: "Desactivado", short: "Off" },
+  { id: "low", label: "Bajo", short: "Bajo" },
+  { id: "medium", label: "Medio", short: "Medio" },
+  { id: "high", label: "Alto", short: "Alto" },
+];
 
 export type MascotState =
   | "idle"

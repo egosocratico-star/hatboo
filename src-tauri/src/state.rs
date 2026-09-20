@@ -41,6 +41,13 @@ pub struct Settings {
     pub run_command_enabled: bool,
     #[serde(default)]
     pub assistant_name: String,
+    /// `off` | `low` | `medium` | `high` — razonamiento extendido en el chat.
+    #[serde(default = "default_reasoning")]
+    pub reasoning_effort: String,
+}
+
+fn default_reasoning() -> String {
+    "off".to_string()
 }
 
 impl Default for Settings {
@@ -54,6 +61,7 @@ impl Default for Settings {
             theme: "dark".to_string(),
             run_command_enabled: false,
             assistant_name: String::new(),
+            reasoning_effort: "off".to_string(),
         }
     }
 }
@@ -72,23 +80,30 @@ pub fn save_settings(state: &AppState, settings: &Settings) -> Result<(), String
 }
 
 /// Construye el proveedor activo según settings + keychain.
+/// Aquí sí se aplica el razonamiento extendido del chat; en el loop del agente
+/// no, porque Anthropic exige reenviar los bloques de `thinking` al usar tools.
 pub fn build_provider(state: &AppState) -> Result<Box<dyn AiProvider>, String> {
     let settings = load_settings(state);
+    let effort = settings.reasoning_effort.as_str();
     match settings.active_provider.as_str() {
         "anthropic" => {
             let key = crate::providers::get_api_key("anthropic")
                 .ok_or_else(|| crate::providers::ProviderError::MissingKey("Anthropic".into()).to_string())?;
-            Ok(Box::new(AnthropicProvider::new(key, settings.anthropic_model)))
+            Ok(Box::new(
+                AnthropicProvider::new(key, settings.anthropic_model).with_reasoning(effort),
+            ))
         }
         "openai" => {
             let key = crate::providers::get_api_key("openai")
                 .ok_or_else(|| crate::providers::ProviderError::MissingKey("OpenAI".into()).to_string())?;
-            Ok(Box::new(OpenAiProvider::new(key, settings.openai_model)))
+            Ok(Box::new(
+                OpenAiProvider::new(key, settings.openai_model).with_reasoning(effort),
+            ))
         }
-        "local" => Ok(Box::new(LocalProvider::new(
-            &settings.local_endpoint,
-            &settings.local_model,
-        ))),
+        "local" => Ok(Box::new(
+            LocalProvider::new(&settings.local_endpoint, &settings.local_model)
+                .with_reasoning(effort),
+        )),
         other => Err(format!("Proveedor desconocido: {other}")),
     }
 }

@@ -1,14 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
+  Brain,
   Check,
   ChevronDown,
+  ChevronRight,
   ExternalLink,
   RefreshCw,
   Settings2,
 } from "lucide-react";
 import { useChatStore } from "../store/chatStore";
-import type { Settings } from "../types";
+import {
+  REASONING_LEVELS,
+  type ReasoningEffort,
+  type Settings,
+} from "../types";
 
 const PROVIDER_LABELS: Record<Settings["activeProvider"], string> = {
   anthropic: "Anthropic",
@@ -32,6 +38,7 @@ export default function ProviderModelPicker() {
   const setView = useChatStore((s) => s.setView);
 
   const [open, setOpen] = useState(false);
+  const [reasonOpen, setReasonOpen] = useState(false);
   const [probe, setProbe] = useState<Probe>(null);
   const [ollamaModels, setOllamaModels] = useState<string[] | null>(null);
   const [loadingModels, setLoadingModels] = useState(false);
@@ -97,6 +104,9 @@ export default function ProviderModelPicker() {
   };
 
   const model = settings[modelField(settings)];
+  const effort: ReasoningEffort = settings.reasoningEffort ?? "off";
+  const effortLabel =
+    REASONING_LEVELS.find((l) => l.id === effort)?.short ?? "Off";
   const dot =
     probe === "ok"
       ? "bg-emerald-400"
@@ -118,6 +128,9 @@ export default function ProviderModelPicker() {
         <span className="shrink-0 text-zinc-500">
           {PROVIDER_LABELS[settings.activeProvider]}
         </span>
+        {effort !== "off" && (
+          <span className="shrink-0 text-accent-soft">{effortLabel}</span>
+        )}
         <ChevronDown className="w-3 h-3 shrink-0 text-zinc-500" />
       </button>
 
@@ -207,6 +220,51 @@ export default function ProviderModelPicker() {
               />
             </div>
           )}
+
+          <div className="border-t border-base-border mt-1 pt-1">
+            <button
+              onClick={() => setReasonOpen((v) => !v)}
+              className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-zinc-400 hover:bg-base-hover/60 hover:text-zinc-200 transition-colors"
+            >
+              <Brain className="w-3.5 h-3.5 shrink-0 text-zinc-500" />
+              <span>Razonamiento</span>
+              <span
+                className={`ml-auto ${
+                  effort === "off" ? "text-zinc-500" : "text-accent-soft"
+                }`}
+              >
+                {effortLabel}
+              </span>
+              {reasonOpen ? (
+                <ChevronDown className="w-3 h-3 shrink-0 rotate-180 text-zinc-600" />
+              ) : (
+                <ChevronRight className="w-3 h-3 shrink-0 text-zinc-600" />
+              )}
+            </button>
+            {reasonOpen && (
+              <div className="pl-2 pb-1 space-y-0.5">
+                {REASONING_LEVELS.map((l) => (
+                  <button
+                    key={l.id}
+                    onClick={() => void patch({ reasoningEffort: l.id })}
+                    className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-1 text-xs transition-colors ${
+                      effort === l.id
+                        ? "bg-base-hover text-zinc-100"
+                        : "text-zinc-400 hover:bg-base-hover/60"
+                    }`}
+                  >
+                    {l.label}
+                    {effort === l.id && (
+                      <Check className="w-3.5 h-3.5 ml-auto text-accent-soft" />
+                    )}
+                  </button>
+                ))}
+                <p className="px-2.5 pt-1 text-[10px] leading-snug text-zinc-600">
+                  Solo con modelos que lo soportan. No se aplica al modo trabajo.
+                </p>
+              </div>
+            )}
+          </div>
 
           <button
             onClick={() => {

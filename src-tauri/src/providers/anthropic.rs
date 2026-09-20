@@ -10,11 +10,29 @@ const ANTHROPIC_URL: &str = "https://api.anthropic.com/v1/messages";
 pub struct AnthropicProvider {
     api_key: String,
     model: String,
+    /// Tokens reservados al pensamiento extendido; `None` = sin `thinking`.
+    thinking_budget: Option<u32>,
 }
 
 impl AnthropicProvider {
     pub fn new(api_key: String, model: String) -> Self {
-        Self { api_key, model }
+        Self {
+            api_key,
+            model,
+            thinking_budget: None,
+        }
+    }
+
+    /// Anthropic solo acepta `thinking` con presupuesto, sin niveles; aquí se
+    /// traducen. `"off"` no añade nada al cuerpo (comportamiento de siempre).
+    pub fn with_reasoning(mut self, effort: &str) -> Self {
+        self.thinking_budget = match effort {
+            "low" => Some(2048),
+            "medium" => Some(6000),
+            "high" => Some(12000),
+            _ => None,
+        };
+        self
     }
 
     fn body(&self, messages: &[ChatMessage], stream: bool) -> serde_json::Value {
@@ -54,6 +72,11 @@ impl AnthropicProvider {
             "messages": chat,
             "max_tokens": 4096,
         });
+        if let Some(budget) = self.thinking_budget {
+            body["thinking"] = json!({ "type": "enabled", "budget_tokens": budget });
+            // La API exige max_tokens por encima del presupuesto de pensamiento.
+            body["max_tokens"] = json!(budget + 4096);
+        }
         if !system.is_empty() {
             body["system"] = json!(system);
         }
@@ -167,5 +190,28 @@ mod tests {
         assert_eq!(content[1]["source"]["type"], json!("base64"));
         assert_eq!(content[1]["source"]["media_type"], json!("image/png"));
         assert_eq!(content[1]["source"]["data"], json!("AAAA"));
+    }
+
+    fn one_message() -> Vec<ChatMessage> {
+        vec![ChatMessage {
+            role: "user".into(),
+            content: "hola".into(),
+            images: Vec::new(),
+        }]
+    }
+
+    #[test]
+    fn reasoning_off_leaves_body_unchanged() {
+        let body = provider().with_reasoning("off").body(&one_message(), false);
+        assert!(body.get("thinking").is_none());
+        assert_eq!(body["max_tokens"], json!(4096));
+    }
+
+    #[test]
+    fn reasoning_high_enables_thinking_within_max_tokens() {
+        let body = provider().with_reasoning("high").body(&one_message(), false);
+        assert_eq!(body["thinking"]["type"], json!("enabled"));
+        assert_eq!(body["thinking"]["budget_tokens"], json!(12000));
+        assert!(body["max_tokens"].as_u64().unwrap() > 12000);
     }
 }

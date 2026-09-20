@@ -20,7 +20,11 @@ import {
 } from "lucide-react";
 import { useChatStore } from "../store/chatStore";
 import { useWorkStore } from "../store/workStore";
-import type { Settings as SettingsType } from "../types";
+import {
+  REASONING_LEVELS,
+  type ReasoningEffort,
+  type Settings as SettingsType,
+} from "../types";
 
 const PROVIDERS = [
   { id: "anthropic", label: "Anthropic (Claude)", needsKey: true },
@@ -439,6 +443,43 @@ export default function Settings() {
                       setDraft({ ...draft, localModel: model })
                     }
                   />
+                </div>
+              </section>
+
+              <section className="space-y-3">
+                <h2 className="text-sm font-medium text-zinc-300">
+                  Razonamiento
+                </h2>
+                <div className="flex items-center justify-between gap-4 rounded-lg border border-base-border bg-base px-3 py-3">
+                  <div className="min-w-0">
+                    <p className="text-sm text-zinc-300">
+                      Pensamiento extendido en el chat
+                    </p>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      Pide al modelo que razone antes de responder. Solo funciona
+                      con modelos que lo soportan y no afecta al modo trabajo.
+                    </p>
+                  </div>
+                  <div className="shrink-0 flex rounded-lg border border-base-border bg-base-raised p-0.5">
+                    {REASONING_LEVELS.map((l) => (
+                      <button
+                        key={l.id}
+                        onClick={() =>
+                          setDraft({
+                            ...draft,
+                            reasoningEffort: l.id as ReasoningEffort,
+                          })
+                        }
+                        className={`px-2.5 py-1 rounded-md text-xs transition-colors ${
+                          (draft.reasoningEffort ?? "off") === l.id
+                            ? "bg-accent/20 text-accent-soft"
+                            : "text-zinc-500 hover:text-zinc-300"
+                        }`}
+                      >
+                        {l.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </section>
 
