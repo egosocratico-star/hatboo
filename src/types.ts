@@ -37,6 +37,21 @@ export interface Settings {
 
 export type ReasoningEffort = "off" | "low" | "medium" | "high";
 
+export interface StorageInfo {
+  dbPath: string;
+  dbSizeBytes: number;
+  attachmentsPath: string;
+  attachmentsSizeBytes: number;
+  attachmentsCount: number;
+  counts: {
+    conversations: number;
+    messages: number;
+    projects: number;
+    tasks: number;
+    toolCalls: number;
+  };
+}
+
 export const REASONING_LEVELS: {
   id: ReasoningEffort;
   label: string;

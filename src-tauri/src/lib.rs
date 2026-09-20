@@ -48,7 +48,8 @@ pub fn run() {
             commands::cancel_work_task,
             commands::respond_to_approval,
             commands::check_tool_support,
-            commands::project_git_info
+            commands::project_git_info,
+            commands::get_storage_info
         ])
         .run(tauri::generate_context!())
         .expect("error while running Hatboo");

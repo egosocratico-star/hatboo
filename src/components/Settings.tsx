@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
   CheckCircle2,
   Cpu,
   Bot,
+  FolderOpen,
   Info,
   KeyRound,
   Keyboard,
@@ -24,6 +26,7 @@ import {
   REASONING_LEVELS,
   type ReasoningEffort,
   type Settings as SettingsType,
+  type StorageInfo,
 } from "../types";
 
 const PROVIDERS = [
@@ -272,8 +275,8 @@ const CATEGORIES: Array<{
   { id: "api", label: "API y modelos", icon: Cpu, ready: true },
   { id: "agent", label: "Agente", icon: Bot, ready: true },
   { id: "profile", label: "Perfil", icon: User, ready: true },
-  { id: "system", label: "Sistema", icon: HardDrive, ready: false },
-  { id: "data", label: "Datos", icon: Database, ready: false },
+  { id: "system", label: "Sistema", icon: HardDrive, ready: true },
+  { id: "data", label: "Datos", icon: Database, ready: true },
   { id: "shortcuts", label: "Atajos", icon: Keyboard, ready: true },
   { id: "about", label: "Acerca de", icon: Info, ready: true },
 ];
@@ -295,11 +298,18 @@ export default function Settings() {
   const [savingMsg, setSavingMsg] = useState(false);
   const [cat, setCat] = useState<CategoryId>("api");
   const [version, setVersion] = useState<string>("");
+  const [storage, setStorage] = useState<StorageInfo | null>(null);
 
   useEffect(() => setDraft(settings), [settings]);
 
+  const loadStorage = () =>
+    void invoke<StorageInfo>("get_storage_info")
+      .then(setStorage)
+      .catch(() => setStorage(null));
+
   useEffect(() => {
     void getVersion().then(setVersion).catch(() => setVersion(""));
+    loadStorage();
   }, []);
 
   if (!draft) {
@@ -602,6 +612,94 @@ export default function Settings() {
             </>
           )}
 
+          {cat === "system" && (
+            <>
+              <SectionTitle
+                title="Sistema"
+                subtitle="Dónde guarda Hatboo sus archivos en este equipo."
+              />
+              {!storage && (
+                <p className="text-sm text-zinc-500">
+                  No se pudo leer el estado de almacenamiento.
+                </p>
+              )}
+              {storage && (
+                <div className="space-y-3">
+                  <PathRow
+                    label="Base de datos"
+                    path={storage.dbPath}
+                    detail={`${formatBytes(storage.dbSizeBytes)} · SQLite`}
+                  />
+                  <PathRow
+                    label="Imágenes adjuntas"
+                    path={storage.attachmentsPath}
+                    detail={`${storage.attachmentsCount} archivo(s) · ${formatBytes(
+                      storage.attachmentsSizeBytes,
+                    )}`}
+                  />
+                  <div className="flex items-center justify-between gap-4 rounded-lg border border-base-border bg-base px-3 py-3">
+                    <div>
+                      <p className="text-sm text-zinc-300">Versión</p>
+                      <p className="mt-0.5 text-xs text-zinc-600">
+                        Tauri 2 · React · Rust
+                      </p>
+                    </div>
+                    <span className="text-sm text-zinc-400">
+                      v{version || "—"}
+                    </span>
+                  </div>
+                  <button
+                    onClick={loadStorage}
+                    className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-200 transition-colors"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    Volver a calcular
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+
+          {cat === "data" && (
+            <>
+              <SectionTitle
+                title="Datos"
+                subtitle="Resumen de lo que hay en tu base de datos local."
+              />
+              {storage ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <Stat label="Conversaciones" value={storage.counts.conversations} />
+                    <Stat label="Mensajes" value={storage.counts.messages} />
+                    <Stat label="Proyectos" value={storage.counts.projects} />
+                    <Stat label="Tareas" value={storage.counts.tasks} />
+                    <Stat
+                      label="Llamadas a herramientas"
+                      value={storage.counts.toolCalls}
+                    />
+                    <Stat label="Imágenes" value={storage.attachmentsCount} />
+                  </div>
+                  <p className="text-xs text-zinc-500 leading-relaxed">
+                    Todo esto se calcula leyendo tu propio histórico en este PC;
+                    no se envía a ningún servicio. Las claves de API no aparecen
+                    aquí porque solo viven en el llavero del sistema. Puedes
+                    exportar una conversación concreta desde el botón{" "}
+                    <span className="text-zinc-400">+</span> del chat.
+                  </p>
+                  <p className="text-xs text-zinc-600">
+                    Exportar e importar el conjunto completo, y el
+                    restablecimiento de fábrica, llegarán en una próxima
+                    versión.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-zinc-500">
+                  No se pudo leer la base de datos.
+                </p>
+              )}
+            </>
+          )}
+
           {cat === "about" && (
             <>
               <SectionTitle
@@ -637,7 +735,7 @@ export default function Settings() {
             </>
           )}
 
-          {!editable && cat !== "shortcuts" && cat !== "about" && (
+          {!CATEGORIES.find((c) => c.id === cat)?.ready && (
             <>
               <SectionTitle
                 title={
@@ -679,5 +777,51 @@ function SectionTitle({ title, subtitle }: { title: string; subtitle: string }) 
       <h2 className="text-xl font-semibold">{title}</h2>
       <p className="text-sm text-zinc-500 mt-1">{subtitle}</p>
     </header>
+  );
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  const kb = n / 1024;
+  if (kb < 1024) return `${kb.toFixed(0)} KB`;
+  return `${(kb / 1024).toFixed(1)} MB`;
+}
+
+function PathRow({
+  label,
+  path,
+  detail,
+}: {
+  label: string;
+  path: string;
+  detail: string;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4 rounded-lg border border-base-border bg-base px-3 py-3">
+      <div className="min-w-0">
+        <p className="text-sm text-zinc-300">{label}</p>
+        <p className="mt-0.5 text-xs font-mono text-zinc-500 break-all">{path}</p>
+        <p className="mt-1 text-xs text-zinc-600">{detail}</p>
+      </div>
+      <button
+        onClick={() => void revealItemInDir(path).catch(() => {})}
+        title="Mostrar en el explorador de archivos"
+        className="shrink-0 flex items-center gap-1.5 rounded-lg border border-base-border px-2.5 py-1.5 text-xs text-zinc-400 hover:text-zinc-100 hover:border-accent/50 transition-colors"
+      >
+        <FolderOpen className="w-3.5 h-3.5" />
+        Mostrar
+      </button>
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg border border-base-border bg-base px-3 py-3 text-center">
+      <div className="text-xl font-semibold text-white">
+        {value.toLocaleString("es")}
+      </div>
+      <div className="mt-0.5 text-[11px] text-zinc-500">{label}</div>
+    </div>
   );
 }

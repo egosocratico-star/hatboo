@@ -331,6 +331,32 @@ pub fn set_setting(conn: &Connection, key: &str, value: &str) -> Result<(), Stri
     Ok(())
 }
 
+// ---------- Telemetría local (solo lectura) ----------
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Counts {
+    pub conversations: i64,
+    pub messages: i64,
+    pub projects: i64,
+    pub tasks: i64,
+    pub tool_calls: i64,
+}
+
+pub fn table_counts(conn: &Connection) -> Result<Counts, String> {
+    let count = |sql: &str| -> Result<i64, String> {
+        conn.query_row(sql, [], |row| row.get::<_, i64>(0))
+            .map_err(|e| e.to_string())
+    };
+    Ok(Counts {
+        conversations: count("SELECT COUNT(*) FROM conversations")?,
+        messages: count("SELECT COUNT(*) FROM messages")?,
+        projects: count("SELECT COUNT(*) FROM projects")?,
+        tasks: count("SELECT COUNT(*) FROM tasks")?,
+        tool_calls: count("SELECT COUNT(*) FROM tool_calls")?,
+    })
+}
+
 // ---------- Fase 2: proyectos, tareas y tool calls ----------
 
 #[derive(Debug, Clone, Serialize)]
