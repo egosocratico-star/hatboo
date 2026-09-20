@@ -9,6 +9,8 @@ use tauri::{Emitter, Manager};
 
 const MAX_ITERATIONS: usize = 25;
 const MAX_TOOL_OUTPUT: usize = 12_000;
+/// Marca interna que viaja como error para indicar una cancelación del usuario.
+const CANCEL_MARK: &str = "__hatboo_cancelado__";
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -144,20 +146,61 @@ pub async fn run_work_task(
     conversation_id: String,
     project_root: PathBuf,
     user_request: String,
+    mut cancel_rx: tokio::sync::oneshot::Receiver<()>,
 ) {
-    let result = run_loop(&app, &conversation_id, &project_root, &user_request).await;
-    if let Err(message) = result {
-        let state = app.state::<AppState>();
-        if let Ok(conn) = state.db.lock() {
-            let _ = db::finish_all_tasks(&conn, &conversation_id, "failed");
+    let result = {
+        let inner = run_loop(&app, &conversation_id, &project_root, &user_request);
+        tokio::select! {
+            res = inner => res,
+            _ = &mut cancel_rx => Err(CANCEL_MARK.to_string()),
         }
-        let _ = app.emit(
-            "agent:error",
-            ErrorPayload {
-                conversation_id,
-                message,
-            },
-        );
+    };
+    let state = app.state::<AppState>();
+    if let Ok(mut runs) = state.work_runs.lock() {
+        runs.remove(&conversation_id);
+    }
+    match result {
+        Ok(()) => {}
+        Err(message) if message == CANCEL_MARK => {
+            let pending = {
+                match state.db.lock() {
+                    Ok(conn) => {
+                        let _ = db::finish_all_tasks(&conn, &conversation_id, "failed");
+                        let ids = db::pending_tool_call_ids(&conn, &conversation_id)
+                            .unwrap_or_default();
+                        for id in &ids {
+                            let _ = db::update_tool_call(&conn, id, "rejected", None);
+                        }
+                        ids
+                    }
+                    Err(_) => Vec::new(),
+                }
+            };
+            if let Ok(mut approvals) = state.approvals.lock() {
+                for id in &pending {
+                    approvals.remove(id);
+                }
+            }
+            let _ = app.emit(
+                "agent:cancelled",
+                ErrorPayload {
+                    conversation_id,
+                    message: "Tarea cancelada por el usuario.".into(),
+                },
+            );
+        }
+        Err(message) => {
+            if let Ok(conn) = state.db.lock() {
+                let _ = db::finish_all_tasks(&conn, &conversation_id, "failed");
+            }
+            let _ = app.emit(
+                "agent:error",
+                ErrorPayload {
+                    conversation_id,
+                    message,
+                },
+            );
+        }
     }
 }
 

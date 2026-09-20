@@ -57,6 +57,9 @@ export function useAgentEvents() {
         listen<AgentErrorEvent>("agent:error", ({ payload }) => {
           useWorkStore.getState().onError(payload.conversationId, payload.message);
         }),
+        listen<AgentErrorEvent>("agent:cancelled", ({ payload }) => {
+          useWorkStore.getState().onCancelled(payload.conversationId);
+        }),
       ]);
       unlistenFns.push(...offs);
       // Re-check de soporte de herramientas al montar (el proveedor pudo cambiar).

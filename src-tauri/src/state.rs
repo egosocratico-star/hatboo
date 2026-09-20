@@ -9,6 +9,8 @@ pub struct AppState {
     pub db: Mutex<Connection>,
     /// Aprobaciones pendientes: tool_call_id -> canal que resuelve el loop del agente.
     pub approvals: Mutex<HashMap<String, oneshot::Sender<bool>>>,
+    /// Tareas de trabajo en curso: conversation_id -> canal de cancelación.
+    pub work_runs: Mutex<HashMap<String, oneshot::Sender<()>>>,
 }
 
 impl AppState {
@@ -16,6 +18,7 @@ impl AppState {
         Self {
             db: Mutex::new(db),
             approvals: Mutex::new(HashMap::new()),
+            work_runs: Mutex::new(HashMap::new()),
         }
     }
 }

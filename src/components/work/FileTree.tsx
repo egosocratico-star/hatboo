@@ -74,7 +74,13 @@ function TreeNode({ projectId, entry, depth }: NodeProps) {
   );
 }
 
-export default function FileTree({ projectId }: { projectId: string | null }) {
+export default function FileTree({
+  projectId,
+  version = 0,
+}: {
+  projectId: string | null;
+  version?: number;
+}) {
   const [entries, setEntries] = useState<FileEntry[]>([]);
 
   useEffect(() => {
@@ -91,7 +97,7 @@ export default function FileTree({ projectId }: { projectId: string | null }) {
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+  }, [projectId, version]);
 
   if (!projectId) return null;
 

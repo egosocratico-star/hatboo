@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, Send, X, FolderTree } from "lucide-react";
+import { AlertCircle, Send, Square, X, FolderTree, Plus } from "lucide-react";
 import { useWorkStore } from "../../store/workStore";
+import { useChatStore } from "../../store/chatStore";
 import MessageBubble from "../MessageBubble";
 import Mascot from "../mascot/Mascot";
 import FileTree from "./FileTree";
@@ -19,10 +20,20 @@ export default function ProjectView() {
   const toolSupport = useWorkStore((s) => s.toolSupport);
   const error = useWorkStore((s) => s.error);
   const newProjectDraft = useWorkStore((s) => s.newProjectDraft);
+  const treeVersion = useWorkStore((s) => s.treeVersion);
+  const activeSessionId = useWorkStore((s) => s.activeSessionId);
   const startTask = useWorkStore((s) => s.startTask);
+  const cancelTask = useWorkStore((s) => s.cancelTask);
   const clearError = useWorkStore((s) => s.clearError);
   const confirmCreateProject = useWorkStore((s) => s.confirmCreateProject);
   const cancelCreateProject = useWorkStore((s) => s.cancelCreateProject);
+  const newWorkSession = useWorkStore((s) => s.newWorkSession);
+  const selectSession = useWorkStore((s) => s.selectSession);
+
+  const allConversations = useChatStore((s) => s.conversations);
+  const sessions = allConversations
+    .filter((c) => c.projectId === project?.id)
+    .sort((a, b) => b.updatedAt - a.updatedAt);
 
   const [input, setInput] = useState("");
   const [treeOpen, setTreeOpen] = useState(true);
@@ -94,7 +105,7 @@ export default function ProjectView() {
             <FolderTree className="w-4 h-4 text-accent-soft" />
             Archivos
           </div>
-          <FileTree projectId={project.id} />
+          <FileTree projectId={project.id} version={treeVersion} />
         </div>
       )}
 
@@ -111,7 +122,34 @@ export default function ProjectView() {
             <div className="text-sm font-medium truncate">{project.name}</div>
             <div className="text-[10px] text-zinc-600 truncate">{project.rootPath}</div>
           </div>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-2">
+            {project && sessions.length > 0 && (
+              <>
+                <select
+                  value={activeSessionId ?? ""}
+                  onChange={(e) => {
+                    if (e.target.value) void selectSession(e.target.value);
+                  }}
+                  disabled={agentStatus === "running" || agentStatus === "awaiting"}
+                  className="max-w-48 rounded-lg border border-base-border bg-base px-2 py-1.5 text-xs text-zinc-300 outline-none focus:border-accent/70 disabled:opacity-50"
+                  title="Sesiones de este proyecto"
+                >
+                  {sessions.map((sess) => (
+                    <option key={sess.id} value={sess.id}>
+                      {sess.title}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => void newWorkSession(project.id)}
+                  disabled={agentStatus === "running" || agentStatus === "awaiting"}
+                  className="p-1.5 rounded-lg border border-base-border text-zinc-400 hover:text-white hover:border-accent/50 transition-colors disabled:opacity-40"
+                  title="Nueva sesión de trabajo"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </>
+            )}
             <Mascot state={mascotState} size={32} />
           </div>
         </header>
@@ -180,19 +218,27 @@ export default function ProjectView() {
               disabled={toolSupport === false}
               className="flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-zinc-600 max-h-48 disabled:cursor-not-allowed"
             />
-            <button
-              onClick={() => void submit()}
-              disabled={
-                !input.trim() ||
-                agentStatus === "running" ||
-                agentStatus === "awaiting" ||
-                toolSupport === false
-              }
-              className="p-2 rounded-lg bg-accent text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-accent-dim transition-colors"
-              title="Enviar"
-            >
-              <Send className="w-4 h-4" />
-            </button>
+            {agentStatus === "running" || agentStatus === "awaiting" ? (
+              <button
+                onClick={() => void cancelTask()}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-500/50 text-red-300 text-sm hover:bg-red-500/10 transition-colors"
+                title="Detener la tarea en curso"
+              >
+                <Square className="w-3.5 h-3.5" />
+                Cancelar
+              </button>
+            ) : (
+              <button
+                onClick={() => void submit()}
+                disabled={
+                  !input.trim() || toolSupport === false
+                }
+                className="p-2 rounded-lg bg-accent text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-accent-dim transition-colors"
+                title="Enviar"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -36,6 +36,7 @@ pub fn run() {
             commands::list_project_dir,
             commands::get_tasks,
             commands::start_work_task,
+            commands::cancel_work_task,
             commands::respond_to_approval,
             commands::check_tool_support
         ])

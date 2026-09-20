@@ -320,9 +320,28 @@ pub async fn start_work_task(
         let conn = state.db.lock().map_err(|e| e.to_string())?;
         let project = db::get_project(&conn, &project_id)?;
         db::add_message(&conn, &conversation_id, "user", &request, Some("agent"))?;
+        let title: String = conn
+            .query_row(
+                "SELECT title FROM conversations WHERE id = ?1",
+                rusqlite::params![conversation_id],
+                |row| row.get(0),
+            )
+            .unwrap_or_default();
+        if title == "Sesión de trabajo" {
+            let short: String = request.chars().take(48).collect();
+            let _ = db::rename_conversation(&conn, &conversation_id, short.trim());
+        }
         db::touch_project(&conn, &project_id)?;
         PathBuf::from(project.root_path)
     };
+
+    let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel::<()>();
+    state
+        .work_runs
+        .lock()
+        .map_err(|e| e.to_string())?
+        .insert(conversation_id.clone(), cancel_tx);
+
     let app_for_task = app.clone();
     tauri::async_runtime::spawn(async move {
         crate::agent::loop_runner::run_work_task(
@@ -330,10 +349,28 @@ pub async fn start_work_task(
             conversation_id,
             root,
             request,
+            cancel_rx,
         )
         .await;
     });
     Ok(())
+}
+
+/// Pide cancelar una tarea del agente en curso.
+#[tauri::command]
+pub fn cancel_work_task(app: State<AppState>, conversation_id: String) -> Result<(), String> {
+    let sender = app
+        .work_runs
+        .lock()
+        .map_err(|e| e.to_string())?
+        .remove(&conversation_id);
+    match sender {
+        Some(tx) => {
+            let _ = tx.send(());
+            Ok(())
+        }
+        None => Err("No hay ninguna tarea en curso para esa sesión.".into()),
+    }
 }
 
 /// Aprobar o rechazar una tool call pendiente.

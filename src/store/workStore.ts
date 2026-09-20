@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import { useChatStore } from "./chatStore";
 import type {
   Conversation,
   Message,
@@ -29,6 +30,7 @@ interface WorkStore {
   toolSupport: boolean | null;
   error: string | null;
   newProjectDraft: { parentPath: string } | null;
+  treeVersion: number;
 
   loadProjects: () => Promise<void>;
   openProjectPicker: () => Promise<void>;
@@ -40,6 +42,7 @@ interface WorkStore {
   newWorkSession: (projectId: string) => Promise<string>;
   selectSession: (conversationId: string) => Promise<void>;
   startTask: (request: string) => Promise<void>;
+  cancelTask: () => Promise<void>;
   respond: (approved: boolean) => Promise<void>;
   refreshToolSupport: () => Promise<void>;
   clearError: () => void;
@@ -56,6 +59,7 @@ interface WorkStore {
   onApprovalNeeded: (approval: PendingApproval) => void;
   onDone: (conversationId: string, summary: string) => void;
   onError: (conversationId: string, message: string) => void;
+  onCancelled: (conversationId: string) => void;
 }
 
 export const useWorkStore = create<WorkStore>((set, get) => ({
@@ -70,6 +74,7 @@ export const useWorkStore = create<WorkStore>((set, get) => ({
   toolSupport: null,
   error: null,
   newProjectDraft: null,
+  treeVersion: 0,
 
   loadProjects: async () => {
     const projects = await invoke<Project[]>("list_projects");
@@ -202,6 +207,16 @@ export const useWorkStore = create<WorkStore>((set, get) => ({
     }
   },
 
+  cancelTask: async () => {
+    const { activeSessionId } = get();
+    if (!activeSessionId) return;
+    try {
+      await invoke("cancel_work_task", { conversationId: activeSessionId });
+    } catch (e) {
+      set({ agentStatus: "idle", error: String(e) });
+    }
+  },
+
   respond: async (approved) => {
     const approval = get().approval;
     if (!approval) return;
@@ -233,6 +248,8 @@ export const useWorkStore = create<WorkStore>((set, get) => ({
     set((s) => ({
       tasks,
       stepLines: [...s.stepLines, { toolName, ok, brief }].slice(-30),
+      treeVersion:
+        toolName === "write_file" && ok ? s.treeVersion + 1 : s.treeVersion,
     }));
   },
 
@@ -247,6 +264,7 @@ export const useWorkStore = create<WorkStore>((set, get) => ({
     void invoke<Message[]>("list_messages", { conversationId }).then((messages) =>
       set({ messages }),
     );
+    void useChatStore.getState().loadConversations();
   },
 
   onError: (conversationId, message) => {
@@ -255,5 +273,15 @@ export const useWorkStore = create<WorkStore>((set, get) => ({
     void invoke<Message[]>("list_messages", { conversationId }).then((messages) =>
       set({ messages }),
     );
+    void useChatStore.getState().loadConversations();
+  },
+
+  onCancelled: (conversationId) => {
+    if (conversationId !== get().activeSessionId) return;
+    set({ agentStatus: "idle", approval: null });
+    void invoke<Message[]>("list_messages", { conversationId }).then((messages) =>
+      set({ messages }),
+    );
+    void useChatStore.getState().loadConversations();
   },
 }));

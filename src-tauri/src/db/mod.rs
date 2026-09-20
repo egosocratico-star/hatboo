@@ -416,6 +416,16 @@ pub fn update_tool_call(
     Ok(())
 }
 
+pub fn pending_tool_call_ids(conn: &Connection, conversation_id: &str) -> Result<Vec<String>, String> {
+    let mut stmt = conn
+        .prepare("SELECT id FROM tool_calls WHERE conversation_id = ?1 AND status = 'pending_approval'")
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(params![conversation_id], |row| row.get::<_, String>(0))
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+}
+
 pub fn get_tool_call(conn: &Connection, id: &str) -> Result<ToolCall, String> {
     conn.query_row(
         "SELECT id, conversation_id, tool_name, input, output, status, created_at
