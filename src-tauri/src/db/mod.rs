@@ -138,6 +138,23 @@ pub fn list_conversations(conn: &Connection) -> Result<Vec<Conversation>, String
     rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
 }
 
+pub fn get_conversation(conn: &Connection, id: &str) -> Result<Conversation, String> {
+    conn.query_row(
+        "SELECT id, title, created_at, updated_at, project_id FROM conversations WHERE id = ?1",
+        params![id],
+        |row| {
+            Ok(Conversation {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                created_at: row.get(2)?,
+                updated_at: row.get(3)?,
+                project_id: row.get(4)?,
+            })
+        },
+    )
+    .map_err(|e| e.to_string())
+}
+
 pub fn delete_conversation(conn: &Connection, id: &str) -> Result<(), String> {
     conn.execute("DELETE FROM messages WHERE conversation_id = ?1", params![id])
         .map_err(|e| e.to_string())?;

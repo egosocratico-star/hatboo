@@ -330,6 +330,67 @@ fn remove_image_files(paths: Vec<String>) {
     }
 }
 
+/// Exporta una conversación a Markdown o JSON en la ruta elegida por el usuario.
+/// El diálogo de guardado lo hace el frontend (plugin de diálogo); aquí solo se
+/// serializa y se escribe el archivo.
+#[tauri::command]
+pub fn export_conversation(
+    app: State<AppState>,
+    conversation_id: String,
+    path: String,
+    format: String,
+) -> Result<(), String> {
+    let (title, messages) = {
+        let conn = app.db.lock().map_err(|e| e.to_string())?;
+        let conv = db::get_conversation(&conn, &conversation_id)?;
+        let msgs = db::list_messages(&conn, &conversation_id)?;
+        (conv.title, msgs)
+    };
+
+    let content = match format.as_str() {
+        "json" => {
+            let items: Vec<serde_json::Value> = messages
+                .iter()
+                .map(|m| {
+                    let atts: Vec<&str> = m.attachments.iter().map(|a| a.name.as_str()).collect();
+                    serde_json::json!({
+                        "role": m.role,
+                        "content": m.content,
+                        "provider": m.provider,
+                        "createdAt": m.created_at,
+                        "attachments": atts,
+                    })
+                })
+                .collect();
+            let doc = serde_json::json!({ "title": title, "messages": items });
+            serde_json::to_string_pretty(&doc).map_err(|e| e.to_string())?
+        }
+        _ => {
+            let mut md = String::new();
+            md.push_str(&format!("# {}\n\n", title));
+            for m in &messages {
+                let label = if m.role == "user" { "Usuario" } else { "Asistente" };
+                let mut heading = format!("### {label}");
+                if let Some(p) = &m.provider {
+                    heading.push_str(&format!(" · {p}"));
+                }
+                md.push_str(&heading);
+                md.push('\n');
+                if !m.attachments.is_empty() {
+                    let names: Vec<&str> = m.attachments.iter().map(|a| a.name.as_str()).collect();
+                    md.push_str(&format!("> Adjuntos: {}\n", names.join(", ")));
+                }
+                md.push_str(m.content.trim());
+                md.push_str("\n\n");
+            }
+            md
+        }
+    };
+
+    std::fs::write(&path, content).map_err(|e| format!("No se pudo escribir el archivo: {e}"))?;
+    Ok(())
+}
+
 /// Lanza el streaming del proveedor para la conversación y emite chat:*.
 fn spawn_chat_stream(app: tauri::AppHandle, conversation_id: String) -> Result<(), String> {
     let state = app.state::<AppState>();

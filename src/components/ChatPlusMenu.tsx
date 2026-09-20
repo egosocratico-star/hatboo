@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import {
+  Download,
   FileText,
   FolderKanban,
   Image as ImageIcon,
@@ -128,6 +129,39 @@ export default function ChatPlusMenu({ onPickFiles, disabled }: Props) {
     close();
   };
 
+  const exportConversation = async () => {
+    const state = useChatStore.getState();
+    if (!state.activeId) return;
+    setNotice(null);
+    const title =
+      state.conversations.find((c) => c.id === state.activeId)?.title ||
+      "conversacion";
+    const safeName = title.replace(/[\\/:*?"<>|]/g, "_").slice(0, 60) || "conversacion";
+    const path = await save({
+      title: "Exportar conversación",
+      defaultPath: `${safeName}.md`,
+      filters: [
+        { name: "Markdown", extensions: ["md"] },
+        { name: "JSON", extensions: ["json"] },
+      ],
+    });
+    if (!path) {
+      close();
+      return;
+    }
+    const format = path.toLowerCase().endsWith(".json") ? "json" : "markdown";
+    try {
+      await invoke("export_conversation", {
+        conversationId: state.activeId,
+        path,
+        format,
+      });
+    } catch (e) {
+      setNotice(String(e));
+    }
+    close();
+  };
+
   const canClear = useChatStore(
     (s) => s.activeId !== null && s.messages.length > 0,
   );
@@ -182,6 +216,14 @@ export default function ChatPlusMenu({ onPickFiles, disabled }: Props) {
           <button onClick={goWork} className={item}>
             <ShieldCheck className="w-4 h-4 text-accent-soft shrink-0" />
             <span className="flex-1">Permisos de herramientas</span>
+          </button>
+          <button
+            onClick={() => void exportConversation()}
+            className={item + (canClear ? "" : " opacity-45 cursor-not-allowed")}
+            disabled={!canClear}
+          >
+            <Download className="w-4 h-4 text-accent-soft shrink-0" />
+            <span className="flex-1">Exportar conversación</span>
           </button>
           <button
             onClick={() => void clearConversation()}

@@ -26,6 +26,7 @@ pub fn run() {
             commands::send_message,
             commands::regenerate_response,
             commands::clear_conversation_messages,
+            commands::export_conversation,
             commands::read_attachment,
             commands::save_image_attachment,
             commands::list_local_models,
