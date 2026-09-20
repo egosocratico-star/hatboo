@@ -5,6 +5,7 @@ fn prompt() -> Vec<ChatMessage> {
     vec![ChatMessage {
         role: "user".into(),
         content: "Responde exactamente con la palabra: hola".into(),
+        images: Vec::new(),
     }]
 }
 

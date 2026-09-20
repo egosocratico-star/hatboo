@@ -9,6 +9,8 @@ export interface Conversation {
 export interface Attachment {
   name: string;
   text: string;
+  imageMediaType?: string | null;
+  imageFile?: string | null;
 }
 
 export interface Message {

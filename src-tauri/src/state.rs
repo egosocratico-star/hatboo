@@ -2,6 +2,7 @@ use crate::providers::tool_calling::ToolCallingProvider;
 use crate::providers::{AiProvider, AnthropicProvider, LocalProvider, OpenAiProvider};
 use rusqlite::Connection;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Mutex;
 use tokio::sync::oneshot;
 
@@ -11,14 +12,18 @@ pub struct AppState {
     pub approvals: Mutex<HashMap<String, oneshot::Sender<bool>>>,
     /// Tareas de trabajo en curso: conversation_id -> canal de cancelación.
     pub work_runs: Mutex<HashMap<String, oneshot::Sender<()>>>,
+    /// Directorio de datos de la app; las imágenes adjuntas (M3) se guardan en
+    /// `data_dir/attachments`.
+    pub data_dir: PathBuf,
 }
 
 impl AppState {
-    pub fn new(db: Connection) -> Self {
+    pub fn new(db: Connection, data_dir: PathBuf) -> Self {
         Self {
             db: Mutex::new(db),
             approvals: Mutex::new(HashMap::new()),
             work_runs: Mutex::new(HashMap::new()),
+            data_dir,
         }
     }
 }

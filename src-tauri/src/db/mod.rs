@@ -3,13 +3,35 @@ use serde::{Deserialize, Serialize};
 
 const SCHEMA: &str = include_str!("schema.sql");
 
-/// Documento de texto adjuntado a un mensaje del chat normal (M2, Chat with Files).
-/// Solo texto ya extraído: las imágenes (payload multimodal) son una tanda futura.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Documento adjuntado a un mensaje del chat normal.
+/// - M2 (texto): `text` trae el contenido ya extraído.
+/// - M3 (imagen): `image_media_type` + `image_file` (ruta en disco bajo
+///   `data_dir/attachments`). El binario NO se guarda en SQLite; se lee desde
+///   disco y se codifica a base64 al construir el payload del proveedor.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Attachment {
     pub name: String,
+    #[serde(default)]
     pub text: String,
+    #[serde(default)]
+    pub image_media_type: Option<String>,
+    #[serde(default)]
+    pub image_file: Option<String>,
+}
+
+impl Attachment {
+    pub fn is_image(&self) -> bool {
+        self.image_file.is_some()
+    }
+
+    pub fn text(name: String, text: String) -> Self {
+        Self {
+            name,
+            text,
+            ..Default::default()
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -244,6 +266,30 @@ pub fn clear_messages(conn: &Connection, conversation_id: &str) -> Result<(), St
     )
     .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// Rutas en disco de todas las imágenes adjuntas (M3) de una conversación,
+/// para poder borrar los archivos al limpiar o eliminar la conversación.
+pub fn conversation_image_files(conn: &Connection, conversation_id: &str) -> Result<Vec<String>, String> {
+    let mut stmt = conn
+        .prepare("SELECT attachments FROM messages WHERE conversation_id = ?1")
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(params![conversation_id], |row| row.get::<_, Option<String>>(0))
+        .map_err(|e| e.to_string())?;
+    let mut files = Vec::new();
+    for raw in rows {
+        if let Some(s) = raw.map_err(|e| e.to_string())? {
+            if let Ok(atts) = serde_json::from_str::<Vec<Attachment>>(&s) {
+                for a in atts {
+                    if let Some(f) = a.image_file {
+                        files.push(f);
+                    }
+                }
+            }
+        }
+    }
+    Ok(files)
 }
 
 pub fn get_setting(conn: &Connection, key: &str) -> Result<Option<String>, String> {

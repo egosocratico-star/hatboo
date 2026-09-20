@@ -13,9 +13,21 @@ pub use local::LocalProvider;
 pub use openai::OpenAiProvider;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImagePart {
+    /// Ej. "image/png", "image/jpeg".
+    pub media_type: String,
+    /// Bytes de la imagen codificados en base64 (sin prefijo data URI).
+    pub data_base64: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatMessage {
     pub role: String,
     pub content: String,
+    /// Imágenes adjuntas del mensaje (M3). Vacío → el proveedor manda `content`
+    /// como string plano (comportamiento de siempre, sin regresión en texto).
+    #[serde(default)]
+    pub images: Vec<ImagePart>,
 }
 
 #[derive(Debug, thiserror::Error)]

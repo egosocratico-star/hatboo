@@ -15,7 +15,7 @@ pub fn run() {
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             let conn = db::connect(&data_dir.join("hatboo.db"))?;
-            app.manage(AppState::new(conn));
+            app.manage(AppState::new(conn, data_dir));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -27,6 +27,7 @@ pub fn run() {
             commands::regenerate_response,
             commands::clear_conversation_messages,
             commands::read_attachment,
+            commands::save_image_attachment,
             commands::list_local_models,
             commands::test_provider,
             commands::get_settings,

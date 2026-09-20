@@ -10,11 +10,29 @@ import {
   Trash2,
 } from "lucide-react";
 import { useChatStore } from "../store/chatStore";
-import type { Attachment } from "../types";
+import type { Attachment, Settings } from "../types";
 
 interface Props {
   onPickFiles: (files: Attachment[]) => void;
   disabled?: boolean;
+}
+
+const VISION_LOCAL_KEYWORDS = [
+  "vl",
+  "vision",
+  "llava",
+  "minicpm-v",
+  "moondream",
+  "gemma3",
+];
+
+function supportsVision(settings: Settings | null): boolean {
+  if (!settings) return false;
+  if (settings.activeProvider === "anthropic" || settings.activeProvider === "openai") {
+    return true;
+  }
+  const model = settings.localModel.toLowerCase();
+  return VISION_LOCAL_KEYWORDS.some((k) => model.includes(k));
 }
 
 export default function ChatPlusMenu({ onPickFiles, disabled }: Props) {
@@ -22,6 +40,8 @@ export default function ChatPlusMenu({ onPickFiles, disabled }: Props) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const settings = useChatStore((s) => s.settings);
+  const visionOk = supportsVision(settings);
 
   useEffect(() => {
     if (!open_) return;
@@ -50,6 +70,42 @@ export default function ChatPlusMenu({ onPickFiles, disabled }: Props) {
       for (const path of paths) {
         try {
           results.push(await invoke<Attachment>("read_attachment", { path }));
+        } catch (e) {
+          failures.push(String(e));
+        }
+      }
+      if (results.length > 0) onPickFiles(results);
+      if (failures.length > 0) setNotice(failures[0]);
+    } finally {
+      setBusy(false);
+      close();
+    }
+  };
+
+  const pickImages = async () => {
+    setNotice(null);
+    const picked = await open({
+      multiple: true,
+      directory: false,
+      title: "Adjuntar imágenes",
+      filters: [
+        {
+          name: "Imágenes",
+          extensions: ["png", "jpg", "jpeg", "gif", "webp"],
+        },
+      ],
+    });
+    if (!picked) return;
+    const paths = Array.isArray(picked) ? picked : [picked];
+    setBusy(true);
+    try {
+      const results: Attachment[] = [];
+      const failures: string[] = [];
+      for (const path of paths) {
+        try {
+          results.push(
+            await invoke<Attachment>("save_image_attachment", { path }),
+          );
         } catch (e) {
           failures.push(String(e));
         }
@@ -99,14 +155,21 @@ export default function ChatPlusMenu({ onPickFiles, disabled }: Props) {
             <FileText className="w-4 h-4 text-accent-soft shrink-0" />
             <span className="flex-1">{busy ? "Leyendo…" : "Archivo de texto"}</span>
           </button>
-          <div
-            className={item + " opacity-45 cursor-not-allowed"}
-            title="Adjuntar imágenes llegará en una próxima versión"
-          >
-            <ImageIcon className="w-4 h-4 text-zinc-500 shrink-0" />
-            <span className="flex-1">Imagen</span>
-            <span className="text-[10px] text-zinc-500">pronto</span>
-          </div>
+          {visionOk ? (
+            <button onClick={() => void pickImages()} className={item} disabled={busy}>
+              <ImageIcon className="w-4 h-4 text-accent-soft shrink-0" />
+              <span className="flex-1">Imagen</span>
+            </button>
+          ) : (
+            <div
+              className={item + " opacity-45 cursor-not-allowed"}
+              title="El modelo actual no admite imágenes. Cambia a un modelo con visión en Ajustes."
+            >
+              <ImageIcon className="w-4 h-4 text-zinc-500 shrink-0" />
+              <span className="flex-1">Imagen</span>
+              <span className="text-[10px] text-zinc-500">sin visión</span>
+            </div>
+          )}
 
           <div className="my-1.5 h-px bg-base-border" />
           <div className="px-2 pt-0.5 pb-1 text-[10px] uppercase tracking-wider text-zinc-500">

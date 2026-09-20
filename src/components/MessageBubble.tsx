@@ -1,5 +1,5 @@
 import { Fragment, useState } from "react";
-import { Check, Copy, Paperclip, RotateCcw } from "lucide-react";
+import { Check, Copy, Image as ImageIcon, Paperclip, RotateCcw } from "lucide-react";
 import type { Message } from "../types";
 
 const CODE_FENCE = /```(\w*)\n?([\s\S]*?)```/g;
@@ -86,20 +86,27 @@ export default function MessageBubble({ message, onRegenerate }: Props) {
         )}
         {message.attachments.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-2">
-            {message.attachments.map((a, i) => (
-              <span
-                key={i}
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] border ${
-                  isUser
-                    ? "border-white/25 bg-white/10 text-white"
-                    : "border-base-border bg-black/30 text-zinc-300"
-                }`}
-                title={`${a.text.length.toLocaleString()} caracteres`}
-              >
-                <Paperclip className="w-3 h-3 shrink-0" />
-                <span className="max-w-[180px] truncate">{a.name}</span>
-              </span>
-            ))}
+            {message.attachments.map((a, i) => {
+              const isImage = Boolean(a.imageFile);
+              return (
+                <span
+                  key={i}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] border ${
+                    isUser
+                      ? "border-white/25 bg-white/10 text-white"
+                      : "border-base-border bg-black/30 text-zinc-300"
+                  }`}
+                  title={isImage ? "Imagen adjunta" : `${a.text.length.toLocaleString()} caracteres`}
+                >
+                  {isImage ? (
+                    <ImageIcon className="w-3 h-3 shrink-0" />
+                  ) : (
+                    <Paperclip className="w-3 h-3 shrink-0" />
+                  )}
+                  <span className="max-w-[180px] truncate">{a.name}</span>
+                </span>
+              );
+            })}
           </div>
         )}
         {renderContent(message.content)}

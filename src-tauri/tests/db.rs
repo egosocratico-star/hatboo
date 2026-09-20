@@ -41,8 +41,8 @@ fn attachments_roundtrip_and_clear_messages() {
 
     let conv = db::create_conversation(&conn, "T", None).unwrap();
     let atts = [
-        db::Attachment { name: "notas.md".into(), text: "# hola".into() },
-        db::Attachment { name: "datos.csv".into(), text: "a,b\n1,2".into() },
+        db::Attachment::text("notas.md".into(), "# hola".into()),
+        db::Attachment::text("datos.csv".into(), "a,b\n1,2".into()),
     ];
     db::add_message_with_attachments(&conn, &conv.id, "user", "mira esto", None, &atts)
         .unwrap();

@@ -49,7 +49,10 @@ pub fn create_conversation(
 #[tauri::command]
 pub fn delete_conversation(app: State<AppState>, conversation_id: String) -> Result<(), String> {
     let conn = app.db.lock().map_err(|e| e.to_string())?;
-    db::delete_conversation(&conn, &conversation_id)
+    let images = db::conversation_image_files(&conn, &conversation_id)?;
+    db::delete_conversation(&conn, &conversation_id)?;
+    remove_image_files(images);
+    Ok(())
 }
 
 #[tauri::command]
@@ -101,25 +104,53 @@ pub async fn test_provider(
 }
 
 /// Carga el historial de la conversación en formato de proveedor.
-/// El texto de los adjuntos se antepone al contenido para el modelo, pero no se
-/// guarda en `content` (así la burbuja del chat sigue mostrando solo el mensaje
-/// del usuario y el archivo "vive con la conversación" al reenviarse cada turno).
+/// Los adjuntos de TEXTO se anteponen al contenido (la burbuja sigue limpia);
+/// las IMÁGENES (M3) se leen desde disco, se codifican a base64 y viajan como
+/// `ImagePart` aparte, no dentro de `content`.
 fn history(app: &AppState, conversation_id: &str) -> Result<Vec<ChatMessage>, String> {
+    use base64::{engine::general_purpose, Engine as _};
+    use crate::providers::ImagePart;
     let conn = app.db.lock().map_err(|e| e.to_string())?;
     let messages = db::list_messages(&conn, conversation_id)?;
     Ok(messages
         .into_iter()
-        .map(|m| ChatMessage {
-            role: m.role,
-            content: if m.attachments.is_empty() {
+        .map(|m| {
+            let mut text_prefix = String::new();
+            let mut images: Vec<ImagePart> = Vec::new();
+            for a in &m.attachments {
+                if let Some(path) = &a.image_file {
+                    match std::fs::read(path) {
+                        Ok(bytes) => images.push(ImagePart {
+                            media_type: a
+                                .image_media_type
+                                .clone()
+                                .unwrap_or_else(|| "image/png".to_string()),
+                            data_base64: general_purpose::STANDARD.encode(&bytes),
+                        }),
+                        Err(_) => {
+                            text_prefix.push_str(&format!(
+                                "[Adjunto no disponible: {}]\n\n",
+                                a.name
+                            ));
+                        }
+                    }
+                } else {
+                    text_prefix.push_str(&format!(
+                        "[Archivo adjunto: {}]\n{}\n\n",
+                        a.name, a.text
+                    ));
+                }
+            }
+            let content = if text_prefix.is_empty() {
                 m.content
             } else {
-                let mut block = String::new();
-                for a in &m.attachments {
-                    block.push_str(&format!("[Archivo adjunto: {}]\n{}\n\n", a.name, a.text));
-                }
-                format!("{}{}", block, m.content)
-            },
+                format!("{}{}", text_prefix, m.content)
+            };
+            ChatMessage {
+                role: m.role,
+                content,
+                images,
+            }
         })
         .collect())
 }
@@ -186,7 +217,10 @@ pub fn clear_conversation_messages(
     conversation_id: String,
 ) -> Result<(), String> {
     let conn = app.db.lock().map_err(|e| e.to_string())?;
-    db::clear_messages(&conn, &conversation_id)
+    let images = db::conversation_image_files(&conn, &conversation_id)?;
+    db::clear_messages(&conn, &conversation_id)?;
+    remove_image_files(images);
+    Ok(())
 }
 
 /// Máximo de bytes que se leen de un archivo adjunto de texto (M2).
@@ -231,7 +265,69 @@ pub fn read_attachment(path: String) -> Result<db::Attachment, String> {
     if truncated {
         text.push_str("\n\n[... el archivo se truncó por tamaño ...]");
     }
-    Ok(db::Attachment { name, text })
+    Ok(db::Attachment::text(name, text))
+}
+
+/// Máximo de bytes de una imagen adjunta (M3), antes de copiarla a disco.
+const IMAGE_MAX_BYTES: usize = 4 * 1024 * 1024;
+
+/// Guarda una imagen elegida por el usuario en `data_dir/attachments` y devuelve
+/// la referencia (no el binario) para adjuntarla al mensaje. Solo formatos de
+/// visión comunes y tamaño acotado; el base64 se genera al construir el payload.
+#[tauri::command]
+pub fn save_image_attachment(
+    app: State<AppState>,
+    path: String,
+) -> Result<db::Attachment, String> {
+    let canonical = std::path::Path::new(&path)
+        .canonicalize()
+        .map_err(|_| "No se encontró el archivo.".to_string())?;
+    if !canonical.is_file() {
+        return Err("La ruta seleccionada no es un archivo.".into());
+    }
+    let ext = canonical
+        .extension()
+        .map(|e| e.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    let media_type = match ext.as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        _ => {
+            return Err(
+                "Formato de imagen no soportado. Usa PNG, JPG, GIF o WEBP.".into(),
+            )
+        }
+    };
+    let bytes = std::fs::read(&canonical).map_err(|e| format!("No se pudo leer: {e}"))?;
+    if bytes.len() > IMAGE_MAX_BYTES {
+        return Err(format!(
+            "La imagen pesa {} MB; el máximo es 4 MB.",
+            (bytes.len() as f64 / 1_048_576.0 * 10.0).round() / 10.0
+        ));
+    }
+    let dir = app.data_dir.join("attachments");
+    std::fs::create_dir_all(&dir).map_err(|e| format!("No se pudo crear la carpeta: {e}"))?;
+    let dest = dir.join(format!("{}.{}", uuid::Uuid::new_v4(), ext));
+    std::fs::write(&dest, &bytes).map_err(|e| format!("No se pudo guardar la imagen: {e}"))?;
+    let name = canonical
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| dest.display().to_string());
+    Ok(db::Attachment {
+        name,
+        text: String::new(),
+        image_media_type: Some(media_type.to_string()),
+        image_file: Some(dest.display().to_string()),
+    })
+}
+
+/// Borra del disco las imágenes referenciadas (ignora errores: pueden faltar).
+fn remove_image_files(paths: Vec<String>) {
+    for p in paths {
+        let _ = std::fs::remove_file(p);
+    }
 }
 
 /// Lanza el streaming del proveedor para la conversación y emite chat:*.
@@ -247,6 +343,7 @@ fn spawn_chat_stream(app: tauri::AppHandle, conversation_id: String) -> Result<(
             ChatMessage {
                 role: "system".into(),
                 content: format!("El usuario prefiere que lo llames «{name}»."),
+                images: Vec::new(),
             },
         );
     }

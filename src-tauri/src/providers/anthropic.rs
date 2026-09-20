@@ -27,7 +27,27 @@ impl AnthropicProvider {
         let chat: Vec<_> = messages
             .iter()
             .filter(|m| m.role != "system")
-            .map(|m| json!({ "role": m.role, "content": m.content }))
+            .map(|m| {
+                if m.images.is_empty() {
+                    json!({ "role": m.role, "content": m.content })
+                } else {
+                    let mut blocks: Vec<serde_json::Value> = Vec::new();
+                    if !m.content.is_empty() {
+                        blocks.push(json!({ "type": "text", "text": m.content }));
+                    }
+                    for img in &m.images {
+                        blocks.push(json!({
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": img.media_type,
+                                "data": img.data_base64,
+                            }
+                        }));
+                    }
+                    json!({ "role": m.role, "content": blocks })
+                }
+            })
             .collect();
         let mut body = json!({
             "model": self.model,
@@ -106,5 +126,46 @@ impl AiProvider for AnthropicProvider {
             |payload| payload.contains("\"message_stop\""),
         )
         .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::providers::ImagePart;
+
+    fn provider() -> AnthropicProvider {
+        AnthropicProvider::new("k".into(), "claude-test".into())
+    }
+
+    #[test]
+    fn text_only_message_sends_string_content() {
+        let msgs = vec![ChatMessage {
+            role: "user".into(),
+            content: "hola".into(),
+            images: Vec::new(),
+        }];
+        let body = provider().body(&msgs, false);
+        assert_eq!(body["messages"][0]["content"], json!("hola"));
+    }
+
+    #[test]
+    fn image_message_sends_content_blocks() {
+        let msgs = vec![ChatMessage {
+            role: "user".into(),
+            content: "mira".into(),
+            images: vec![ImagePart {
+                media_type: "image/png".into(),
+                data_base64: "AAAA".into(),
+            }],
+        }];
+        let body = provider().body(&msgs, false);
+        let content = &body["messages"][0]["content"];
+        assert!(content.is_array(), "content debe ser array con imagen");
+        assert_eq!(content[0]["type"], json!("text"));
+        assert_eq!(content[1]["type"], json!("image"));
+        assert_eq!(content[1]["source"]["type"], json!("base64"));
+        assert_eq!(content[1]["source"]["media_type"], json!("image/png"));
+        assert_eq!(content[1]["source"]["data"], json!("AAAA"));
     }
 }

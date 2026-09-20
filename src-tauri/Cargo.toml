@@ -27,6 +27,7 @@ anyhow = "1"
 similar = "2"
 walkdir = "2"
 regex = "1"
+base64 = "0.22"
 tauri-plugin-dialog = "2"
 
 # Backend nativo del llavero por plataforma (keyring v3 no trae ninguno por defecto)

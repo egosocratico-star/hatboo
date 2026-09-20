@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, Paperclip, Send, X } from "lucide-react";
+import { AlertCircle, Image as ImageIcon, Paperclip, Send, X } from "lucide-react";
 import { useChatStore } from "../store/chatStore";
 import MessageBubble from "./MessageBubble";
 import Mascot from "./mascot/Mascot";
@@ -142,9 +142,13 @@ export default function ChatWindow() {
                   <span
                     key={i}
                     className="inline-flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-md text-[11px] border border-base-border bg-base-raised text-zinc-300"
-                    title={`${a.text.length.toLocaleString()} caracteres`}
+                    title={a.imageFile ? "Imagen adjunta" : `${a.text.length.toLocaleString()} caracteres`}
                   >
-                    <Paperclip className="w-3 h-3 shrink-0 text-accent-soft" />
+                    {a.imageFile ? (
+                      <ImageIcon className="w-3 h-3 shrink-0 text-accent-soft" />
+                    ) : (
+                      <Paperclip className="w-3 h-3 shrink-0 text-accent-soft" />
+                    )}
                     <span className="max-w-[200px] truncate">{a.name}</span>
                     <button
                       onClick={() =>
