@@ -147,6 +147,19 @@ export default function Popover({
     return () => document.removeEventListener("mousedown", onDown);
   }, [anchorRef, onClose, open]);
 
+  // Esc cierra también, como en cualquier menú nativo. Se registra después del
+  // listener del clic para ser el último en decidir.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose, open]);
+
   if (!mounted || !style) return null;
   return createPortal(
     <div

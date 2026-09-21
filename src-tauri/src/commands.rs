@@ -395,6 +395,45 @@ pub fn save_image_attachment(
     })
 }
 
+/// Devuelve una imagen adjunta como data URI para poder pintarla en la burbuja.
+/// La ruta llega desde la BD —y tras una importación ese JSON es ajeno—, así que
+/// se canonicaliza y se exige que siga dentro de `attachments/` antes de leer.
+#[tauri::command]
+pub fn attachment_image(app: State<AppState>, file: String) -> Result<String, String> {
+    image_data_uri(&app.data_dir.join("attachments"), &file)
+}
+
+fn image_data_uri(attachments_dir: &Path, file: &str) -> Result<String, String> {
+    use base64::{engine::general_purpose, Engine as _};
+    let root = attachments_dir
+        .canonicalize()
+        .map_err(|_| "La carpeta de adjuntos no existe.".to_string())?;
+    let path = Path::new(file)
+        .canonicalize()
+        .map_err(|_| "La imagen ya no está disponible.".to_string())?;
+    if !path.starts_with(&root) {
+        return Err("Ese archivo no está en la carpeta de adjuntos de Hatboo.".into());
+    }
+    let media_type = match path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .unwrap_or_default()
+        .as_str()
+    {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        _ => return Err("Formato de imagen no soportado.".into()),
+    };
+    let bytes = std::fs::read(&path).map_err(|e| format!("No se pudo leer: {e}"))?;
+    Ok(format!(
+        "data:{media_type};base64,{}",
+        general_purpose::STANDARD.encode(&bytes)
+    ))
+}
+
 /// Borra del disco las imágenes referenciadas (ignora errores: pueden faltar).
 fn remove_image_files(paths: Vec<String>) {
     for p in paths {
@@ -420,47 +459,85 @@ pub fn export_conversation(
     };
 
     let content = match format.as_str() {
-        "json" => {
-            let items: Vec<serde_json::Value> = messages
-                .iter()
-                .map(|m| {
-                    let atts: Vec<&str> = m.attachments.iter().map(|a| a.name.as_str()).collect();
-                    serde_json::json!({
-                        "role": m.role,
-                        "content": m.content,
-                        "provider": m.provider,
-                        "createdAt": m.created_at,
-                        "attachments": atts,
-                    })
-                })
-                .collect();
-            let doc = serde_json::json!({ "title": title, "messages": items });
-            serde_json::to_string_pretty(&doc).map_err(|e| e.to_string())?
-        }
-        _ => {
-            let mut md = String::new();
-            md.push_str(&format!("# {}\n\n", title));
-            for m in &messages {
-                let label = if m.role == "user" { "Usuario" } else { "Asistente" };
-                let mut heading = format!("### {label}");
-                if let Some(p) = &m.provider {
-                    heading.push_str(&format!(" · {p}"));
-                }
-                md.push_str(&heading);
-                md.push('\n');
-                if !m.attachments.is_empty() {
-                    let names: Vec<&str> = m.attachments.iter().map(|a| a.name.as_str()).collect();
-                    md.push_str(&format!("> Adjuntos: {}\n", names.join(", ")));
-                }
-                md.push_str(m.content.trim());
-                md.push_str("\n\n");
-            }
-            md
-        }
+        "json" => render_json(&title, &messages),
+        _ => render_markdown(&title, &messages),
     };
 
     std::fs::write(&path, content).map_err(|e| format!("No se pudo escribir el archivo: {e}"))?;
     Ok(())
+}
+
+fn render_json(title: &str, messages: &[db::Message]) -> String {
+    let items: Vec<serde_json::Value> = messages
+        .iter()
+        .map(|m| {
+            let atts: Vec<&str> = m.attachments.iter().map(|a| a.name.as_str()).collect();
+            let mut obj = serde_json::json!({
+                "role": m.role,
+                "content": m.content,
+                "provider": m.provider,
+                "createdAt": m.created_at,
+                "attachments": atts,
+            });
+            if let Some(r) = &m.reasoning {
+                obj["reasoning"] = serde_json::json!(r);
+                obj["thinkingMs"] = serde_json::json!(m.thinking_ms);
+            }
+            if !m.web_sources.is_empty() {
+                obj["webSources"] = serde_json::json!(m.web_sources);
+            }
+            obj
+        })
+        .collect();
+    let doc = serde_json::json!({ "title": title, "messages": items });
+    serde_json::to_string_pretty(&doc).unwrap_or_else(|_| "{}".into())
+}
+
+fn render_markdown(title: &str, messages: &[db::Message]) -> String {
+    let mut md = format!("# {title}\n\n");
+    for m in messages {
+        let label = if m.role == "user" { "Usuario" } else { "Asistente" };
+        let mut heading = format!("### {label}");
+        if let Some(p) = &m.provider {
+            heading.push_str(&format!(" · {p}"));
+        }
+        md.push_str(&heading);
+        md.push('\n');
+        if !m.attachments.is_empty() {
+            let names: Vec<&str> = m.attachments.iter().map(|a| a.name.as_str()).collect();
+            md.push_str(&format!("> Adjuntos: {}\n", names.join(", ")));
+        }
+        if let Some(r) = m.reasoning.as_ref().filter(|r| !r.trim().is_empty()) {
+            // En <details> para que al abrir el .md el razonamiento no tape la
+            // respuesta: GitHub y VS Code lo renderizan cerrado.
+            let dur = m.thinking_ms.map(human_ms).unwrap_or_default();
+            md.push_str(&format!(
+                "<details><summary>Razonamiento{}</summary>\n\n{}\n\n</details>\n\n",
+                dur,
+                r.trim()
+            ));
+        }
+        md.push_str(m.content.trim());
+        md.push_str("\n\n");
+        if !m.web_sources.is_empty() {
+            let links: Vec<String> = m
+                .web_sources
+                .iter()
+                .map(|s| format!("[{}]({})", s.title, s.url))
+                .collect();
+            md.push_str(&format!("Fuentes: {}\n\n", links.join(" · ")));
+        }
+    }
+    md
+}
+
+/// Duración legible para el export; devuelve cadena vacía si no hay dato.
+fn human_ms(ms: i64) -> String {
+    if ms < 1000 {
+        format!(" ({ms} ms)")
+    } else {
+        format!(" ({:.1} s)", ms as f64 / 1000.0)
+    }
 }
 
 /// Prompt de sistema del modo código.
@@ -1179,4 +1256,80 @@ pub fn get_storage_info(app: State<AppState>) -> Result<StorageInfo, String> {
         attachments_count,
         counts,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    /// Carpeta de adjuntos desechable con un PNG minúsculo dentro.
+    fn dir_con_imagen() -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("hatboo-img-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut f = std::fs::File::create(dir.join("foto.png")).unwrap();
+        f.write_all(&[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a]).unwrap();
+        dir
+    }
+
+    #[test]
+    fn sirve_como_data_uri_una_imagen_de_la_carpeta() {
+        let dir = dir_con_imagen();
+        let file = dir.join("foto.png").display().to_string();
+        let uri = image_data_uri(&dir, &file).unwrap();
+        assert!(uri.starts_with("data:image/png;base64,"));
+        assert!(uri.contains("iVBORw0KGgo"));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn rechaza_rutas_de_fuera_de_la_carpeta_de_adjuntos() {
+        let dir = dir_con_imagen();
+        let fuera = std::env::temp_dir().join("hatboo-fuera.png");
+        std::fs::write(&fuera, b"x").unwrap();
+        // Escapando con .. y también con una ruta absoluta directa.
+        assert!(image_data_uri(&dir, "../../hatboo-fuera.png").is_err());
+        assert!(image_data_uri(&dir, &fuera.display().to_string()).is_err());
+        // Y lo que no existe o no es imagen.
+        assert!(image_data_uri(&dir, "no-existe.png").is_err());
+        std::fs::write(dir.join("nota.txt"), b"x").unwrap();
+        assert!(image_data_uri(&dir, &dir.join("nota.txt").display().to_string()).is_err());
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::remove_file(&fuera).ok();
+    }
+
+    #[test]
+    fn el_markdown_del_export_trae_razonamiento_y_fuentes() {
+        let mut m = db::Message {
+            id: "m1".into(),
+            conversation_id: "c1".into(),
+            role: "assistant".into(),
+            content: "La respuesta.".into(),
+            provider: Some("local".into()),
+            created_at: 0,
+            attachments: vec![],
+            reasoning: Some("  Primero miro esto.  ".into()),
+            thinking_ms: Some(2400),
+            web_sources: vec![db::WebSource {
+                title: "Docs".into(),
+                url: "https://ejemplo.com/docs".into(),
+                snippet: String::new(),
+            }],
+            feedback: None,
+        };
+        let md = render_markdown("Título", &[m.clone()]);
+        assert!(md.starts_with("# Título\n\n"));
+        assert!(md.contains("### Asistente · local"));
+        assert!(md.contains("<summary>Razonamiento (2.4 s)</summary>"));
+        assert!(md.contains("Primero miro esto."));
+        assert!(md.contains("[Docs](https://ejemplo.com/docs)"));
+
+        // Sin razonamiento ni fuentes no se mete basura en el archivo.
+        m.reasoning = None;
+        m.thinking_ms = None;
+        m.web_sources.clear();
+        let limpio = render_markdown("Título", &[m]);
+        assert!(!limpio.contains("<details>"));
+        assert!(!limpio.contains("Fuentes:"));
+    }
 }

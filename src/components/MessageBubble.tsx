@@ -1,18 +1,9 @@
 import { memo, useEffect, useRef, useState } from "react";
-import {
-  Check,
-  Copy,
-  Image as ImageIcon,
-  Paperclip,
-  Pencil,
-  RotateCcw,
-  ThumbsDown,
-  ThumbsUp,
-  X,
-} from "lucide-react";
+import { Check, Copy, Paperclip, Pencil, RotateCcw, ThumbsDown, ThumbsUp, X } from "lucide-react";
 import RichText from "./RichText";
 import ThinkingBlock from "./ThinkingBlock";
 import SourcesBlock from "./SourcesBlock";
+import AttachmentImage from "./AttachmentThumb";
 import { useChatStore } from "../store/chatStore";
 import type { Message } from "../types";
 
@@ -92,34 +83,32 @@ function MessageBubble({
     if (text && text !== message.content) onEdit?.(message.id, text);
   };
 
+  // Las imágenes se muestran como miniatura; los documentos siguen como chip.
+  const imageAtts = message.attachments.flatMap((a) =>
+    a.imageFile ? [{ file: a.imageFile, name: a.name }] : [],
+  );
+  const docAtts = message.attachments.filter((a) => !a.imageFile);
+
   const chips =
     message.attachments.length > 0 && (
-      <div className="flex flex-wrap gap-1.5 mb-2">
-        {message.attachments.map((a, i) => {
-          const isImage = Boolean(a.imageFile);
-          return (
-            <span
-              key={i}
-              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] border ${
-                isUser
-                  ? "border-white/25 bg-white/10 text-white"
-                  : "border-base-border bg-base-raised text-zinc-300"
-              }`}
-              title={
-                isImage
-                  ? "Imagen adjunta"
-                  : `${a.text.length.toLocaleString("es")} caracteres`
-              }
-            >
-              {isImage ? (
-                <ImageIcon className="w-3 h-3 shrink-0" />
-              ) : (
-                <Paperclip className="w-3 h-3 shrink-0" />
-              )}
-              <span className="max-w-[180px] truncate">{a.name}</span>
-            </span>
-          );
-        })}
+      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+        {imageAtts.map((a) => (
+          <AttachmentImage key={a.file} file={a.file} name={a.name} onAccent={isUser} />
+        ))}
+        {docAtts.map((a, i) => (
+          <span
+            key={i}
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] border ${
+              isUser
+                ? "border-white/25 bg-white/10 text-white"
+                : "border-base-border bg-base-raised text-zinc-300"
+            }`}
+            title={`${a.text.length.toLocaleString("es")} caracteres`}
+          >
+            <Paperclip className="w-3 h-3 shrink-0" />
+            <span className="max-w-[180px] truncate">{a.name}</span>
+          </span>
+        ))}
       </div>
     );
 
@@ -164,9 +153,11 @@ function MessageBubble({
           <>
             <div className="max-w-[85%] rounded-3xl bg-accent px-4 py-2.5 text-white">
               {chips}
-              <div className="whitespace-pre-wrap break-words text-[14.5px] leading-relaxed">
-                {message.content}
-              </div>
+              {message.content && (
+                <div className="whitespace-pre-wrap break-words text-[14.5px] leading-relaxed">
+                  {message.content}
+                </div>
+              )}
             </div>
             {onEdit && (
               <div className="mt-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">

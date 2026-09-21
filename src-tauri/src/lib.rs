@@ -40,6 +40,7 @@ pub fn run() {
             commands::factory_reset,
             commands::read_attachment,
             commands::save_image_attachment,
+            commands::attachment_image,
             commands::list_local_models,
             commands::test_provider,
             commands::get_settings,

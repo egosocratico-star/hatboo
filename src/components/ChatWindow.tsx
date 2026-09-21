@@ -1,15 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   ArrowUp,
-  Image as ImageIcon,
+  ChevronDown,
+  ChevronUp,
   Paperclip,
+  Search,
   Square,
   X,
 } from "lucide-react";
 import { useChatStore } from "../store/chatStore";
 import MessageBubble from "./MessageBubble";
 import RichText from "./RichText";
+import AttachmentImage from "./AttachmentThumb";
 import Mascot from "./mascot/Mascot";
 import ProviderModelPicker from "./ProviderModelPicker";
 import ChatPlusMenu from "./ChatPlusMenu";
@@ -39,6 +42,7 @@ export default function ChatWindow() {
     const conv = s.conversations.find((c) => c.id === s.activeId);
     return conv?.title ?? "Chat";
   });
+  const activeId = useChatStore((s) => s.activeId);
   const sendMessage = useChatStore((s) => s.sendMessage);
   const regenerate = useChatStore((s) => s.regenerate);
   const editMessage = useChatStore((s) => s.editMessage);
@@ -49,8 +53,13 @@ export default function ChatWindow() {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [happy, setHappy] = useState(false);
   const [permOpen, setPermOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [hitIdx, setHitIdx] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const msgNodes = useRef<Record<string, HTMLDivElement | null>>({});
   const prevLen = useRef(messages.length);
   // Solo se sigue el final si el usuario está cerca de él. Si ha subido a releer,
   // el stream ya no le devuelve abajo a tirones.
@@ -61,6 +70,62 @@ export default function ChatWindow() {
     if (!el) return;
     pinnedRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
   };
+
+  // --- Buscar dentro de esta conversación -------------------------------
+  const needle = query.trim().toLowerCase();
+  const hitIds = useMemo(
+    () =>
+      needle
+        ? messages
+            .filter(
+              (m) =>
+                m.content.toLowerCase().includes(needle) ||
+                m.reasoning?.toLowerCase().includes(needle),
+            )
+            .map((m) => m.id)
+        : [],
+    [messages, needle],
+  );
+  // Se lee desde un ref para poder saltar justo después de re-renderizar, sin
+  // arrastrar un estado más que mantener sincronizado.
+  const hitsRef = useRef<string[]>([]);
+  hitsRef.current = hitIds;
+
+  const focusHit = (i: number) => {
+    const ids = hitsRef.current;
+    if (ids.length === 0) return;
+    const idx = ((i % ids.length) + ids.length) % ids.length;
+    setHitIdx(idx);
+    const el = msgNodes.current[ids[idx]];
+    if (!el) return;
+    // Al buscar a mano el streaming no debe volver a bajar.
+    pinnedRef.current = false;
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+  };
+
+  const onQueryChange = (value: string) => {
+    setQuery(value);
+    setHitIdx(0);
+    if (value.trim()) requestAnimationFrame(() => focusHit(0));
+  };
+
+  const closeSearch = () => {
+    setQuery("");
+    setHitIdx(0);
+    setSearchOpen(false);
+  };
+
+  const openSearch = () => {
+    setSearchOpen(true);
+    requestAnimationFrame(() => searchRef.current?.focus());
+  };
+
+  // Cambiar de conversación deja la búsqueda donde empezó.
+  useEffect(() => {
+    setQuery("");
+    setHitIdx(0);
+    setSearchOpen(false);
+  }, [activeId]);
 
   useEffect(() => {
     const el = listRef.current;
@@ -146,31 +211,28 @@ export default function ChatWindow() {
   const composer = (
     <div className="rounded-2xl border border-base-border bg-base-raised/70 shadow-xl shadow-black/30 px-3 pt-3 pb-2.5 transition-colors focus-within:border-accent/50">
       {attachments.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 pb-2 pl-0.5">
+        <div className="flex flex-wrap items-center gap-1.5 pb-2 pl-0.5">
           {attachments.map((a, i) => (
-            <span
-              key={i}
-              className="inline-flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-md text-[11px] border border-base-border bg-base text-zinc-300"
-              title={
-                a.imageFile
-                  ? "Imagen adjunta"
-                  : `${a.text.length.toLocaleString()} caracteres`
-              }
-            >
+            <span key={i} className="relative inline-flex">
               {a.imageFile ? (
-                <ImageIcon className="w-3 h-3 shrink-0 text-accent-soft" />
+                <AttachmentImage file={a.imageFile} name={a.name} />
               ) : (
-                <Paperclip className="w-3 h-3 shrink-0 text-accent-soft" />
+                <span
+                  className="inline-flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-md text-[11px] border border-base-border bg-base text-zinc-300"
+                  title={`${a.text.length.toLocaleString()} caracteres`}
+                >
+                  <Paperclip className="w-3 h-3 shrink-0 text-accent-soft" />
+                  <span className="max-w-[200px] truncate">{a.name}</span>
+                </span>
               )}
-              <span className="max-w-[200px] truncate">{a.name}</span>
               <button
                 onClick={() =>
                   setAttachments((prev) => prev.filter((_, j) => j !== i))
                 }
-                className="p-0.5 rounded hover:bg-white/10 text-zinc-500 hover:text-white"
+                className="absolute -right-1.5 -top-1.5 grid place-items-center w-4 h-4 rounded-full border border-base-border bg-base-raised text-zinc-400 hover:bg-accent hover:text-white transition-colors"
                 title="Quitar adjunto"
               >
-                <X className="w-3 h-3" />
+                <X className="w-2.5 h-2.5" />
               </button>
             </span>
           ))}
@@ -258,10 +320,67 @@ export default function ChatWindow() {
 
   return (
     <div className="flex-1 flex flex-col h-full min-w-0">
-      <header className="h-11 shrink-0 flex items-center px-5">
-        <div className="text-sm font-medium truncate text-zinc-300">
+      <header className="h-11 shrink-0 flex items-center gap-3 px-5">
+        <div className="flex-1 min-w-0 text-sm font-medium truncate text-zinc-300">
           {activeTitle}
         </div>
+        {searchOpen ? (
+          <div className="flex items-center gap-1 rounded-full border border-base-border bg-base-raised py-1 pl-2.5 pr-1">
+            <Search className="w-3.5 h-3.5 shrink-0 text-zinc-500" />
+            <input
+              ref={searchRef}
+              value={query}
+              onChange={(e) => onQueryChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  focusHit(hitIdx + (e.shiftKey ? -1 : 1));
+                }
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  closeSearch();
+                }
+              }}
+              placeholder="Buscar en el chat"
+              className="w-40 bg-transparent text-xs outline-none placeholder:text-zinc-600"
+            />
+            <span className="shrink-0 text-[11px] tabular-nums text-zinc-500">
+              {hitIds.length ? `${hitIdx + 1}/${hitIds.length}` : "0/0"}
+            </span>
+            <button
+              onClick={() => focusHit(hitIdx - 1)}
+              disabled={hitIds.length === 0}
+              title="Anterior (Shift+Enter)"
+              className="rounded-full p-1 text-zinc-500 hover:bg-white/8 hover:text-zinc-100 disabled:opacity-30 transition-colors"
+            >
+              <ChevronUp className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => focusHit(hitIdx + 1)}
+              disabled={hitIds.length === 0}
+              title="Siguiente (Enter)"
+              className="rounded-full p-1 text-zinc-500 hover:bg-white/8 hover:text-zinc-100 disabled:opacity-30 transition-colors"
+            >
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={closeSearch}
+              title="Cerrar búsqueda (Esc)"
+              className="rounded-full p-1 text-zinc-500 hover:bg-white/8 hover:text-zinc-100 transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={openSearch}
+            title="Buscar en la conversación"
+            className="rounded-md p-1.5 text-zinc-500 hover:bg-white/5 hover:text-zinc-100 transition-colors"
+          >
+            <Search className="w-4 h-4" />
+          </button>
+        )}
       </header>
 
       <div ref={listRef} onScroll={onListScroll} className="flex-1 overflow-y-auto">
@@ -271,14 +390,25 @@ export default function ChatWindow() {
               m.role === "assistant" &&
               i === messages.length - 1 &&
               status === "idle";
+            const isHit = hitIds.includes(m.id);
+            const isCurrent = isHit && hitIds[hitIdx] === m.id;
             return (
-              <MessageBubble
+              <div
                 key={m.id}
-                message={m}
-                busy={busy}
-                onRegenerate={isLastAssistant ? handleRegenerate : undefined}
-                onEdit={m.role === "user" && !busy ? handleEdit : undefined}
-              />
+                ref={(el) => {
+                  msgNodes.current[m.id] = el;
+                }}
+                className={`-mx-2 rounded-xl px-2 outline-offset-[-8px] transition-opacity duration-200 ${
+                  isCurrent ? "outline outline-1 outline-accent/70" : ""
+                } ${needle && !isHit ? "opacity-35" : ""}`}
+              >
+                <MessageBubble
+                  message={m}
+                  busy={busy}
+                  onRegenerate={isLastAssistant ? handleRegenerate : undefined}
+                  onEdit={m.role === "user" && !busy ? handleEdit : undefined}
+                />
+              </div>
             );
           })}
           {status === "streaming" && (
