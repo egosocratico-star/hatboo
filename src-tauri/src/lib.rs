@@ -3,6 +3,7 @@ pub mod commands;
 pub mod db;
 pub mod providers;
 pub mod state;
+pub mod web;
 
 use state::AppState;
 use tauri::Manager;
@@ -25,6 +26,7 @@ pub fn run() {
             commands::list_messages,
             commands::send_message,
             commands::regenerate_response,
+            commands::cancel_chat_stream,
             commands::clear_conversation_messages,
             commands::export_conversation,
             commands::read_attachment,

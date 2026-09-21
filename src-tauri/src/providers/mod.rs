@@ -44,6 +44,13 @@ pub enum ProviderError {
     Malformed(String),
 }
 
+/// Fragmento del stream: texto visible o razonamiento interno del modelo.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StreamDelta {
+    Text(String),
+    Reasoning(String),
+}
+
 #[async_trait]
 pub trait AiProvider: Send + Sync {
     fn name(&self) -> &str;
@@ -51,15 +58,15 @@ pub trait AiProvider: Send + Sync {
     async fn stream_response(
         &self,
         messages: Vec<ChatMessage>,
-        on_chunk: Sender<String>,
+        on_chunk: Sender<StreamDelta>,
     ) -> Result<(), ProviderError>;
 }
 
 /// Consume un stream SSE (líneas `data: ...`) y reenvía cada delta extraído al canal.
 pub(crate) async fn read_sse_to_channel(
     response: reqwest::Response,
-    on_chunk: &Sender<String>,
-    extract: impl Fn(&serde_json::Value) -> Result<Option<String>, ProviderError> + Send,
+    on_chunk: &Sender<StreamDelta>,
+    extract: impl Fn(&serde_json::Value) -> Result<Option<StreamDelta>, ProviderError> + Send,
     is_done: impl Fn(&str) -> bool + Send,
 ) -> Result<(), ProviderError> {
     let mut stream = response.bytes_stream();
@@ -84,13 +91,27 @@ pub(crate) async fn read_sse_to_channel(
             let value: serde_json::Value = serde_json::from_str(payload)
                 .map_err(|e| ProviderError::Malformed(e.to_string()))?;
             if let Some(delta) = extract(&value)? {
-                if !delta.is_empty() {
-                    let _ = on_chunk.send(delta).await;
+                let has_content = match &delta {
+                    StreamDelta::Text(s) | StreamDelta::Reasoning(s) => !s.is_empty(),
+                };
+                if has_content && on_chunk.send(delta).await.is_err() {
+                    // El consumidor cerró el canal (el usuario detuvo la
+                    // respuesta): salir aquí suelta la respuesta HTTP y con
+                    // ella la generación del servidor.
+                    return Ok(());
                 }
             }
         }
     }
     Ok(())
+}
+
+/// Lee un campo JSON como texto, descartando `null` y cadenas vacías.
+pub(crate) fn delta_string(value: &serde_json::Value) -> Option<String> {
+    value
+        .as_str()
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
 }
 
 pub(crate) fn map_send_error(

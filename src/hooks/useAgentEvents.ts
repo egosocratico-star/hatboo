@@ -31,6 +31,8 @@ interface AgentErrorEvent {
 export function useAgentEvents() {
   useEffect(() => {
     const unlistenFns: Array<() => void> = [];
+    // Mismo guard que useStreaming: listen() resuelve después del desmontaje.
+    let disposed = false;
 
     const setup = async () => {
       const offs = await Promise.all([
@@ -61,12 +63,21 @@ export function useAgentEvents() {
           useWorkStore.getState().onCancelled(payload.conversationId);
         }),
       ]);
-      unlistenFns.push(...offs);
       // Re-check de soporte de herramientas al montar (el proveedor pudo cambiar).
       void useWorkStore.getState().refreshToolSupport();
+      return offs;
     };
 
-    void setup();
-    return () => unlistenFns.forEach((fn) => fn());
+    void setup().then((offs) => {
+      if (disposed) {
+        offs.forEach((fn) => fn());
+        return;
+      }
+      unlistenFns.push(...offs);
+    });
+    return () => {
+      disposed = true;
+      unlistenFns.forEach((fn) => fn());
+    };
   }, []);
 }

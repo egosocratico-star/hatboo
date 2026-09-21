@@ -44,6 +44,16 @@ pub struct Conversation {
     pub project_id: Option<String>,
 }
 
+/// Fuente citada por la búsqueda web de una respuesta.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebSource {
+    pub title: String,
+    pub url: String,
+    #[serde(default)]
+    pub snippet: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Message {
@@ -54,6 +64,11 @@ pub struct Message {
     pub provider: Option<String>,
     pub created_at: i64,
     pub attachments: Vec<Attachment>,
+    /// Razonamiento interno que devolvió el modelo, si lo hubo.
+    pub reasoning: Option<String>,
+    /// Milisegundos que el modelo pasó pensando antes del primer carácter visible.
+    pub thinking_ms: Option<i64>,
+    pub web_sources: Vec<WebSource>,
 }
 
 fn now_ms() -> i64 {
@@ -93,6 +108,9 @@ fn migrate(conn: &Connection) -> Result<(), String> {
         "ALTER TABLE messages ADD COLUMN attachments TEXT",
         [],
     );
+    let _ = conn.execute("ALTER TABLE messages ADD COLUMN reasoning TEXT", []);
+    let _ = conn.execute("ALTER TABLE messages ADD COLUMN thinking_ms INTEGER", []);
+    let _ = conn.execute("ALTER TABLE messages ADD COLUMN web_sources TEXT", []);
     Ok(())
 }
 
@@ -199,11 +217,30 @@ pub fn add_message_with_attachments(
     provider: Option<&str>,
     attachments: &[Attachment],
 ) -> Result<Message, String> {
-    let attachments_json = if attachments.is_empty() {
-        None
-    } else {
-        Some(serde_json::to_string(attachments).map_err(|e| e.to_string())?)
+    let meta = AssistantMeta {
+        attachments: attachments.to_vec(),
+        ..Default::default()
     };
+    add_message_detailed(conn, conversation_id, role, content, provider, &meta)
+}
+
+/// Campos opcionales que llegan con una respuesta del asistente.
+#[derive(Debug, Default, Clone)]
+pub struct AssistantMeta {
+    pub attachments: Vec<Attachment>,
+    pub reasoning: Option<String>,
+    pub thinking_ms: Option<i64>,
+    pub web_sources: Vec<WebSource>,
+}
+
+pub fn add_message_detailed(
+    conn: &Connection,
+    conversation_id: &str,
+    role: &str,
+    content: &str,
+    provider: Option<&str>,
+    meta: &AssistantMeta,
+) -> Result<Message, String> {
     let msg = Message {
         id: new_id(),
         conversation_id: conversation_id.to_string(),
@@ -211,11 +248,24 @@ pub fn add_message_with_attachments(
         content: content.to_string(),
         provider: provider.map(|s| s.to_string()),
         created_at: now_ms(),
-        attachments: attachments.to_vec(),
+        attachments: meta.attachments.clone(),
+        reasoning: meta.reasoning.clone(),
+        thinking_ms: meta.thinking_ms,
+        web_sources: meta.web_sources.clone(),
+    };
+    let attachments_json = if msg.attachments.is_empty() {
+        None
+    } else {
+        Some(serde_json::to_string(&msg.attachments).map_err(|e| e.to_string())?)
+    };
+    let sources_json = if msg.web_sources.is_empty() {
+        None
+    } else {
+        Some(serde_json::to_string(&msg.web_sources).map_err(|e| e.to_string())?)
     };
     conn.execute(
-        "INSERT INTO messages (id, conversation_id, role, content, provider, created_at, attachments)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT INTO messages (id, conversation_id, role, content, provider, created_at, attachments, reasoning, thinking_ms, web_sources)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         params![
             msg.id,
             msg.conversation_id,
@@ -223,7 +273,10 @@ pub fn add_message_with_attachments(
             msg.content,
             msg.provider,
             msg.created_at,
-            attachments_json
+            attachments_json,
+            msg.reasoning,
+            msg.thinking_ms,
+            sources_json
         ],
     )
     .map_err(|e| e.to_string())?;
@@ -231,19 +284,21 @@ pub fn add_message_with_attachments(
     Ok(msg)
 }
 
+fn parse_json_column<T: serde::de::DeserializeOwned>(raw: Option<String>) -> Vec<T> {
+    raw.and_then(|s| serde_json::from_str::<Vec<T>>(&s).ok())
+        .unwrap_or_default()
+}
+
 pub fn list_messages(conn: &Connection, conversation_id: &str) -> Result<Vec<Message>, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, conversation_id, role, content, provider, created_at, attachments
+            "SELECT id, conversation_id, role, content, provider, created_at, attachments,
+                    reasoning, thinking_ms, web_sources
              FROM messages WHERE conversation_id = ?1 ORDER BY created_at ASC",
         )
         .map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map(params![conversation_id], |row| {
-            let raw: Option<String> = row.get(6)?;
-            let attachments = raw
-                .and_then(|s| serde_json::from_str::<Vec<Attachment>>(&s).ok())
-                .unwrap_or_default();
             Ok(Message {
                 id: row.get(0)?,
                 conversation_id: row.get(1)?,
@@ -251,7 +306,10 @@ pub fn list_messages(conn: &Connection, conversation_id: &str) -> Result<Vec<Mes
                 content: row.get(3)?,
                 provider: row.get(4)?,
                 created_at: row.get(5)?,
-                attachments,
+                attachments: parse_json_column(row.get(6)?),
+                reasoning: row.get(7)?,
+                thinking_ms: row.get(8)?,
+                web_sources: parse_json_column(row.get(9)?),
             })
         })
         .map_err(|e| e.to_string())?;
@@ -394,19 +452,24 @@ pub struct ToolCall {
     pub created_at: i64,
 }
 
-pub fn create_project(conn: &Connection, name: &str, root_path: &str) -> Result<Project, String> {
+pub fn create_project(
+    conn: &Connection,
+    name: &str,
+    root_path: &str,
+    approval_level: &str,
+) -> Result<Project, String> {
     let project = Project {
         id: new_id(),
         name: name.to_string(),
         root_path: root_path.to_string(),
         created_at: now_ms(),
         last_opened_at: now_ms(),
-        approval_level: "approve_for_me".to_string(),
+        approval_level: approval_level.to_string(),
     };
     conn.execute(
-        "INSERT INTO projects (id, name, root_path, created_at, last_opened_at)
-         VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![project.id, project.name, project.root_path, project.created_at, project.last_opened_at],
+        "INSERT INTO projects (id, name, root_path, created_at, last_opened_at, approval_level)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        params![project.id, project.name, project.root_path, project.created_at, project.last_opened_at, project.approval_level],
     )
     .map_err(|e| e.to_string())?;
     Ok(project)

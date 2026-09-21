@@ -11,6 +11,15 @@ interface ChatStore {
   activeId: string | null;
   messages: Message[];
   streamingText: string;
+  streamingReasoning: string;
+  /** Momento del último envío; sirve para cronometrar el pensamiento en vivo. */
+  startedAt: number;
+  /** Se está consultando la web antes de generar. */
+  searching: boolean;
+  /** Milisegundos que duró el pensamiento de la respuesta en curso. */
+  thinkingMs: number | null;
+  /** Aviso de la búsqueda web (sin resultados / fallo). */
+  searchNote: string | null;
   status: Status;
   error: string | null;
   settings: Settings | null;
@@ -22,6 +31,7 @@ interface ChatStore {
   removeConversation: (id: string) => Promise<void>;
   sendMessage: (content: string, attachments?: Attachment[]) => Promise<void>;
   regenerate: () => Promise<void>;
+  stopStreaming: () => Promise<void>;
   clearMessages: () => Promise<void>;
   loadSettings: () => Promise<void>;
   saveSettings: (settings: Settings) => Promise<void>;
@@ -29,16 +39,29 @@ interface ChatStore {
 
   // Actualizaciones desde useStreaming
   appendChunk: (delta: string) => void;
+  appendReasoning: (delta: string) => void;
+  setSearchStatus: (searching: boolean, note: string | null) => void;
   finishStreaming: (message: Message) => void;
+  cancelStreaming: () => void;
   failStreaming: (message: string) => void;
 }
+
+/** Estado transitorio de una respuesta en curso. */
+const BLANK_STREAM = {
+  streamingText: "",
+  streamingReasoning: "",
+  searching: false,
+  thinkingMs: null as number | null,
+  searchNote: null as string | null,
+  startedAt: 0,
+};
 
 export const useChatStore = create<ChatStore>((set, get) => ({
   view: "chat",
   conversations: [],
   activeId: null,
   messages: [],
-  streamingText: "",
+  ...BLANK_STREAM,
   status: "idle",
   error: null,
   settings: null,
@@ -65,7 +88,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     set({
       activeId: conv.id,
       messages: [],
-      streamingText: "",
+      ...BLANK_STREAM,
       status: "idle",
       error: null,
       view: "chat",
@@ -80,7 +103,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     set({
       activeId: id,
       messages,
-      streamingText: "",
+      ...BLANK_STREAM,
       status: "idle",
       error: null,
     });
@@ -89,7 +112,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   removeConversation: async (id) => {
     await invoke("delete_conversation", { conversationId: id });
     if (get().activeId === id) {
-      set({ activeId: null, messages: [], streamingText: "", error: null, status: "idle" });
+      set({ activeId: null, messages: [], ...BLANK_STREAM, error: null, status: "idle" });
     }
     await get().loadConversations();
   },
@@ -102,18 +125,26 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         title: "Nueva conversación",
       })).id;
 
-    const userMessage = await invoke<Message>("send_message", {
-      conversationId: convId,
-      content,
-      attachments: attachments ?? [],
-    });
-    set((s) => ({
+    // Marca la respuesta en curso ANTES del invoke: los primeros fragmentos
+    // pueden llegar mientras la promesa sigue pendiente y, si el estado todavía
+    // es `idle`, appendChunk/appendReasoning los descartarían.
+    set({
       activeId: convId,
-      messages: [...s.messages, userMessage],
-      streamingText: "",
+      ...BLANK_STREAM,
+      startedAt: Date.now(),
       status: "streaming",
       error: null,
-    }));
+    });
+    try {
+      const userMessage = await invoke<Message>("send_message", {
+        conversationId: convId,
+        content,
+        attachments: attachments ?? [],
+      });
+      set((s) => ({ messages: [...s.messages, userMessage] }));
+    } catch (e) {
+      set({ ...BLANK_STREAM, status: "error", error: String(e) });
+    }
     await get().loadConversations();
   },
 
@@ -128,19 +159,33 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         break;
       }
     }
-    set({ messages: msgs, streamingText: "", status: "streaming", error: null });
+    set({
+      messages: msgs,
+      ...BLANK_STREAM,
+      startedAt: Date.now(),
+      status: "streaming",
+      error: null,
+    });
     try {
       await invoke("regenerate_response", { conversationId: activeId });
     } catch (e) {
-      set({ status: "error", streamingText: "", error: String(e) });
+      set({ ...BLANK_STREAM, status: "error", error: String(e) });
     }
+  },
+
+  stopStreaming: async () => {
+    const { activeId } = get();
+    if (!activeId || get().status !== "streaming") return;
+    // El único error posible del comando es "no hay nada en curso", que justo
+    // es el estado que queremos: la respuesta ya terminó sola.
+    await invoke("cancel_chat_stream", { conversationId: activeId }).catch(() => {});
   },
 
   clearMessages: async () => {
     const { activeId } = get();
     if (!activeId) return;
     await invoke("clear_conversation_messages", { conversationId: activeId });
-    set({ messages: [], streamingText: "", error: null });
+    set({ messages: [], ...BLANK_STREAM, error: null });
     await get().loadConversations();
   },
 
@@ -157,19 +202,48 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   clearError: () => set({ error: null, status: "idle" }),
 
   appendChunk: (delta) =>
-    set((s) => ({ streamingText: s.streamingText + delta })),
+    set((s) => {
+      if (s.status !== "streaming") return s;
+      // Con el primer carácter visible el pensamiento ya terminó: se congela la
+      // duración para que el bloque "Pensó N s" no siga contando durante la
+      // respuesta.
+      const frozen =
+        s.thinkingMs ?? (s.streamingReasoning ? Date.now() - s.startedAt : null);
+      return {
+        streamingText: s.streamingText + delta,
+        searching: false,
+        thinkingMs: frozen,
+      };
+    }),
+
+  appendReasoning: (delta) =>
+    set((s) => {
+      if (s.status !== "streaming") return s;
+      // El cronómetro arranca con el primer fragmento de razonamiento: la
+      // espera de la búsqueda web no cuenta como tiempo de pensamiento.
+      const firstThink = s.streamingReasoning === "";
+      return {
+        streamingReasoning: s.streamingReasoning + delta,
+        startedAt: firstThink ? Date.now() : s.startedAt,
+        searching: false,
+      };
+    }),
+
+  setSearchStatus: (searching, note) => set({ searching, searchNote: note }),
 
   finishStreaming: (message) =>
     set((s) => ({
-      messages: [...s.messages, message],
-      streamingText: "",
+      // Un mismo chat:done puede llegar dos veces si un listener sobrevivió a
+      // su desmontaje; el id del mensaje guardado lo hace idempotente.
+      messages: s.messages.some((m) => m.id === message.id)
+        ? s.messages
+        : [...s.messages, message],
+      ...BLANK_STREAM,
       status: "idle",
     })),
 
+  cancelStreaming: () => set({ ...BLANK_STREAM, status: "idle" }),
+
   failStreaming: (message) =>
-    set({
-      streamingText: "",
-      status: "error",
-      error: message,
-    }),
+    set({ ...BLANK_STREAM, status: "error", error: message }),
 }));

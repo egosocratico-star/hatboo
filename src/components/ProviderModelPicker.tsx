@@ -121,7 +121,7 @@ export default function ProviderModelPicker() {
       <button
         onClick={() => setOpen((v) => !v)}
         title="Proveedor y modelo activo"
-        className="flex items-center gap-2 rounded-lg border border-base-border bg-base-raised px-2.5 py-1.5 text-xs text-zinc-300 hover:border-accent/50 hover:text-white transition-colors max-w-72"
+        className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-zinc-400 hover:bg-white/5 hover:text-zinc-100 transition-colors max-w-72"
       >
         <span className={`w-1.5 h-1.5 shrink-0 rounded-full ${dot}`} />
         <span className="truncate font-medium">{model || "sin modelo"}</span>
@@ -135,7 +135,7 @@ export default function ProviderModelPicker() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-40 w-80 rounded-xl border border-base-border bg-base-raised shadow-xl shadow-black/40 p-2 space-y-1">
+        <div className="absolute right-0 bottom-full mb-2 z-40 w-80 rounded-xl border border-base-border bg-base-raised shadow-xl shadow-black/40 p-2 space-y-1">
           <div className="text-[10px] uppercase tracking-wider text-zinc-600 px-2 pt-1 pb-0.5">
             Proveedor
           </div>

@@ -1,12 +1,12 @@
 import { useState } from "react";
 import {
-  MessageSquarePlus,
   Settings,
   Trash2,
   Ghost,
   FolderPlus,
   FolderOpen,
   Briefcase,
+  MessageSquare,
   MessageCircle,
   ChevronDown,
   ChevronRight,
@@ -15,6 +15,12 @@ import {
 import { useChatStore } from "../store/chatStore";
 import { useWorkStore } from "../store/workStore";
 import type { Conversation } from "../types";
+
+const PROVIDER_LABEL: Record<string, string> = {
+  anthropic: "Anthropic",
+  openai: "OpenAI",
+  local: "Local",
+};
 
 const fmtDate = (ms: number) =>
   new Intl.DateTimeFormat("es", {
@@ -84,6 +90,8 @@ export default function Sidebar() {
   const selectConversation = useChatStore((s) => s.selectConversation);
   const removeConversation = useChatStore((s) => s.removeConversation);
   const setView = useChatStore((s) => s.setView);
+  const settings = useChatStore((s) => s.settings);
+  const assistantName = settings?.assistantName?.trim() || "Hatboo";
 
   const projects = useWorkStore((s) => s.projects);
   const activeProjectId = useWorkStore((s) => s.activeProjectId);
@@ -126,24 +134,31 @@ export default function Sidebar() {
 
   return (
     <aside className="w-64 shrink-0 h-full flex flex-col border-r border-base-border bg-base-raised">
-      <div className="flex items-center gap-2 px-4 h-14 border-b border-base-border">
+      <div className="flex items-center gap-2 px-4 h-14">
         <Ghost className="w-5 h-5 text-accent-soft" />
         <span className="font-semibold tracking-tight">Hatboo</span>
       </div>
 
-      <div className="p-3 space-y-2">
+      <div className="px-3 pb-2">
         <button
           onClick={() => void newConversation()}
-          className="w-full flex items-center gap-2 justify-center px-3 py-2 rounded-lg
-                     bg-accent hover:bg-accent-dim text-white text-sm font-medium transition-colors"
+          className="w-full flex items-center gap-2 justify-center px-3 py-2 rounded-full
+                     border border-accent/40 bg-accent/10 hover:bg-accent/20 text-accent-soft text-sm font-medium transition-colors"
         >
-          <MessageSquarePlus className="w-4 h-4" />
+          <Plus className="w-4 h-4" />
           Nueva conversación
         </button>
-        <div className="grid grid-cols-2 gap-2">
+      </div>
+
+      <nav className="flex-1 overflow-y-auto px-2 pb-2 space-y-0.5">
+        <div className="flex items-center gap-1.5 px-3 pt-3 pb-1.5 text-[11px] font-medium text-zinc-500">
+          <Briefcase className="w-3.5 h-3.5" />
+          Proyectos
+        </div>
+        <div className="grid grid-cols-2 gap-2 px-1 pb-1">
           <button
             onClick={() => void openProjectPicker()}
-            className="flex items-center gap-1.5 justify-center px-2 py-1.5 rounded-lg border border-base-border text-xs text-zinc-300 hover:border-accent/50 hover:text-white transition-colors"
+            className="flex items-center gap-1.5 justify-center px-2 py-1.5 rounded-lg text-xs text-zinc-400 hover:bg-base-hover hover:text-zinc-100 transition-colors"
             title="Abrir carpeta existente"
           >
             <FolderOpen className="w-3.5 h-3.5" />
@@ -151,19 +166,12 @@ export default function Sidebar() {
           </button>
           <button
             onClick={() => void startCreateProject()}
-            className="flex items-center gap-1.5 justify-center px-2 py-1.5 rounded-lg border border-base-border text-xs text-zinc-300 hover:border-accent/50 hover:text-white transition-colors"
+            className="flex items-center gap-1.5 justify-center px-2 py-1.5 rounded-lg text-xs text-zinc-400 hover:bg-base-hover hover:text-zinc-100 transition-colors"
             title="Crear proyecto nuevo"
           >
             <FolderPlus className="w-3.5 h-3.5" />
             Crear
           </button>
-        </div>
-      </div>
-
-      <nav className="flex-1 overflow-y-auto px-2 pb-2 space-y-0.5">
-        <div className="flex items-center gap-1.5 px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-zinc-600">
-          <Briefcase className="w-3 h-3" />
-          Proyectos de trabajo
         </div>
         {projects.length === 0 && (
           <p className="px-3 py-1 text-xs text-zinc-500">
@@ -249,8 +257,8 @@ export default function Sidebar() {
           );
         })}
 
-        <div className="flex items-center gap-1.5 px-3 pt-4 pb-1 text-[10px] uppercase tracking-wider text-zinc-600">
-          <MessageCircle className="w-3 h-3" />
+        <div className="flex items-center gap-1.5 px-3 pt-5 pb-1.5 text-[11px] font-medium text-zinc-500">
+          <MessageCircle className="w-3.5 h-3.5" />
           Conversaciones
         </div>
         {chatConversations.length === 0 && (
@@ -271,6 +279,7 @@ export default function Sidebar() {
               void selectConversation(conv.id);
             }}
           >
+            <MessageSquare className="w-3.5 h-3.5 shrink-0 opacity-60" />
             <span className="flex-1 truncate">{conv.title}</span>
             <button
               title="Eliminar"
@@ -286,18 +295,29 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      <div className="p-3 border-t border-base-border">
-        <button
-          onClick={() => setView(view === "settings" ? "chat" : "settings")}
-          className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
-            view === "settings"
-              ? "bg-base-hover text-accent-soft"
-              : "text-zinc-400 hover:bg-base-hover hover:text-zinc-200"
-          }`}
-        >
-          <Settings className="w-4 h-4" />
-          Ajustes
-        </button>
+      <div className="p-2 border-t border-base-border">
+        <div className="flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-base-hover transition-colors">
+          <span className="grid place-items-center w-8 h-8 shrink-0 rounded-full bg-accent/15 border border-accent/30">
+            <Ghost className="w-4 h-4 text-accent-soft" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm text-zinc-200">{assistantName}</p>
+            <p className="truncate text-[11px] text-zinc-500">
+              {PROVIDER_LABEL[settings?.activeProvider ?? "local"]} · local
+            </p>
+          </div>
+          <button
+            onClick={() => setView(view === "settings" ? "chat" : "settings")}
+            className={`shrink-0 p-2 rounded-lg transition-colors ${
+              view === "settings"
+                ? "text-accent-soft bg-base-hover"
+                : "text-zinc-500 hover:text-zinc-100"
+            }`}
+            title="Ajustes (Ctrl+,)"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+        </div>
       </div>
     </aside>
   );

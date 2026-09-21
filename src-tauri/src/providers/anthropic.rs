@@ -1,11 +1,27 @@
 use super::{
-    check_response, map_send_error, read_sse_to_channel, AiProvider, ChatMessage, ProviderError,
+    check_response, delta_string, map_send_error, read_sse_to_channel, AiProvider, ChatMessage,
+    ProviderError, StreamDelta,
 };
 use async_trait::async_trait;
 use serde_json::json;
 use tokio::sync::mpsc::Sender;
 
 const ANTHROPIC_URL: &str = "https://api.anthropic.com/v1/messages";
+
+/// Traduce un evento SSE de Anthropic a delta de texto o de pensamiento.
+pub(crate) fn anthropic_delta(value: &serde_json::Value) -> Option<StreamDelta> {
+    if value["type"].as_str() != Some("content_block_delta") {
+        return None;
+    }
+    let delta = &value["delta"];
+    match delta["type"].as_str() {
+        Some("thinking_delta") => delta_string(&delta["thinking"]).map(StreamDelta::Reasoning),
+        // `signature_delta` firma el bloque de pensamiento; no es contenido.
+        Some("signature_delta") => None,
+        // `text_delta` y servidores que no etiquetan el delta.
+        _ => delta_string(&delta["text"]).map(StreamDelta::Text),
+    }
+}
 
 pub struct AnthropicProvider {
     api_key: String,
@@ -132,20 +148,13 @@ impl AiProvider for AnthropicProvider {
     async fn stream_response(
         &self,
         messages: Vec<ChatMessage>,
-        on_chunk: Sender<String>,
+        on_chunk: Sender<StreamDelta>,
     ) -> Result<(), ProviderError> {
         let response = self.post(self.body(&messages, true)).await?;
         read_sse_to_channel(
             response,
             &on_chunk,
-            |value| {
-                if value["type"].as_str() == Some("content_block_delta") {
-                    let delta = value["delta"]["text"].as_str().unwrap_or("").to_string();
-                    Ok(Some(delta))
-                } else {
-                    Ok(None)
-                }
-            },
+            |value| Ok(anthropic_delta(value)),
             |payload| payload.contains("\"message_stop\""),
         )
         .await
@@ -213,5 +222,39 @@ mod tests {
         assert_eq!(body["thinking"]["type"], json!("enabled"));
         assert_eq!(body["thinking"]["budget_tokens"], json!(12000));
         assert!(body["max_tokens"].as_u64().unwrap() > 12000);
+    }
+
+    #[test]
+    fn thinking_deltas_are_reasoning() {
+        let value = json!({
+            "type": "content_block_delta",
+            "delta": { "type": "thinking_delta", "thinking": "primero" }
+        });
+        assert_eq!(anthropic_delta(&value), Some(StreamDelta::Reasoning("primero".into())));
+    }
+
+    #[test]
+    fn text_deltas_and_unlabeled_deltas_are_text() {
+        let labeled = json!({
+            "type": "content_block_delta",
+            "delta": { "type": "text_delta", "text": "hola" }
+        });
+        assert_eq!(anthropic_delta(&labeled), Some(StreamDelta::Text("hola".into())));
+        let unlabeled = json!({
+            "type": "content_block_delta",
+            "delta": { "text": "hola" }
+        });
+        assert_eq!(anthropic_delta(&unlabeled), Some(StreamDelta::Text("hola".into())));
+    }
+
+    #[test]
+    fn signature_and_opening_events_emit_nothing() {
+        let signature = json!({
+            "type": "content_block_delta",
+            "delta": { "type": "signature_delta", "signature": "abc" }
+        });
+        assert_eq!(anthropic_delta(&signature), None);
+        let start = json!({ "type": "message_start", "message": { "id": "1" } });
+        assert_eq!(anthropic_delta(&start), None);
     }
 }

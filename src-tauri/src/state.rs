@@ -12,6 +12,8 @@ pub struct AppState {
     pub approvals: Mutex<HashMap<String, oneshot::Sender<bool>>>,
     /// Tareas de trabajo en curso: conversation_id -> canal de cancelación.
     pub work_runs: Mutex<HashMap<String, oneshot::Sender<()>>>,
+    /// Streamings de chat en curso: conversation_id -> canal de cancelación.
+    pub chat_runs: Mutex<HashMap<String, oneshot::Sender<()>>>,
     /// Directorio de datos de la app; las imágenes adjuntas (M3) se guardan en
     /// `data_dir/attachments`.
     pub data_dir: PathBuf,
@@ -23,6 +25,7 @@ impl AppState {
             db: Mutex::new(db),
             approvals: Mutex::new(HashMap::new()),
             work_runs: Mutex::new(HashMap::new()),
+            chat_runs: Mutex::new(HashMap::new()),
             data_dir,
         }
     }
@@ -44,10 +47,33 @@ pub struct Settings {
     /// `off` | `low` | `medium` | `high` — razonamiento extendido en el chat.
     #[serde(default = "default_reasoning")]
     pub reasoning_effort: String,
+    /// Nivel de aprobación que reciben los proyectos nuevos.
+    #[serde(default = "default_approval_level")]
+    pub default_approval_level: String,
+    /// Modo código: prompt de sistema orientado a programar.
+    #[serde(default)]
+    pub code_mode: bool,
+    /// Búsqueda web: antes de responder se consulta DuckDuckGo y se le pasa el
+    /// resultado al modelo. Sin API key; requiere salida a internet.
+    #[serde(default)]
+    pub web_search: bool,
 }
 
 fn default_reasoning() -> String {
     "off".to_string()
+}
+
+fn default_approval_level() -> String {
+    "approve_for_me".to_string()
+}
+
+/// Los cuatro niveles conocidos; cualquier otro valor (edición manual del JSON,
+/// versión futura) cae al más conservador por defecto.
+pub fn normalize_approval_level(level: &str) -> String {
+    match level {
+        "ask_always" | "approve_for_me" | "auto_sandbox" | "full_access" => level.to_string(),
+        _ => default_approval_level(),
+    }
 }
 
 impl Default for Settings {
@@ -62,6 +88,9 @@ impl Default for Settings {
             run_command_enabled: false,
             assistant_name: String::new(),
             reasoning_effort: "off".to_string(),
+            default_approval_level: default_approval_level(),
+            code_mode: false,
+            web_search: false,
         }
     }
 }

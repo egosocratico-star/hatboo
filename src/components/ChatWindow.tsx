@@ -1,15 +1,38 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, Image as ImageIcon, Paperclip, Send, X } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowUp,
+  Image as ImageIcon,
+  Paperclip,
+  Square,
+  X,
+} from "lucide-react";
 import { useChatStore } from "../store/chatStore";
 import MessageBubble from "./MessageBubble";
+import RichText from "./RichText";
 import Mascot from "./mascot/Mascot";
 import ProviderModelPicker from "./ProviderModelPicker";
 import ChatPlusMenu from "./ChatPlusMenu";
+import PermissionPicker from "./PermissionPicker";
+import ModeToggles from "./ModeToggles";
+import ThinkingBlock, { formatDuration } from "./ThinkingBlock";
 import type { Attachment, MascotState } from "../types";
+
+const SUGGESTIONS = [
+  "Resúmeme un archivo",
+  "Explícame un error",
+  "Escríbeme un email",
+  "Ayúdame con código",
+];
 
 export default function ChatWindow() {
   const messages = useChatStore((s) => s.messages);
   const streamingText = useChatStore((s) => s.streamingText);
+  const streamingReasoning = useChatStore((s) => s.streamingReasoning);
+  const searching = useChatStore((s) => s.searching);
+  const searchNote = useChatStore((s) => s.searchNote);
+  const startedAt = useChatStore((s) => s.startedAt);
+  const thinkingMs = useChatStore((s) => s.thinkingMs);
   const status = useChatStore((s) => s.status);
   const error = useChatStore((s) => s.error);
   const activeTitle = useChatStore((s) => {
@@ -18,17 +41,33 @@ export default function ChatWindow() {
   });
   const sendMessage = useChatStore((s) => s.sendMessage);
   const regenerate = useChatStore((s) => s.regenerate);
+  const stopStreaming = useChatStore((s) => s.stopStreaming);
   const clearError = useChatStore((s) => s.clearError);
 
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [happy, setHappy] = useState(false);
+  const [permOpen, setPermOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const prevLen = useRef(messages.length);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, streamingText]);
+  }, [messages.length, streamingText, streamingReasoning]);
+
+  // Cronómetro en vivo del pensamiento; `startedAt` lo fija el store al llegar
+  // el primer fragmento de razonamiento.
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    // El cronómetro solo corre mientras se piensa; al empezar la respuesta el
+    // store deja la duración congelada en `thinkingMs`.
+    if (status !== "streaming" || !startedAt || thinkingMs != null) return;
+    setElapsed(Date.now() - startedAt);
+    const timer = setInterval(() => setElapsed(Date.now() - startedAt), 250);
+    return () => clearInterval(timer);
+  }, [status, startedAt, thinkingMs]);
+  const thinkMs = thinkingMs ?? elapsed;
 
   // "Feliz" breve al completar una respuesta larga.
   useEffect(() => {
@@ -68,133 +107,213 @@ export default function ChatWindow() {
     }
   };
 
-  const empty = messages.length === 0 && !streamingText;
+  const busy = status === "streaming";
+  // Con una respuesta en curso ya no es un chat vacío: hay que mostrar el
+  // indicador de búsqueda/pensamiento, aunque aún no haya mensajes.
+  const empty = messages.length === 0 && !busy;
 
-  return (
-    <div className="flex-1 flex flex-col h-full min-w-0">
-      <header className="h-12 shrink-0 flex items-center gap-3 px-4 border-b border-base-border">
-        <div className="min-w-0 flex-1">
-          <div className="text-sm font-medium truncate">{activeTitle}</div>
-        </div>
-        <ProviderModelPicker />
-      </header>
-      <div className="flex-1 overflow-y-auto">
-        {empty ? (
-          <div className="h-full flex flex-col items-center justify-center gap-4 px-6">
-            <Mascot state={mascotState} size={140} />
-            <h1 className="text-2xl font-semibold tracking-tight">
-              Hola, soy <span className="text-accent-soft">Hatboo</span>
-            </h1>
-            <p className="text-sm text-zinc-500 max-w-md text-center">
-              Pregúntame lo que necesites. Cambia de proveedor o modelo desde
-              arriba a la derecha.
-            </p>
-          </div>
-        ) : (
-          <div className="max-w-3xl mx-auto px-6 py-6 space-y-4">
-            {messages.map((m, i) => {
-              const isLastAssistant =
-                m.role === "assistant" &&
-                i === messages.length - 1 &&
-                status === "idle";
-              return (
-                <MessageBubble
-                  key={m.id}
-                  message={m}
-                  onRegenerate={isLastAssistant ? () => void regenerate() : undefined}
-                />
-              );
-            })}
-            {streamingText && (
-              <div className="flex justify-start">
-                <div className="max-w-[78%] rounded-2xl rounded-bl-md px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words bg-base-raised border border-base-border">
-                  {streamingText}
-                  <span className="inline-block w-2 h-4 ml-0.5 align-text-bottom bg-accent-soft animate-pulse" />
-                </div>
-              </div>
-            )}
-            <div ref={bottomRef} />
-          </div>
-        )}
-      </div>
+  const errorBanner = error && (
+    <div className="mb-2 flex items-start gap-2 rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+      <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+      <span className="flex-1">{error}</span>
+      <button onClick={clearError} className="p-0.5 hover:text-white">
+        <X className="w-4 h-4" />
+      </button>
+    </div>
+  );
 
-      {error && (
-        <div className="max-w-3xl mx-auto w-full px-6 pb-2">
-          <div className="flex items-start gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
-            <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-            <span className="flex-1">{error}</span>
-            <button onClick={clearError} className="p-0.5 hover:text-white">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+  const composer = (
+    <div className="rounded-2xl border border-base-border bg-base-raised/70 shadow-xl shadow-black/30 px-3 pt-3 pb-2.5 transition-colors focus-within:border-accent/50">
+      {attachments.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 pb-2 pl-0.5">
+          {attachments.map((a, i) => (
+            <span
+              key={i}
+              className="inline-flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-md text-[11px] border border-base-border bg-base text-zinc-300"
+              title={
+                a.imageFile
+                  ? "Imagen adjunta"
+                  : `${a.text.length.toLocaleString()} caracteres`
+              }
+            >
+              {a.imageFile ? (
+                <ImageIcon className="w-3 h-3 shrink-0 text-accent-soft" />
+              ) : (
+                <Paperclip className="w-3 h-3 shrink-0 text-accent-soft" />
+              )}
+              <span className="max-w-[200px] truncate">{a.name}</span>
+              <button
+                onClick={() =>
+                  setAttachments((prev) => prev.filter((_, j) => j !== i))
+                }
+                className="p-0.5 rounded hover:bg-white/10 text-zinc-500 hover:text-white"
+                title="Quitar adjunto"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
         </div>
       )}
 
-      <div className="border-t border-base-border bg-base-raised/60 px-6 py-4">
-        <div className="max-w-3xl mx-auto flex items-end gap-3">
-          <div className="hidden sm:block">
-            <Mascot state={mascotState} size={40} />
+      <textarea
+        ref={inputRef}
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            void submit();
+          }
+        }}
+        rows={Math.min(6, Math.max(1, input.split("\n").length))}
+        placeholder="Pregúntame lo que necesites…"
+        className="w-full resize-none bg-transparent px-1 pb-2 text-sm leading-relaxed outline-none placeholder:text-zinc-600 max-h-48"
+      />
+
+      <div className="flex items-center gap-2">
+        <ChatPlusMenu
+          onPickFiles={(files) => setAttachments((prev) => [...prev, ...files])}
+          disabled={busy}
+        />
+        <PermissionPicker open={permOpen} onOpenChange={setPermOpen} />
+        <ModeToggles />
+        <div className="flex-1 min-w-0" />
+        <ProviderModelPicker />
+        {busy ? (
+          <button
+            onClick={() => void stopStreaming()}
+            className="grid place-items-center w-8 h-8 shrink-0 rounded-full bg-accent text-white hover:bg-accent-dim transition-colors"
+            title="Detener respuesta"
+          >
+            <Square className="w-3 h-3 fill-current" />
+          </button>
+        ) : (
+          <button
+            onClick={() => void submit()}
+            disabled={!input.trim() && attachments.length === 0}
+            className="grid place-items-center w-8 h-8 shrink-0 rounded-full bg-accent text-white disabled:opacity-35 disabled:cursor-not-allowed hover:bg-accent-dim transition-colors"
+            title="Enviar"
+          >
+            <ArrowUp className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
+  if (empty) {
+    return (
+      <div className="flex-1 flex flex-col h-full min-w-0">
+        <div className="flex-1 flex flex-col items-center justify-center gap-6 px-6 pb-20">
+          <div className="flex flex-col items-center gap-3">
+            <Mascot state={mascotState} size={120} />
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Hola, soy <span className="text-accent-soft">Hatboo</span>
+            </h1>
           </div>
-          <div className="flex-1 flex flex-col gap-2 rounded-xl border border-base-border bg-base px-3 py-2 focus-within:border-accent/70 transition-colors">
-            {attachments.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 pt-0.5">
-                {attachments.map((a, i) => (
-                  <span
-                    key={i}
-                    className="inline-flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-md text-[11px] border border-base-border bg-base-raised text-zinc-300"
-                    title={a.imageFile ? "Imagen adjunta" : `${a.text.length.toLocaleString()} caracteres`}
-                  >
-                    {a.imageFile ? (
-                      <ImageIcon className="w-3 h-3 shrink-0 text-accent-soft" />
-                    ) : (
-                      <Paperclip className="w-3 h-3 shrink-0 text-accent-soft" />
-                    )}
-                    <span className="max-w-[200px] truncate">{a.name}</span>
-                    <button
-                      onClick={() =>
-                        setAttachments((prev) => prev.filter((_, j) => j !== i))
-                      }
-                      className="p-0.5 rounded hover:bg-white/10 text-zinc-500 hover:text-white"
-                      title="Quitar adjunto"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-            <div className="flex items-end gap-2">
-              <ChatPlusMenu
-                onPickFiles={(files) =>
-                  setAttachments((prev) => [...prev, ...files])
-                }
-                disabled={status === "streaming"}
-              />
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    void submit();
-                  }
-                }}
-                rows={Math.min(6, Math.max(1, input.split("\n").length))}
-                placeholder="Escribe un mensaje…"
-                className="flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-zinc-600 max-h-48"
-              />
-              <button
-                onClick={() => void submit()}
-                disabled={
-                  (!input.trim() && attachments.length === 0) ||
-                  status === "streaming"
-                }
-                className="p-2 rounded-lg bg-accent text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-accent-dim transition-colors"
-                title="Enviar"
-              >
-                <Send className="w-4 h-4" />
-              </button>
+          <div className="w-full max-w-3xl space-y-3">
+            {errorBanner}
+            {composer}
+            <div className="flex flex-wrap gap-2 justify-center pt-1">
+              {SUGGESTIONS.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => {
+                    setInput(s);
+                    inputRef.current?.focus();
+                  }}
+                  className="rounded-full border border-base-border bg-base-raised/60 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-100 hover:border-accent/50 transition-colors"
+                >
+                  {s}
+                </button>
+              ))}
             </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 flex flex-col h-full min-w-0">
+      <header className="h-11 shrink-0 flex items-center px-5">
+        <div className="text-sm font-medium truncate text-zinc-300">
+          {activeTitle}
+        </div>
+      </header>
+
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-3xl mx-auto px-6 py-6 space-y-4">
+          {messages.map((m, i) => {
+            const isLastAssistant =
+              m.role === "assistant" &&
+              i === messages.length - 1 &&
+              status === "idle";
+            return (
+              <MessageBubble
+                key={m.id}
+                message={m}
+                onRegenerate={
+                  isLastAssistant ? () => void regenerate() : undefined
+                }
+              />
+            );
+          })}
+          {status === "streaming" && (
+            <div className="flex justify-start">
+              <div className="min-w-0">
+                {searching && (
+                  <span className="text-sm text-zinc-500 animate-pulse">
+                    Buscando en la web…
+                  </span>
+                )}
+                {searchNote && !searching && (
+                  <p className="mb-1 text-[12px] text-amber-400/80">{searchNote}</p>
+                )}
+                {!streamingText && streamingReasoning && (
+                  <ThinkingBlock
+                    reasoning={streamingReasoning}
+                    ms={thinkMs}
+                    streaming
+                  />
+                )}
+                {streamingText ? (
+                  <div>
+                    {streamingReasoning && (
+                      <ThinkingBlock reasoning={streamingReasoning} ms={thinkMs} />
+                    )}
+                    <RichText text={streamingText} />
+                    <span className="inline-block w-2 h-4 ml-0.5 align-text-bottom bg-accent-soft animate-pulse" />
+                  </div>
+                ) : (
+                  // Con razonamiento en vivo el encabezado del bloque ya cronometra.
+                  !searching &&
+                  !streamingReasoning && (
+                    <span className="text-sm text-zinc-500 animate-pulse">
+                      {thinkMs >= 1000
+                        ? `Pensando… ${formatDuration(thinkMs)}`
+                        : "Pensando…"}
+                    </span>
+                  )
+                )}
+              </div>
+            </div>
+          )}
+          <div ref={bottomRef} />
+        </div>
+      </div>
+
+      <div className="px-6 pb-5 pt-2">
+        <div className="max-w-3xl mx-auto flex items-end gap-3">
+          {status !== "idle" && (
+            <div className="hidden sm:block shrink-0 pb-1">
+              <Mascot state={mascotState} size={36} />
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            {errorBanner}
+            {composer}
           </div>
         </div>
       </div>

@@ -66,6 +66,38 @@ fn attachments_roundtrip_and_clear_messages() {
 }
 
 #[test]
+fn assistant_meta_roundtrips() {
+    let dir = std::env::temp_dir().join(format!("hatboo-test-{}", uuid::Uuid::new_v4()));
+    let conn = db::connect(&dir.join("test.db")).expect("connect+migrate");
+    let conv = db::create_conversation(&conn, "T", None).unwrap();
+
+    let meta = db::AssistantMeta {
+        reasoning: Some("primero pienso".into()),
+        thinking_ms: Some(1750),
+        web_sources: vec![db::WebSource {
+            title: "Una fuente".into(),
+            url: "https://example.com/nota".into(),
+            snippet: "fragmento".into(),
+        }],
+        ..Default::default()
+    };
+    db::add_message_detailed(&conn, &conv.id, "assistant", "respuesta", Some("local"), &meta)
+        .unwrap();
+    db::add_message(&conn, &conv.id, "assistant", "normal", Some("local"))
+        .unwrap();
+
+    let msgs = db::list_messages(&conn, &conv.id).unwrap();
+    assert_eq!(msgs[0].reasoning.as_deref(), Some("primero pienso"));
+    assert_eq!(msgs[0].thinking_ms, Some(1750));
+    assert_eq!(msgs[0].web_sources[0].url, "https://example.com/nota");
+    assert!(msgs[1].reasoning.is_none());
+    assert!(msgs[1].thinking_ms.is_none());
+    assert!(msgs[1].web_sources.is_empty());
+
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
 fn delete_last_assistant_message_removes_only_the_last() {
     let dir = std::env::temp_dir().join(format!("hatboo-test-{}", uuid::Uuid::new_v4()));
     let conn = db::connect(&dir.join("test.db")).expect("connect+migrate");

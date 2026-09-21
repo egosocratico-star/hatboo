@@ -13,6 +13,12 @@ export interface Attachment {
   imageFile?: string | null;
 }
 
+export interface WebSource {
+  title: string;
+  url: string;
+  snippet: string;
+}
+
 export interface Message {
   id: string;
   conversationId: string;
@@ -21,6 +27,9 @@ export interface Message {
   provider: string | null;
   createdAt: number;
   attachments: Attachment[];
+  reasoning?: string | null;
+  thinkingMs?: number | null;
+  webSources?: WebSource[];
 }
 
 export interface Settings {
@@ -33,6 +42,9 @@ export interface Settings {
   runCommandEnabled: boolean;
   assistantName: string;
   reasoningEffort: ReasoningEffort;
+  defaultApprovalLevel: ApprovalLevel;
+  codeMode: boolean;
+  webSearch: boolean;
 }
 
 export type ReasoningEffort = "off" | "low" | "medium" | "high";

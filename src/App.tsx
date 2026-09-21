@@ -49,8 +49,9 @@ export default function App() {
     <div className="h-full flex bg-base text-zinc-100 overflow-hidden">
       <Sidebar />
       <main className="flex-1 min-w-0 flex flex-col">
-        {view === "settings" ? <Settings /> : view === "work" ? <ProjectView /> : <ChatWindow />}
+        {view === "work" ? <ProjectView /> : <ChatWindow />}
       </main>
+      {view === "settings" && <Settings />}
     </div>
   );
 }

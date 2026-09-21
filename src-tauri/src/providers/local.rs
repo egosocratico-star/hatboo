@@ -1,4 +1,4 @@
-use super::{AiProvider, ChatMessage, OpenAiProvider, ProviderError};
+use super::{AiProvider, ChatMessage, OpenAiProvider, ProviderError, StreamDelta};
 use async_trait::async_trait;
 use tokio::sync::mpsc::Sender;
 
@@ -45,7 +45,7 @@ impl AiProvider for LocalProvider {
     async fn stream_response(
         &self,
         messages: Vec<ChatMessage>,
-        on_chunk: Sender<String>,
+        on_chunk: Sender<StreamDelta>,
     ) -> Result<(), ProviderError> {
         self.inner.stream_response(messages, on_chunk).await
     }

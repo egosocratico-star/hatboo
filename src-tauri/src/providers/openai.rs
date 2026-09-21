@@ -1,11 +1,25 @@
 use super::{
-    check_response, map_send_error, read_sse_to_channel, AiProvider, ChatMessage, ProviderError,
+    check_response, delta_string, map_send_error, read_sse_to_channel, AiProvider, ChatMessage,
+    ProviderError, StreamDelta,
 };
 use async_trait::async_trait;
 use serde_json::json;
 use tokio::sync::mpsc::Sender;
 
 const OPENAI_URL: &str = "https://api.openai.com/v1/chat/completions";
+
+/// Delta de un servidor compatible con OpenAI. Cada servidor local llama de una
+/// manera distinta al razonamiento (`reasoning`, `reasoning_content`, `thinking`),
+/// así que se aceptan las tres.
+pub(crate) fn openai_delta(value: &serde_json::Value) -> Option<StreamDelta> {
+    let delta = &value["choices"][0]["delta"];
+    for key in ["reasoning", "reasoning_content", "thinking"] {
+        if let Some(text) = delta_string(&delta[key]) {
+            return Some(StreamDelta::Reasoning(text));
+        }
+    }
+    delta_string(&delta["content"]).map(StreamDelta::Text)
+}
 
 pub struct OpenAiProvider {
     api_key: String,
@@ -124,7 +138,7 @@ impl AiProvider for OpenAiProvider {
     async fn stream_response(
         &self,
         messages: Vec<ChatMessage>,
-        on_chunk: Sender<String>,
+        on_chunk: Sender<StreamDelta>,
     ) -> Result<(), ProviderError> {
         let response = self
             .post(self.client_body(&messages, true), "OpenAI")
@@ -132,13 +146,7 @@ impl AiProvider for OpenAiProvider {
         read_sse_to_channel(
             response,
             &on_chunk,
-            |value| {
-                let delta = value["choices"][0]["delta"]["content"]
-                    .as_str()
-                    .unwrap_or("")
-                    .to_string();
-                Ok(Some(delta))
-            },
+            |value| Ok(openai_delta(value)),
             |payload| payload == "[DONE]",
         )
         .await
@@ -206,5 +214,32 @@ mod tests {
             .with_reasoning("medium")
             .client_body(&one_message(), false);
         assert_eq!(body["reasoning_effort"], json!("medium"));
+    }
+
+    #[test]
+    fn content_delta_is_text() {
+        let value = json!({ "choices": [{ "delta": { "content": "hola", "reasoning": null } }] });
+        assert_eq!(openai_delta(&value), Some(StreamDelta::Text("hola".into())));
+    }
+
+    #[test]
+    fn naming_variants_of_reasoning_all_count() {
+        for key in ["reasoning", "reasoning_content", "thinking"] {
+            let mut delta = serde_json::Map::new();
+            delta.insert("content".into(), json!(""));
+            delta.insert(key.into(), json!("piensa"));
+            let value = json!({ "choices": [{ "delta": delta }] });
+            assert_eq!(
+                openai_delta(&value),
+                Some(StreamDelta::Reasoning("piensa".into())),
+                "la clave {key} debe tratarse como razonamiento"
+            );
+        }
+    }
+
+    #[test]
+    fn empty_deltas_emit_nothing() {
+        let value = json!({ "choices": [{ "delta": { "role": "assistant" } }] });
+        assert_eq!(openai_delta(&value), None);
     }
 }

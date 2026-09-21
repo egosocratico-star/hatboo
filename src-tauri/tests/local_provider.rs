@@ -1,4 +1,4 @@
-use hatboo_lib::providers::{AiProvider, ChatMessage, LocalProvider};
+use hatboo_lib::providers::{AiProvider, ChatMessage, LocalProvider, StreamDelta};
 use tokio::sync::mpsc;
 
 fn prompt() -> Vec<ChatMessage> {
@@ -22,14 +22,17 @@ async fn local_send_message_returns_text() {
 #[tokio::test]
 async fn local_stream_response_emits_chunks() {
     let provider = LocalProvider::new("http://localhost:11434", "qwen3:1.7b");
-    let (tx, mut rx) = mpsc::channel::<String>(64);
+    let (tx, mut rx) = mpsc::channel::<StreamDelta>(64);
 
     let stream_task = tokio::spawn(async move { provider.stream_response(prompt(), tx).await });
 
     let mut full = String::new();
     let mut chunk_count = 0;
     while let Some(delta) = rx.recv().await {
-        full.push_str(&delta);
+        // Solo cuenta el texto visible: el razonamiento llega por otra rama.
+        if let StreamDelta::Text(chunk) = delta {
+            full.push_str(&chunk);
+        }
         chunk_count += 1;
     }
     stream_task.await.unwrap().expect("streaming ok");

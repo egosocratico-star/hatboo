@@ -7,7 +7,6 @@ import {
   FolderKanban,
   Image as ImageIcon,
   Plus,
-  ShieldCheck,
   Trash2,
 } from "lucide-react";
 import { useChatStore } from "../store/chatStore";
@@ -175,7 +174,7 @@ export default function ChatPlusMenu({ onPickFiles, disabled }: Props) {
         onClick={() => setOpen((v) => !v)}
         disabled={disabled}
         title="Añadir"
-        className="p-2 rounded-lg border border-base-border text-zinc-400 hover:text-white hover:border-accent/50 disabled:opacity-40 transition-colors"
+        className="grid place-items-center w-8 h-8 rounded-full border border-base-border text-zinc-400 hover:text-white hover:border-accent/50 disabled:opacity-40 transition-colors"
       >
         <Plus className="w-4 h-4" />
       </button>
@@ -212,10 +211,6 @@ export default function ChatPlusMenu({ onPickFiles, disabled }: Props) {
           <button onClick={goWork} className={item}>
             <FolderKanban className="w-4 h-4 text-accent-soft shrink-0" />
             <span className="flex-1">Proyectos</span>
-          </button>
-          <button onClick={goWork} className={item}>
-            <ShieldCheck className="w-4 h-4 text-accent-soft shrink-0" />
-            <span className="flex-1">Permisos de herramientas</span>
           </button>
           <button
             onClick={() => void exportConversation()}

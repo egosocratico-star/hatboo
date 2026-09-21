@@ -1,6 +1,7 @@
 use crate::db;
-use crate::providers::{self, ChatMessage};
+use crate::providers::{self, ChatMessage, StreamDelta};
 use crate::state::{self, AppState, Settings};
+use crate::web;
 use serde::Serialize;
 use std::path::PathBuf;
 use tauri::{Emitter, Manager, State};
@@ -14,9 +15,31 @@ struct ChunkPayload {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct ReasoningPayload {
+    conversation_id: String,
+    delta: String,
+}
+
+/// Fase previa a la respuesta: `searching` mientras se consulta la web.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StatusPayload {
+    conversation_id: String,
+    phase: String,
+    detail: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct DonePayload {
     conversation_id: String,
     message: db::Message,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CancelledPayload {
+    conversation_id: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -391,66 +414,208 @@ pub fn export_conversation(
     Ok(())
 }
 
+/// Prompt de sistema del modo código.
+const CODE_MODE_PROMPT: &str = "Modo código activo: responde como ingeniero senior. Ve directo \
+ al código que funciona, sin preámbulos. Entrega bloques completos y ejecutables, indica la ruta \
+ del archivo cuando sea relevante y señala las suposiciones que hagas. Si hay un error, explica \
+ la causa raíz en una línea antes del arreglo. Prefiere la solución más simple y las dependencias \
+ que ya existen en el proyecto antes de proponer nuevas.";
+
 /// Lanza el streaming del proveedor para la conversación y emite chat:*.
 fn spawn_chat_stream(app: tauri::AppHandle, conversation_id: String) -> Result<(), String> {
     let state = app.state::<AppState>();
     let provider = state::build_provider(&state)?;
-    let mut messages = history(&state, &conversation_id)?;
-    let assistant_name = state::load_settings(&state).assistant_name;
-    let name = assistant_name.trim();
-    if !name.is_empty() {
-        messages.insert(
-            0,
-            ChatMessage {
-                role: "system".into(),
-                content: format!("El usuario prefiere que lo llames «{name}»."),
-                images: Vec::new(),
-            },
-        );
-    }
+    let prompt = history(&state, &conversation_id)?;
+    let settings = state::load_settings(&state);
     let provider_name = provider.name().to_string();
 
-    let (tx, mut rx) = tokio::sync::mpsc::channel::<String>(64);
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<StreamDelta>(64);
+    let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel::<()>();
+    state
+        .chat_runs
+        .lock()
+        .map_err(|e| e.to_string())?
+        .insert(conversation_id.clone(), cancel_tx);
+
     let conv_id = conversation_id.clone();
     let app_for_task = app.clone();
 
     tauri::async_runtime::spawn(async move {
         let state = app_for_task.state::<AppState>();
+        let mut messages = prompt;
+
+        let mut system = String::new();
+        let name = settings.assistant_name.trim();
+        if !name.is_empty() {
+            system.push_str(&format!("El usuario prefiere que lo llames «{name}».\n"));
+        }
+        if settings.code_mode {
+            system.push_str(CODE_MODE_PROMPT);
+        }
+        let system = system.trim();
+        if !system.is_empty() {
+            messages.insert(
+                0,
+                ChatMessage {
+                    role: "system".into(),
+                    content: system.to_string(),
+                    images: Vec::new(),
+                },
+            );
+        }
+
+        // La búsqueda web va antes de generar: un modelo local no tiene datos
+        // frescos y sin esto alucina fechas. Si falla, se responde igual.
+        let mut web_sources: Vec<db::WebSource> = Vec::new();
+        if settings.web_search {
+            let query = messages
+                .iter()
+                .rev()
+                .find(|m| m.role == "user")
+                .map(|m| m.content.clone())
+                .unwrap_or_default();
+            if !query.trim().is_empty() {
+                let _ = app_for_task.emit(
+                    "chat:status",
+                    StatusPayload {
+                        conversation_id: conv_id.clone(),
+                        phase: "searching".into(),
+                        detail: None,
+                    },
+                );
+                match web::search_web(&query).await {
+                    Ok(results) if !results.is_empty() => {
+                        let after_system = messages
+                            .iter()
+                            .take_while(|m| m.role == "system")
+                            .count();
+                        messages.insert(
+                            after_system,
+                            ChatMessage {
+                                role: "system".into(),
+                                content: web::as_context(&results, &query),
+                                images: Vec::new(),
+                            },
+                        );
+                        web_sources = results;
+                    }
+                    Ok(_) => {
+                        let _ = app_for_task.emit(
+                            "chat:status",
+                            StatusPayload {
+                                conversation_id: conv_id.clone(),
+                                phase: "search-empty".into(),
+                                detail: Some("La búsqueda no devolvió resultados.".into()),
+                            },
+                        );
+                    }
+                    Err(e) => {
+                        let _ = app_for_task.emit(
+                            "chat:status",
+                            StatusPayload {
+                                conversation_id: conv_id.clone(),
+                                phase: "search-failed".into(),
+                                detail: Some(e),
+                            },
+                        );
+                    }
+                }
+            }
+        }
+
         let mut full = String::new();
+        let mut reasoning = String::new();
+        let mut thinking_ms: Option<i64> = None;
+        let started = std::time::Instant::now();
         let mut forward_error: Option<String> = None;
+        let mut cancelled = false;
 
         let stream_task = tauri::async_runtime::spawn(async move {
             provider.stream_response(messages, tx).await
         });
 
-        while let Some(delta) = rx.recv().await {
-            full.push_str(&delta);
-            let _ = app_for_task.emit(
-                "chat:chunk",
-                ChunkPayload {
-                    conversation_id: conv_id.clone(),
-                    delta,
-                },
-            );
+        let mut cancel_rx = cancel_rx;
+        loop {
+            tokio::select! {
+                next = rx.recv() => {
+                    match next {
+                        Some(StreamDelta::Text(delta)) => {
+                            // El tiempo de pensamiento se mide hasta el primer
+                            // carácter visible; si no hubo razonamiento, no hay nada.
+                            if thinking_ms.is_none() && !reasoning.is_empty() {
+                                thinking_ms = Some(started.elapsed().as_millis() as i64);
+                            }
+                            full.push_str(&delta);
+                            let _ = app_for_task.emit(
+                                "chat:chunk",
+                                ChunkPayload {
+                                    conversation_id: conv_id.clone(),
+                                    delta,
+                                },
+                            );
+                        }
+                        Some(StreamDelta::Reasoning(delta)) => {
+                            reasoning.push_str(&delta);
+                            let _ = app_for_task.emit(
+                                "chat:reasoning",
+                                ReasoningPayload {
+                                    conversation_id: conv_id.clone(),
+                                    delta,
+                                },
+                            );
+                        }
+                        None => break,
+                    }
+                }
+                // Solo cuenta una cancelación explícita; si el emisor se cierra
+                // sin cancelar, la rama se deshabilita y seguimos leyendo.
+                Ok(()) = &mut cancel_rx => {
+                    cancelled = true;
+                    break;
+                }
+            }
         }
+        // Soltamos el receptor: el lector SSE aborta el stream HTTP al no poder
+        // seguir enviando, que es lo que corta la generación en el servidor.
+        drop(rx);
+        state.chat_runs.lock().ok().and_then(|mut runs| runs.remove(&conv_id));
 
-        match stream_task.await {
-            Ok(Ok(())) => {}
-            Ok(Err(e)) => forward_error = Some(e.to_string()),
-            Err(e) => forward_error = Some(format!("La tarea de streaming falló: {e}")),
+        if !cancelled {
+            match stream_task.await {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => forward_error = Some(e.to_string()),
+                Err(e) => forward_error = Some(format!("La tarea de streaming falló: {e}")),
+            }
         }
 
         match forward_error {
             None => {
+                // Al detener a mitad de respuesta se conserva lo ya generado.
+                if cancelled && full.trim().is_empty() {
+                    let _ = app_for_task.emit(
+                        "chat:cancelled",
+                        CancelledPayload {
+                            conversation_id: conv_id,
+                        },
+                    );
+                    return;
+                }
                 let saved = {
                     let conn = state.db.lock().map_err(|e| e.to_string()).ok();
+                    let meta = db::AssistantMeta {
+                        reasoning: (!reasoning.trim().is_empty()).then_some(reasoning),
+                        thinking_ms,
+                        web_sources,
+                        ..Default::default()
+                    };
                     match conn {
-                        Some(conn) => db::add_message(
+                        Some(conn) => db::add_message_detailed(
                             &conn,
                             &conv_id,
                             "assistant",
                             &full,
                             Some(&provider_name),
+                            &meta,
                         ),
                         None => Err("Base de datos no disponible".to_string()),
                     }
@@ -486,6 +651,24 @@ fn spawn_chat_stream(app: tauri::AppHandle, conversation_id: String) -> Result<(
     Ok(())
 }
 
+/// Detiene el streaming de chat en curso: se guarda lo generado hasta ahora.
+#[tauri::command]
+pub fn cancel_chat_stream(app: State<AppState>, conversation_id: String) -> Result<(), String> {
+    let sender = app
+        .chat_runs
+        .lock()
+        .map_err(|e| e.to_string())?
+        .remove(&conversation_id);
+    match sender {
+        Some(sender) => {
+            // Un error aquí significa que la tarea ya terminó; no hay nada que cancelar.
+            let _ = sender.send(());
+            Ok(())
+        }
+        None => Err("No hay ninguna respuesta en curso que detener.".into()),
+    }
+}
+
 // ---------- Fase 2: modo trabajo ----------
 
 #[derive(Debug, Clone, Serialize)]
@@ -515,8 +698,13 @@ fn register_project(app: &AppState, path: &str) -> Result<db::Project, String> {
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| root.display().to_string());
+    // Antes de bloquear la conexión: load_settings usa el mismo mutex.
+    let level = state::normalize_approval_level(
+        &state::load_settings(app).default_approval_level,
+    );
     let conn = app.db.lock().map_err(|e| e.to_string())?;
-    let project = db::create_project(&conn, &name, &root.display().to_string())?;
+    let project =
+        db::create_project(&conn, &name, &root.display().to_string(), &level)?;
     db::touch_project(&conn, &project.id)?;
     Ok(project)
 }
