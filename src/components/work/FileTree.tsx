@@ -81,7 +81,7 @@ function TreeNode({ projectId, entry, depth }: NodeProps) {
           setOpen(next);
           if (next) void load();
         }}
-        className="w-full flex items-center gap-1 py-0.5 text-xs text-zinc-300 hover:text-white"
+        className="w-full flex items-center gap-1 py-0.5 text-xs text-zinc-300 hover:text-layer"
         style={{ paddingLeft: depth * 14 + 2 }}
       >
         {open ? (
@@ -199,7 +199,7 @@ export default function FileTree({
           {query && (
             <button
               onClick={() => setQuery("")}
-              className="shrink-0 text-zinc-500 hover:text-white"
+              className="shrink-0 text-zinc-500 hover:text-layer"
               title="Limpiar"
             >
               <X className="w-3 h-3" />

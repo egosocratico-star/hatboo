@@ -56,8 +56,11 @@ export default function PermissionPicker({ open, onOpenChange }: Props) {
       await setProjectLevel(projectId, id);
       return;
     }
-    if (!settings) return;
-    await saveSettings({ ...settings, defaultApprovalLevel: id });
+    // Se lee al escribir, no del render: así un cambio hecho mientras el menú
+    // estaba abierto (el tema, p. ej.) no se pisa al guardar el nivel.
+    const current = useChatStore.getState().settings;
+    if (!current) return;
+    await saveSettings({ ...current, defaultApprovalLevel: id });
   };
 
   const choose = (id: ApprovalLevel) => {

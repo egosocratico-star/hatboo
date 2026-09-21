@@ -92,7 +92,11 @@ export default function ProviderModelPicker() {
   if (!settings) return null;
 
   const patch = async (part: Partial<Settings>) => {
-    await saveSettings({ ...settings, ...part });
+    // Leer al escribir: el blob de ajustes se guarda completo y una copia vieja
+    // del render barrería cualquier cambio reciente (el tema, p. ej.).
+    const current = useChatStore.getState().settings;
+    if (!current) return;
+    await saveSettings({ ...current, ...part });
   };
 
   const model = settings[modelField(settings)];
@@ -114,7 +118,7 @@ export default function ProviderModelPicker() {
         ref={triggerRef}
         onClick={() => setOpen((v) => !v)}
         title="Proveedor y modelo activo"
-        className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-zinc-400 hover:bg-white/5 hover:text-zinc-100 transition-colors max-w-72"
+        className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-zinc-400 hover:bg-layer/5 hover:text-zinc-100 transition-colors max-w-72"
       >
         <span className={`w-1.5 h-1.5 shrink-0 rounded-full ${dot}`} />
         <span className="truncate font-medium">{model || "sin modelo"}</span>

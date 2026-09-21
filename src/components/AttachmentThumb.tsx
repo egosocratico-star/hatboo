@@ -43,7 +43,7 @@ export default function AttachmentImage({ file, name, onAccent = false }: Props)
     return (
       <span
         className={`h-11 w-11 shrink-0 animate-pulse rounded-lg ${
-          onAccent ? "bg-white/15" : "bg-white/5"
+          onAccent ? "bg-white/15" : "bg-layer/5"
         }`}
       />
     );
@@ -53,7 +53,7 @@ export default function AttachmentImage({ file, name, onAccent = false }: Props)
       <span
         title="La imagen ya no está en disco"
         className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-[9px] ${
-          onAccent ? "bg-white/15 text-white/80" : "bg-white/5 text-zinc-500"
+          onAccent ? "bg-white/15 text-white/80" : "bg-layer/5 text-zinc-500"
         }`}
       >
         ?
@@ -68,7 +68,7 @@ export default function AttachmentImage({ file, name, onAccent = false }: Props)
         onClick={() => setZoom(true)}
         title={`Ver ${name}`}
         className={`shrink-0 rounded-lg outline-offset-2 transition-opacity hover:opacity-90 ${
-          onAccent ? "outline outline-1 outline-white/30" : "outline outline-1 outline-white/10"
+          onAccent ? "outline outline-1 outline-white/30" : "outline outline-1 outline-layer/10"
         }`}
       >
         <img src={src} alt={name} className="h-11 w-11 rounded-lg object-cover" />
@@ -99,7 +99,7 @@ function Lightbox({ src, name, onClose }: { src: string; name: string; onClose: 
         src={src}
         alt={name}
         onClick={(e) => e.stopPropagation()}
-        className="max-h-full max-w-full rounded-xl shadow-2xl shadow-black"
+        className="max-h-full max-w-full rounded-xl shadow-2xl shadow-shade/50"
       />
       <button
         onClick={onClose}

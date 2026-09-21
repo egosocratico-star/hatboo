@@ -221,14 +221,14 @@ export default function ChatWindow() {
     <div className="mb-2 flex items-start gap-2 rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
       <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
       <span className="flex-1">{error}</span>
-      <button onClick={clearError} className="p-0.5 hover:text-white">
+      <button onClick={clearError} className="p-0.5 hover:text-layer">
         <X className="w-4 h-4" />
       </button>
     </div>
   );
 
   const composer = (
-    <div className="rounded-2xl border border-base-border bg-base-raised/70 shadow-xl shadow-black/30 px-3 pt-3 pb-2.5 transition-colors focus-within:border-accent/50">
+    <div className="rounded-2xl border border-base-border bg-base-raised/70 shadow-xl shadow-shade/30 px-3 pt-3 pb-2.5 transition-colors focus-within:border-accent/50">
       {attachments.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 pb-2 pl-0.5">
           {attachments.map((a, i) => (
@@ -372,7 +372,7 @@ export default function ChatWindow() {
               onClick={() => focusHit(hitIdx - 1)}
               disabled={hitIds.length === 0}
               title="Anterior (Shift+Enter)"
-              className="rounded-full p-1 text-zinc-500 hover:bg-white/8 hover:text-zinc-100 disabled:opacity-30 transition-colors"
+              className="rounded-full p-1 text-zinc-500 hover:bg-layer/8 hover:text-zinc-100 disabled:opacity-30 transition-colors"
             >
               <ChevronUp className="w-3.5 h-3.5" />
             </button>
@@ -380,14 +380,14 @@ export default function ChatWindow() {
               onClick={() => focusHit(hitIdx + 1)}
               disabled={hitIds.length === 0}
               title="Siguiente (Enter)"
-              className="rounded-full p-1 text-zinc-500 hover:bg-white/8 hover:text-zinc-100 disabled:opacity-30 transition-colors"
+              className="rounded-full p-1 text-zinc-500 hover:bg-layer/8 hover:text-zinc-100 disabled:opacity-30 transition-colors"
             >
               <ChevronDown className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={closeSearch}
               title="Cerrar búsqueda (Esc)"
-              className="rounded-full p-1 text-zinc-500 hover:bg-white/8 hover:text-zinc-100 transition-colors"
+              className="rounded-full p-1 text-zinc-500 hover:bg-layer/8 hover:text-zinc-100 transition-colors"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -396,7 +396,7 @@ export default function ChatWindow() {
           <button
             onClick={openSearch}
             title="Buscar en la conversación"
-            className="rounded-md p-1.5 text-zinc-500 hover:bg-white/5 hover:text-zinc-100 transition-colors"
+            className="rounded-md p-1.5 text-zinc-500 hover:bg-layer/5 hover:text-zinc-100 transition-colors"
           >
             <Search className="w-4 h-4" />
           </button>

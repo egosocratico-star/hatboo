@@ -7,7 +7,7 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
   return text.split(INLINE).map((part, i) => {
     if (part.startsWith("**") && part.endsWith("**")) {
       return (
-        <strong key={`${keyPrefix}-${i}`} className="font-semibold text-white">
+        <strong key={`${keyPrefix}-${i}`} className="font-semibold text-layer">
           {part.slice(2, -2)}
         </strong>
       );
@@ -16,7 +16,7 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
       return (
         <code
           key={`${keyPrefix}-${i}`}
-          className="rounded px-1.5 py-0.5 bg-black/50 border border-base-border font-mono text-[12.5px] text-accent-soft"
+          className="rounded px-1.5 py-0.5 bg-base-code border border-base-border font-mono text-[12.5px] text-accent-soft"
         >
           {part.slice(1, -1)}
         </code>
@@ -28,7 +28,7 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
 
 function CodeBlock({ lang, code }: { lang: string; code: string }) {
   return (
-    <pre className="my-2.5 p-3 rounded-lg bg-black/50 border border-base-border overflow-x-auto text-[13px] leading-relaxed font-mono text-zinc-200">
+    <pre className="my-2.5 p-3 rounded-lg bg-base-code border border-base-border overflow-x-auto text-[13px] leading-relaxed font-mono text-zinc-200">
       <div className="text-[10px] uppercase tracking-wider text-accent-soft mb-1.5">
         {lang}
       </div>
@@ -71,7 +71,7 @@ export default function RichText({ text }: { text: string }) {
       const standaloneBold = /^\*\*([^*]+)\*\*$/.exec(stripped);
       blocks.push(
         standaloneBold ? (
-          <p key={`p${key++}`} className="mt-3 mb-1 font-semibold text-white">
+          <p key={`p${key++}`} className="mt-3 mb-1 font-semibold text-layer">
             {standaloneBold[1]}
           </p>
         ) : (

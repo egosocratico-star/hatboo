@@ -32,7 +32,7 @@ function ActionButton({
       onClick={onClick}
       title={title}
       aria-label={title}
-      className={`rounded-md p-1.5 transition-colors hover:bg-white/8 ${
+      className={`rounded-md p-1.5 transition-colors hover:bg-layer/8 ${
         active ? "text-accent-soft" : "text-zinc-500 hover:text-zinc-100"
       }`}
     >
@@ -134,7 +134,7 @@ function MessageBubble({
             <div className="flex items-center justify-end gap-2 pt-1">
               <button
                 onClick={() => setEditing(false)}
-                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-white/5 transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-layer/5 transition-colors"
               >
                 <X className="w-3.5 h-3.5" />
                 Cancelar
@@ -142,7 +142,7 @@ function MessageBubble({
               <button
                 onClick={commitEdit}
                 disabled={!draft.trim() || busy}
-                className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-xs font-medium text-black hover:bg-zinc-200 disabled:opacity-40 transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3.5 py-1.5 text-xs font-medium text-white hover:bg-accent-dim disabled:opacity-40 transition-colors"
               >
                 <Check className="w-3.5 h-3.5" />
                 Enviar

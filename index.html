@@ -4,8 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Hatboo</title>
+    <script>
+      // El tema vive en SQLite y leerlo cuesta un invoke; este adelanto usa el
+      // último resultado conocido para que la ventana no abra en negro.
+      try {
+        var t = localStorage.getItem("hatboo-theme");
+        if (t === "light" || t === "dark") {
+          document.documentElement.dataset.theme = t;
+        }
+      } catch (e) {}
+    </script>
   </head>
-  <body class="bg-[#0b0b10]">
+  <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

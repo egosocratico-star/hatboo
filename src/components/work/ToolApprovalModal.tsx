@@ -41,7 +41,7 @@ export default function ToolApprovalModal() {
             <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">
               Argumentos
             </div>
-            <pre className="p-3 rounded-lg bg-black/50 border border-base-border text-[12px] font-mono text-zinc-300 whitespace-pre-wrap break-words">
+            <pre className="p-3 rounded-lg bg-base-code border border-base-border text-[12px] font-mono text-zinc-300 whitespace-pre-wrap break-words">
               {JSON.stringify(approval.input, null, 2)}
             </pre>
           </div>
@@ -50,7 +50,7 @@ export default function ToolApprovalModal() {
               <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">
                 {approval.toolName === "write_file" ? "Diff del cambio" : "Vista previa"}
               </div>
-              <pre className="p-3 rounded-lg bg-black/50 border border-base-border text-[12px] font-mono whitespace-pre-wrap break-words max-h-72 overflow-y-auto">
+              <pre className="p-3 rounded-lg bg-base-code border border-base-border text-[12px] font-mono whitespace-pre-wrap break-words max-h-72 overflow-y-auto">
                 {approval.preview.split("\n").map((line, i) => (
                   <div
                     key={i}

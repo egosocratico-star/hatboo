@@ -209,7 +209,7 @@ export default function Sidebar() {
                     ev.stopPropagation();
                     toggleExpanded(p.id);
                   }}
-                  className="p-1 shrink-0 text-zinc-500 hover:text-white"
+                  className="p-1 shrink-0 text-zinc-500 hover:text-layer"
                   title={isOpen ? "Ocultar sesiones" : "Ver sesiones"}
                 >
                   {isOpen ? (

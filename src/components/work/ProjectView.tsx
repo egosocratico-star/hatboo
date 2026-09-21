@@ -135,7 +135,7 @@ export default function ProjectView() {
                 closeTab(id);
               }}
               disabled={status === "running" || status === "awaiting"}
-              className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-base text-zinc-500 hover:text-white transition-all disabled:cursor-not-allowed"
+              className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-base text-zinc-500 hover:text-layer transition-all disabled:cursor-not-allowed"
               title="Cerrar pestaña"
             >
               <X className="w-3 h-3" />
@@ -262,7 +262,7 @@ export default function ProjectView() {
             <div className="flex items-start gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
               <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
               <span className="flex-1">{error}</span>
-              <button onClick={clearError} className="p-0.5 hover:text-white">
+              <button onClick={clearError} className="p-0.5 hover:text-layer">
                 <X className="w-4 h-4" />
               </button>
             </div>

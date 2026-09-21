@@ -14,7 +14,11 @@ export default function ModeToggles({ disabled = false }: Props) {
   if (!settings) return null;
 
   const toggle = (key: "codeMode" | "webSearch") => {
-    const next: Settings = { ...settings, [key]: !settings[key] };
+    // Se lee el estado en el momento de escribir: guardar el blob entero desde la
+    // copia de este render podía pisar un cambio hecho mientras tanto (el tema).
+    const current = useChatStore.getState().settings;
+    if (!current) return;
+    const next: Settings = { ...current, [key]: !current[key] };
     void saveSettings(next).catch(() => {});
   };
 

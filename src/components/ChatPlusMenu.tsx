@@ -171,7 +171,7 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
         onClick={() => setOpen((v) => !v)}
         disabled={disabled}
         title="Añadir"
-        className="grid place-items-center w-8 h-8 rounded-full border border-base-border text-zinc-400 hover:text-white hover:border-accent/50 disabled:opacity-40 transition-colors"
+        className="grid place-items-center w-8 h-8 rounded-full border border-base-border text-zinc-400 hover:text-layer hover:border-accent/50 disabled:opacity-40 transition-colors"
       >
         <Plus className="w-4 h-4" />
       </button>

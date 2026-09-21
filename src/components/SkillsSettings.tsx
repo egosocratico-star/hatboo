@@ -130,7 +130,7 @@ export default function SkillsSettings() {
                     });
                   }}
                   title="Editar"
-                  className="rounded-md p-1.5 text-zinc-500 hover:bg-white/8 hover:text-zinc-100 transition-colors"
+                  className="rounded-md p-1.5 text-zinc-500 hover:bg-layer/8 hover:text-zinc-100 transition-colors"
                 >
                   <Pencil className="w-3.5 h-3.5" />
                 </button>
@@ -145,7 +145,7 @@ export default function SkillsSettings() {
                   <button
                     onClick={() => setConfirming(s.id)}
                     title="Borrar"
-                    className="rounded-md p-1.5 text-zinc-500 hover:bg-white/8 hover:text-red-300 transition-colors"
+                    className="rounded-md p-1.5 text-zinc-500 hover:bg-layer/8 hover:text-red-300 transition-colors"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -227,7 +227,7 @@ export default function SkillsSettings() {
             setError(null);
             setDraft({ ...BLANK });
           }}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-base-border px-3 py-1.5 text-xs text-zinc-300 hover:border-accent/50 hover:text-white transition-colors"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-base-border px-3 py-1.5 text-xs text-zinc-300 hover:border-accent/50 hover:text-layer transition-colors"
         >
           <Plus className="w-3.5 h-3.5" />
           Nueva plantilla

@@ -30,6 +30,7 @@ import {
 import { useChatStore } from "../store/chatStore";
 import { useWorkStore } from "../store/workStore";
 import SkillsSettings from "./SkillsSettings";
+import { applyTheme, type ThemeChoice } from "../theme";
 import {
   REASONING_LEVELS,
   type ReasoningEffort,
@@ -45,6 +46,12 @@ const PROVIDERS = [
   { id: "openai", label: "OpenAI", needsKey: true },
   { id: "local", label: "Local (Ollama / llama.cpp)", needsKey: false },
 ] as const;
+
+const THEMES: Array<{ id: ThemeChoice; label: string }> = [
+  { id: "dark", label: "Oscuro" },
+  { id: "light", label: "Claro" },
+  { id: "system", label: "Sistema" },
+];
 
 type TestState =
   | { status: "idle" }
@@ -87,7 +94,7 @@ function ConnectionTestButton({
         onClick={() => void run()}
         disabled={test.status === "running"}
         title="Probar conexión con este proveedor"
-        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-base-border text-xs text-zinc-300 hover:border-accent/50 hover:text-white disabled:opacity-50 transition-colors"
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-base-border text-xs text-zinc-300 hover:border-accent/50 hover:text-layer disabled:opacity-50 transition-colors"
       >
         {test.status === "running" ? (
           <RefreshCw className="w-3 h-3 animate-spin" />
@@ -168,7 +175,7 @@ function LocalModelField({
           onClick={() => void refresh()}
           disabled={loading}
           title="Recargar modelos desde Ollama"
-          className="px-3 py-2 rounded-lg border border-base-border text-zinc-400 hover:text-white hover:border-accent/50 disabled:opacity-50 transition-colors"
+          className="px-3 py-2 rounded-lg border border-base-border text-zinc-400 hover:text-layer hover:border-accent/50 disabled:opacity-50 transition-colors"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
         </button>
@@ -183,7 +190,7 @@ function LocalModelField({
               className={`px-2 py-0.5 rounded-md border text-[11px] transition-colors ${
                 draft.localModel === m
                   ? "border-accent bg-accent/10 text-accent-soft"
-                  : "border-base-border text-zinc-400 hover:text-white hover:border-accent/40"
+                  : "border-base-border text-zinc-400 hover:text-layer hover:border-accent/40"
               }`}
             >
               {m}
@@ -283,7 +290,7 @@ const CATEGORIES: Array<{
   ready: boolean;
 }> = [
   { id: "general", label: "General", icon: SlidersHorizontal, ready: false },
-  { id: "appearance", label: "Apariencia", icon: Palette, ready: false },
+  { id: "appearance", label: "Apariencia", icon: Palette, ready: true },
   { id: "api", label: "API y modelos", icon: Cpu, ready: true },
   { id: "agent", label: "Agente", icon: Bot, ready: true },
   { id: "skills", label: "Skills", icon: Sparkles, ready: true },
@@ -419,7 +426,7 @@ export default function Settings() {
           if (e.target === e.currentTarget) setView("chat");
         }}
       >
-        <div className="w-full max-w-md rounded-2xl border border-base-border bg-base p-5 shadow-2xl shadow-black/50">
+        <div className="w-full max-w-md rounded-2xl border border-base-border bg-base p-5 shadow-2xl shadow-shade/50">
           <p className="text-sm font-medium text-zinc-100">
             {settingsError ? "No se pudieron leer los ajustes" : "Cargando ajustes…"}
           </p>
@@ -468,6 +475,19 @@ export default function Settings() {
   const field =
     "w-full rounded-lg border border-base-border bg-base px-3 py-2 text-sm outline-none focus:border-accent/70";
 
+  /** El tema se ve al pulsarlo: esperar a «Guardar ajustes» sería despistado. */
+  const pickTheme = async (choice: ThemeChoice) => {
+    const next = { ...draft, theme: choice };
+    setDraft(next);
+    applyTheme(choice);
+    setSaveErr(null);
+    try {
+      await saveSettings(next);
+    } catch (e) {
+      setSaveErr(String(e));
+    }
+  };
+
   const editable = cat === "api" || cat === "agent" || cat === "profile";
 
   const needle = query.trim().toLowerCase();
@@ -484,11 +504,11 @@ export default function Settings() {
         if (e.target === e.currentTarget) close();
       }}
     >
-      <div className="relative flex w-full max-w-5xl h-[85vh] overflow-clip rounded-2xl border border-base-border bg-base shadow-2xl shadow-black/50">
+      <div className="relative flex w-full max-w-5xl h-[85vh] overflow-clip rounded-2xl border border-base-border bg-base shadow-2xl shadow-shade/50">
         <button
           onClick={close}
           title="Cerrar (Esc)"
-          className="absolute right-3 top-3 z-10 grid place-items-center w-8 h-8 rounded-lg text-zinc-500 hover:text-white hover:bg-base-hover transition-colors"
+          className="absolute right-3 top-3 z-10 grid place-items-center w-8 h-8 rounded-lg text-zinc-500 hover:text-layer hover:bg-base-hover transition-colors"
         >
           <X className="w-4 h-4" />
         </button>
@@ -730,6 +750,40 @@ export default function Settings() {
             </>
           )}
 
+          {cat === "appearance" && (
+            <>
+              <SectionTitle
+                title="Apariencia"
+                subtitle="Cómo se ve Hatboo. Se aplica al elegirlo, sin guardar."
+              />
+              <section className="space-y-3">
+                <div className="rounded-lg border border-base-border bg-base px-3 py-3">
+                  <p className="text-sm text-zinc-200">Tema</p>
+                  <p className="mt-0.5 mb-2.5 text-xs text-zinc-500">
+                    «Sistema» sigue el claro/oscuro de Windows mientras la app
+                    esté abierta.
+                  </p>
+                  <div className="flex gap-1">
+                    {THEMES.map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={() => void pickTheme(t.id)}
+                        className={`px-2.5 py-1 rounded-md text-xs transition-colors ${
+                          (draft.theme || "dark") === t.id
+                            ? "bg-accent/20 text-accent-soft"
+                            : "text-zinc-500 hover:text-zinc-300"
+                        }`}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {saveErr && <p className="text-xs text-red-400">{saveErr}</p>}
+              </section>
+            </>
+          )}
+
           {cat === "skills" && (
             <>
               <SectionTitle
@@ -884,7 +938,7 @@ export default function Settings() {
                     <button
                       onClick={() => void exportAll()}
                       disabled={dataBusy}
-                      className="flex items-center gap-1.5 rounded-lg border border-base-border px-3 py-1.5 text-xs text-zinc-300 hover:border-accent/50 hover:text-white transition-colors disabled:opacity-40"
+                      className="flex items-center gap-1.5 rounded-lg border border-base-border px-3 py-1.5 text-xs text-zinc-300 hover:border-accent/50 hover:text-layer transition-colors disabled:opacity-40"
                     >
                       <Download className="w-3.5 h-3.5" />
                       Exportar todo (JSON)
@@ -892,7 +946,7 @@ export default function Settings() {
                     <button
                       onClick={() => void importAll()}
                       disabled={dataBusy}
-                      className="flex items-center gap-1.5 rounded-lg border border-base-border px-3 py-1.5 text-xs text-zinc-300 hover:border-accent/50 hover:text-white transition-colors disabled:opacity-40"
+                      className="flex items-center gap-1.5 rounded-lg border border-base-border px-3 py-1.5 text-xs text-zinc-300 hover:border-accent/50 hover:text-layer transition-colors disabled:opacity-40"
                     >
                       <Upload className="w-3.5 h-3.5" />
                       Importar copia
@@ -967,7 +1021,7 @@ export default function Settings() {
               />
               <section className="space-y-3 text-sm text-zinc-300">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-lg font-semibold text-white">
+                  <span className="text-lg font-semibold text-layer">
                     Hatboo
                   </span>
                   <span className="text-zinc-500">
@@ -1081,7 +1135,7 @@ function PathRow({
 function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-lg border border-base-border bg-base px-3 py-3 text-center">
-      <div className="text-xl font-semibold text-white">
+      <div className="text-xl font-semibold text-layer">
         {value.toLocaleString("es")}
       </div>
       <div className="mt-0.5 text-[11px] text-zinc-500">{label}</div>

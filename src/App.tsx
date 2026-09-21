@@ -7,9 +7,11 @@ import { useChatStore } from "./store/chatStore";
 import { useWorkStore } from "./store/workStore";
 import { useStreaming } from "./hooks/useStreaming";
 import { useAgentEvents } from "./hooks/useAgentEvents";
+import { applyTheme, watchSystemTheme } from "./theme";
 
 export default function App() {
   const view = useChatStore((s) => s.view);
+  const theme = useChatStore((s) => s.settings?.theme ?? "dark");
   const loadConversations = useChatStore((s) => s.loadConversations);
   const loadSettings = useChatStore((s) => s.loadSettings);
   const loadSkills = useChatStore((s) => s.loadSkills);
@@ -17,6 +19,11 @@ export default function App() {
 
   useStreaming();
   useAgentEvents();
+
+  useEffect(() => {
+    applyTheme(theme);
+    return watchSystemTheme(theme);
+  }, [theme]);
 
   useEffect(() => {
     void loadConversations();

@@ -2,6 +2,103 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   Paleta en variables. `tailwind.config.js` lee de aquí, así que
+   cambiar de tema es cambiar estos canales y no tocar ningún
+   componente. Los valores van como "R G B" para que Tailwind pueda
+   meterles opacidad (rgb(var(--x) / <alpha-value>)).
+
+   El tema oscuro reproduce EXACTAMENTE los literales que había antes
+   a pelo en el config: cambiar de tema no debe apreciarse en él.
+   ============================================================ */
+:root {
+  color-scheme: dark;
+
+  --surface: 11 11 16; /* #0b0b10 */
+  --surface-raised: 18 18 26; /* #12121a */
+  --surface-border: 34 34 46; /* #22222e */
+  --surface-hover: 26 26 36; /* #1a1a24 */
+  /* Bloques de código: antes eran `bg-black/50` sobre el panel, que en claro
+     dejaría texto casi negro sobre bloque casi negro. */
+  --surface-code: 8 8 12;
+
+  --accent: 139 92 246; /* #8b5cf6 */
+  --accent-soft: 167 139 250; /* #a78bfa */
+  --accent-dim: 109 63 212; /* #6d3fd4 */
+
+  /* Los grises del texto. En claro se invierten: 100 es el primer
+     plano sobre el fondo, 600 lo más tenue. */
+  --zinc-100: 244 244 245;
+  --zinc-200: 228 228 231;
+  --zinc-300: 212 212 216;
+  --zinc-400: 161 161 170;
+  --zinc-500: 113 113 122;
+  --zinc-600: 82 82 91;
+
+  --red-300: 252 165 165;
+  --red-400: 248 113 113;
+  --red-500: 239 68 68;
+  --red-600: 220 38 38;
+  --emerald-400: 52 211 153;
+  --emerald-500: 16 185 129;
+  --amber-300: 252 211 77;
+  --amber-400: 251 191 36;
+  --amber-500: 245 158 11;
+  --violet-400: 167 139 250;
+  --sky-400: 56 189 248;
+  --yellow-400: 250 204 21;
+  --orange-400: 251 146 60;
+
+  /* Sombreados sutiles POR ENCIMA de las superficies (hover, chips).
+     En oscuro son blanco; en claro, negro. Lo que va sobre la burbuja
+     morada o sobre un scrim sigue usando `white` a secas. */
+  --layer: 255 255 255;
+
+  /* Color de las sombras. En oscuro es negro puro (como era); en claro un
+     gris azulado, porque negro al 50% sobre blanco deja un halo sucio. */
+  --shade: 0 0 0;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  --surface: 244 244 247;
+  --surface-raised: 255 255 255;
+  --surface-border: 224 224 233;
+  --surface-hover: 236 236 243;
+  --surface-code: 238 238 245;
+
+  /* El morado se baja de tono: sobre blanco #8b5cf6 con texto blanco
+     no llega al contraste mínimo, y `text-accent-soft` es texto. */
+  --accent: 109 63 212; /* #6d3fd4 */
+  --accent-soft: 91 33 182; /* #5b21b6 */
+  --accent-dim: 76 29 149; /* #4c1d95 */
+
+  --zinc-100: 24 24 27;
+  --zinc-200: 39 39 42;
+  --zinc-300: 63 63 70;
+  --zinc-400: 82 82 91;
+  --zinc-500: 113 113 122;
+  --zinc-600: 138 138 148;
+
+  --red-300: 185 28 28;
+  --red-400: 220 38 38;
+  --red-500: 220 38 38;
+  --red-600: 185 28 28;
+  --emerald-400: 4 120 87;
+  --emerald-500: 4 120 87;
+  --amber-300: 180 83 9;
+  --amber-400: 180 83 9;
+  --amber-500: 217 119 6;
+  --violet-400: 109 40 217;
+  --sky-400: 3 105 161;
+  --yellow-400: 161 90 8;
+  --orange-400: 194 65 12;
+
+  --layer: 24 24 27;
+  --shade: 110 110 135;
+}
+
 html,
 body,
 #root {
@@ -11,6 +108,12 @@ body,
   overflow: clip;
   /* Nada de rebote ni de pan del documento en WebView2. */
   overscroll-behavior: none;
+}
+
+/* El fondo del documento también sale de la variable: es lo que se ve
+   durante el arranque, antes de que React pinte. */
+html {
+  background: rgb(var(--surface));
 }
 
 /* Los scroll propios de cada panel contienen el deslizamiento: al llegar al
