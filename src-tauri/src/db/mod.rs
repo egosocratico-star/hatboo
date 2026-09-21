@@ -455,6 +455,19 @@ pub fn set_message_feedback(
     Ok(())
 }
 
+/// Borra conversaciones de chat (sin proyecto) que no tienen ningún mensaje.
+/// Desde el borrador local del frontend una fila vacía ya no es nunca útil; se
+/// limpia al arrancar para quitar las que dejó la versión anterior.
+pub fn prune_empty_chat_conversations(conn: &Connection) -> Result<usize, String> {
+    conn.execute(
+        "DELETE FROM conversations
+         WHERE project_id IS NULL
+           AND id NOT IN (SELECT conversation_id FROM messages)",
+        [],
+    )
+    .map_err(|e| e.to_string())
+}
+
 pub fn get_setting(conn: &Connection, key: &str) -> Result<Option<String>, String> {
     let mut stmt = conn
         .prepare("SELECT value FROM settings WHERE key = ?1")

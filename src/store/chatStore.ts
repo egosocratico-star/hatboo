@@ -71,31 +71,24 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   setView: (view) => set({ view }),
 
   loadConversations: async () => {
+    // Solo refresca la lista: al arrancar NO se auto-selecciona ninguna
+    // conversación, la app abre siempre en el estado inicial en blanco.
     const conversations = await invoke<Conversation[]>("list_conversations");
     set({ conversations });
-    if (!get().activeId) {
-      // Auto-seleccionar solo chats puros: las sesiones de trabajo (con projectId)
-      // no deben abrirse nunca en la vista de chat.
-      const firstChat = conversations.find((c) => !c.projectId);
-      if (firstChat) {
-        await get().selectConversation(firstChat.id);
-      }
-    }
   },
 
   newConversation: async () => {
-    const conv = await invoke<Conversation>("create_conversation", {
-      title: "Nueva conversación",
-    });
+    // Borrador local: no se crea la fila en SQLite hasta que llega el primer
+    // mensaje (lo hace `sendMessage`), así que pulsar "Nueva conversación"
+    // varias veces con el chat ya vacío no acumula conversaciones vacías.
     set({
-      activeId: conv.id,
+      view: "chat",
+      activeId: null,
       messages: [],
       ...BLANK_STREAM,
       status: "idle",
       error: null,
-      view: "chat",
     });
-    await get().loadConversations();
   },
 
   selectConversation: async (id) => {

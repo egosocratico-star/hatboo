@@ -16,6 +16,9 @@ pub fn run() {
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             let conn = db::connect(&data_dir.join("hatboo.db"))?;
+            // Quitar conversaciones de chat vacías de arranques anteriores.
+            // Si falla no se impide abrir la app: solo es limpieza.
+            let _ = db::prune_empty_chat_conversations(&conn);
             app.manage(AppState::new(conn, data_dir));
             Ok(())
         })

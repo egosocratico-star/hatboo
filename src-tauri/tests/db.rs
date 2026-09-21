@@ -167,3 +167,32 @@ fn delete_last_assistant_message_removes_only_the_last() {
 
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn prune_removes_only_empty_chat_conversations() {
+    let dir = std::env::temp_dir().join(format!("hatboo-test-{}", uuid::Uuid::new_v4()));
+    let conn = db::connect(&dir.join("test.db")).expect("connect+migrate");
+
+    let empty = db::create_conversation(&conn, "Nueva conversación", None).unwrap();
+    let used = db::create_conversation(&conn, "Con historial", None).unwrap();
+    db::add_message(&conn, &used.id, "user", "hola", None).unwrap();
+    let project = db::create_project(&conn, "Proyecto", "/tmp/proyecto", "approve_for_me").unwrap();
+    let work_session =
+        db::create_conversation(&conn, "Sesión de trabajo", Some(&project.id)).unwrap();
+
+    assert_eq!(db::prune_empty_chat_conversations(&conn).unwrap(), 1);
+
+    let remaining: Vec<String> = db::list_conversations(&conn)
+        .unwrap()
+        .into_iter()
+        .map(|c| c.id)
+        .collect();
+    assert!(!remaining.contains(&empty.id), "la vacía se va");
+    assert!(remaining.contains(&used.id), "la que tiene mensajes se queda");
+    assert!(
+        remaining.contains(&work_session.id),
+        "una sesión de trabajo sin mensajes no se toca"
+    );
+
+    let _ = std::fs::remove_dir_all(dir);
+}
