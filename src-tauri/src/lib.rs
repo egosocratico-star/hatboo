@@ -26,6 +26,8 @@ pub fn run() {
             commands::list_messages,
             commands::send_message,
             commands::regenerate_response,
+            commands::edit_user_message,
+            commands::set_message_feedback,
             commands::cancel_chat_stream,
             commands::clear_conversation_messages,
             commands::export_conversation,

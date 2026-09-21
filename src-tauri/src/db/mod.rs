@@ -69,6 +69,8 @@ pub struct Message {
     /// Milisegundos que el modelo pasó pensando antes del primer carácter visible.
     pub thinking_ms: Option<i64>,
     pub web_sources: Vec<WebSource>,
+    /// Valoración del usuario sobre esta respuesta: `"up"`, `"down"` o `None`.
+    pub feedback: Option<String>,
 }
 
 fn now_ms() -> i64 {
@@ -111,6 +113,7 @@ fn migrate(conn: &Connection) -> Result<(), String> {
     let _ = conn.execute("ALTER TABLE messages ADD COLUMN reasoning TEXT", []);
     let _ = conn.execute("ALTER TABLE messages ADD COLUMN thinking_ms INTEGER", []);
     let _ = conn.execute("ALTER TABLE messages ADD COLUMN web_sources TEXT", []);
+    let _ = conn.execute("ALTER TABLE messages ADD COLUMN feedback TEXT", []);
     Ok(())
 }
 
@@ -252,6 +255,8 @@ pub fn add_message_detailed(
         reasoning: meta.reasoning.clone(),
         thinking_ms: meta.thinking_ms,
         web_sources: meta.web_sources.clone(),
+        // La valoración la escribe el usuario después, con `set_message_feedback`.
+        feedback: None,
     };
     let attachments_json = if msg.attachments.is_empty() {
         None
@@ -293,7 +298,7 @@ pub fn list_messages(conn: &Connection, conversation_id: &str) -> Result<Vec<Mes
     let mut stmt = conn
         .prepare(
             "SELECT id, conversation_id, role, content, provider, created_at, attachments,
-                    reasoning, thinking_ms, web_sources
+                    reasoning, thinking_ms, web_sources, feedback
              FROM messages WHERE conversation_id = ?1 ORDER BY created_at ASC",
         )
         .map_err(|e| e.to_string())?;
@@ -310,6 +315,7 @@ pub fn list_messages(conn: &Connection, conversation_id: &str) -> Result<Vec<Mes
                 reasoning: row.get(7)?,
                 thinking_ms: row.get(8)?,
                 web_sources: parse_json_column(row.get(9)?),
+                feedback: row.get(10)?,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -346,25 +352,107 @@ pub fn clear_messages(conn: &Connection, conversation_id: &str) -> Result<(), St
 /// Rutas en disco de todas las imágenes adjuntas (M3) de una conversación,
 /// para poder borrar los archivos al limpiar o eliminar la conversación.
 pub fn conversation_image_files(conn: &Connection, conversation_id: &str) -> Result<Vec<String>, String> {
+    image_files_in(conn, conversation_id, None)
+}
+
+/// Igual que `conversation_image_files` pero solo lo posterior a `after_ms`.
+fn image_files_in(
+    conn: &Connection,
+    conversation_id: &str,
+    after_ms: Option<i64>,
+) -> Result<Vec<String>, String> {
     let mut stmt = conn
-        .prepare("SELECT attachments FROM messages WHERE conversation_id = ?1")
+        .prepare("SELECT attachments, created_at FROM messages WHERE conversation_id = ?1")
         .map_err(|e| e.to_string())?;
     let rows = stmt
-        .query_map(params![conversation_id], |row| row.get::<_, Option<String>>(0))
+        .query_map(params![conversation_id], |row| {
+            Ok((
+                row.get::<_, Option<String>>(0)?,
+                row.get::<_, i64>(1)?,
+            ))
+        })
         .map_err(|e| e.to_string())?;
     let mut files = Vec::new();
-    for raw in rows {
-        if let Some(s) = raw.map_err(|e| e.to_string())? {
-            if let Ok(atts) = serde_json::from_str::<Vec<Attachment>>(&s) {
-                for a in atts {
-                    if let Some(f) = a.image_file {
-                        files.push(f);
-                    }
+    for row in rows {
+        let (raw, created_at) = row.map_err(|e| e.to_string())?;
+        if after_ms.is_some_and(|ms| created_at <= ms) {
+            continue;
+        }
+        let Some(s) = raw else { continue };
+        if let Ok(atts) = serde_json::from_str::<Vec<Attachment>>(&s) {
+            for a in atts {
+                if let Some(f) = a.image_file {
+                    files.push(f);
                 }
             }
         }
     }
     Ok(files)
+}
+
+/// Conversación, rol y marca de tiempo de un mensaje.
+pub fn message_position(
+    conn: &Connection,
+    id: &str,
+) -> Result<(String, String, i64), String> {
+    conn.query_row(
+        "SELECT conversation_id, role, created_at FROM messages WHERE id = ?1",
+        params![id],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+    )
+    .map_err(|_| "El mensaje ya no existe.".to_string())
+}
+
+/// Cambia el texto de un mensaje (se usa al editar lo que envió el usuario).
+pub fn update_message_content(
+    conn: &Connection,
+    id: &str,
+    content: &str,
+) -> Result<(), String> {
+    conn.execute(
+        "UPDATE messages SET content = ?2 WHERE id = ?1",
+        params![id, content],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Borra todo lo posterior a `after_ms` en la conversación —lo que queda obsoleto
+/// al editar un mensaje— y devuelve las imágenes en disco que quedan huérfanas.
+pub fn truncate_messages_after(
+    conn: &Connection,
+    conversation_id: &str,
+    after_ms: i64,
+) -> Result<Vec<String>, String> {
+    let images = image_files_in(conn, conversation_id, Some(after_ms))?;
+    conn.execute(
+        "DELETE FROM messages WHERE conversation_id = ?1 AND created_at > ?2",
+        params![conversation_id, after_ms],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(images)
+}
+
+/// Valoración de una respuesta: `"up"`, `"down"` o `None` para quitarla.
+pub fn set_message_feedback(
+    conn: &Connection,
+    id: &str,
+    feedback: Option<&str>,
+) -> Result<(), String> {
+    let value = match feedback {
+        Some(v @ ("up" | "down")) => Some(v),
+        _ => None,
+    };
+    let changed = conn
+        .execute(
+            "UPDATE messages SET feedback = ?2 WHERE id = ?1 AND role = 'assistant'",
+            params![id, value],
+        )
+        .map_err(|e| e.to_string())?;
+    if changed == 0 {
+        return Err("Ese mensaje no admite valoración.".into());
+    }
+    Ok(())
 }
 
 pub fn get_setting(conn: &Connection, key: &str) -> Result<Option<String>, String> {

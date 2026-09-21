@@ -92,6 +92,13 @@ export default function Sidebar() {
   const setView = useChatStore((s) => s.setView);
   const settings = useChatStore((s) => s.settings);
   const assistantName = settings?.assistantName?.trim() || "Hatboo";
+  const provider = settings?.activeProvider ?? "local";
+  const activeModel =
+    provider === "anthropic"
+      ? settings?.anthropicModel
+      : provider === "openai"
+        ? settings?.openaiModel
+        : settings?.localModel;
 
   const projects = useWorkStore((s) => s.projects);
   const activeProjectId = useWorkStore((s) => s.activeProjectId);
@@ -303,7 +310,8 @@ export default function Sidebar() {
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm text-zinc-200">{assistantName}</p>
             <p className="truncate text-[11px] text-zinc-500">
-              {PROVIDER_LABEL[settings?.activeProvider ?? "local"]} · local
+              {PROVIDER_LABEL[provider]}
+              {activeModel ? ` · ${activeModel}` : ""}
             </p>
           </div>
           <button

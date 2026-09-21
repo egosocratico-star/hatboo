@@ -41,6 +41,7 @@ export default function ChatWindow() {
   });
   const sendMessage = useChatStore((s) => s.sendMessage);
   const regenerate = useChatStore((s) => s.regenerate);
+  const editMessage = useChatStore((s) => s.editMessage);
   const stopStreaming = useChatStore((s) => s.stopStreaming);
   const clearError = useChatStore((s) => s.clearError);
 
@@ -244,7 +245,7 @@ export default function ChatWindow() {
       </header>
 
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto px-6 py-6 space-y-4">
+        <div className="max-w-3xl mx-auto px-6 py-6 space-y-6">
           {messages.map((m, i) => {
             const isLastAssistant =
               m.role === "assistant" &&
@@ -254,8 +255,14 @@ export default function ChatWindow() {
               <MessageBubble
                 key={m.id}
                 message={m}
+                busy={busy}
                 onRegenerate={
                   isLastAssistant ? () => void regenerate() : undefined
+                }
+                onEdit={
+                  m.role === "user" && !busy
+                    ? (content) => void editMessage(m.id, content)
+                    : undefined
                 }
               />
             );

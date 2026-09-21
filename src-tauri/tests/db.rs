@@ -66,6 +66,46 @@ fn attachments_roundtrip_and_clear_messages() {
 }
 
 #[test]
+fn editing_a_user_message_truncates_everything_after_it() {
+    let dir = std::env::temp_dir().join(format!("hatboo-test-{}", uuid::Uuid::new_v4()));
+    let conn = db::connect(&dir.join("test.db")).expect("connect+migrate");
+    let conv = db::create_conversation(&conn, "T", None).unwrap();
+
+    let first = db::add_message(&conn, &conv.id, "user", "hola", None).unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(5));
+    let answer = db::add_message(&conn, &conv.id, "assistant", "respuesta", Some("local"))
+        .unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(5));
+    db::add_message(&conn, &conv.id, "user", "otra cosa", None).unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(5));
+    db::add_message(&conn, &conv.id, "assistant", "otra respuesta", Some("local"))
+        .unwrap();
+
+    // La valoración solo existe en respuestas del asistente.
+    db::set_message_feedback(&conn, &answer.id, Some("up")).unwrap();
+    assert_eq!(
+        db::list_messages(&conn, &conv.id).unwrap()[1]
+            .feedback
+            .as_deref(),
+        Some("up")
+    );
+    assert!(db::set_message_feedback(&conn, &first.id, Some("up")).is_err());
+    db::set_message_feedback(&conn, &answer.id, None).unwrap();
+    assert!(db::list_messages(&conn, &conv.id).unwrap()[1].feedback.is_none());
+
+    db::update_message_content(&conn, &first.id, "hola editado").unwrap();
+    let orphans = db::truncate_messages_after(&conn, &conv.id, first.created_at).unwrap();
+    assert!(orphans.is_empty());
+
+    let msgs = db::list_messages(&conn, &conv.id).unwrap();
+    assert_eq!(msgs.len(), 1, "lo posterior al mensaje editado desaparece");
+    assert_eq!(msgs[0].content, "hola editado");
+    assert_eq!(msgs[0].role, "user");
+
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
 fn assistant_meta_roundtrips() {
     let dir = std::env::temp_dir().join(format!("hatboo-test-{}", uuid::Uuid::new_v4()));
     let conn = db::connect(&dir.join("test.db")).expect("connect+migrate");

@@ -30,6 +30,7 @@ export interface Message {
   reasoning?: string | null;
   thinkingMs?: number | null;
   webSources?: WebSource[];
+  feedback?: "up" | "down" | null;
 }
 
 export interface Settings {

@@ -98,5 +98,5 @@ export default function RichText({ text }: { text: string }) {
   }
   if (last < trimmed.length) pushProse(trimmed.slice(last));
 
-  return <div className="text-[14.5px] leading-relaxed">{blocks}</div>;
+  return <div className="text-[15px] leading-[1.65]">{blocks}</div>;
 }

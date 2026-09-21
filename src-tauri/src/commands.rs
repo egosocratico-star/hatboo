@@ -232,6 +232,54 @@ pub async fn regenerate_response(
     spawn_chat_stream(app, conversation_id)
 }
 
+/// Edita un mensaje ya enviado por el usuario: se corta todo lo posterior y se
+/// vuelve a generar la respuesta desde ahí (como en ChatGPT).
+#[tauri::command]
+pub async fn edit_user_message(
+    app: tauri::AppHandle,
+    conversation_id: String,
+    message_id: String,
+    content: String,
+) -> Result<(), String> {
+    let content = content.trim().to_string();
+    if content.is_empty() {
+        return Err("El mensaje no puede quedar vacío.".into());
+    }
+    let state = app.state::<AppState>();
+    if state
+        .chat_runs
+        .lock()
+        .map_err(|e| e.to_string())?
+        .contains_key(&conversation_id)
+    {
+        return Err("Espera a que termine la respuesta en curso.".into());
+    }
+    {
+        let conn = state.db.lock().map_err(|e| e.to_string())?;
+        let (conv_id, role, created_at) = db::message_position(&conn, &message_id)?;
+        if conv_id != conversation_id {
+            return Err("Ese mensaje no pertenece a esta conversación.".into());
+        }
+        if role != "user" {
+            return Err("Solo se editan los mensajes que enviaste tú.".into());
+        }
+        db::update_message_content(&conn, &message_id, &content)?;
+        remove_image_files(db::truncate_messages_after(&conn, &conversation_id, created_at)?);
+    }
+    spawn_chat_stream(app, conversation_id)
+}
+
+/// Puntúa una respuesta del asistente (`"up"` / `"down"`); `None` la quita.
+#[tauri::command]
+pub fn set_message_feedback(
+    app: State<AppState>,
+    message_id: String,
+    feedback: Option<String>,
+) -> Result<(), String> {
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    db::set_message_feedback(&conn, &message_id, feedback.as_deref())
+}
+
 /// Borra todos los mensajes de una conversación (More → Limpiar conversación),
 /// conservando la conversación misma.
 #[tauri::command]

@@ -31,6 +31,8 @@ interface ChatStore {
   removeConversation: (id: string) => Promise<void>;
   sendMessage: (content: string, attachments?: Attachment[]) => Promise<void>;
   regenerate: () => Promise<void>;
+  editMessage: (messageId: string, content: string) => Promise<void>;
+  setFeedback: (messageId: string, feedback: "up" | "down" | null) => Promise<void>;
   stopStreaming: () => Promise<void>;
   clearMessages: () => Promise<void>;
   loadSettings: () => Promise<void>;
@@ -171,6 +173,52 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     } catch (e) {
       set({ ...BLANK_STREAM, status: "error", error: String(e) });
     }
+  },
+
+  /** Edita un mensaje propio: el backend tira lo de después y vuelve a responder. */
+  editMessage: async (messageId, content) => {
+    const { activeId, status, messages } = get();
+    const index = messages.findIndex((m) => m.id === messageId);
+    if (!activeId || index < 0 || status === "streaming") return;
+    const text = content.trim();
+    if (!text || messages[index].content === text) return;
+
+    set({
+      messages: messages
+        .slice(0, index + 1)
+        .map((m) => (m.id === messageId ? { ...m, content: text } : m)),
+      ...BLANK_STREAM,
+      startedAt: Date.now(),
+      status: "streaming",
+      error: null,
+    });
+    try {
+      await invoke("edit_user_message", {
+        conversationId: activeId,
+        messageId,
+        content: text,
+      });
+    } catch (e) {
+      // Se recarga desde la base de datos y luego se muestra el fallo, para que
+      // la vista refleje lo que hay de verdad y no una edición optimista.
+      const message = String(e);
+      await get().selectConversation(activeId);
+      set({ status: "error", error: message });
+    }
+  },
+
+  setFeedback: async (messageId, feedback) => {
+    const current = get().messages.find((m) => m.id === messageId)?.feedback;
+    const next = current === feedback ? null : feedback;
+    set((s) => ({
+      messages: s.messages.map((m) =>
+        m.id === messageId ? { ...m, feedback: next } : m,
+      ),
+    }));
+    await invoke("set_message_feedback", {
+      messageId,
+      feedback: next,
+    }).catch(() => {});
   },
 
   stopStreaming: async () => {
