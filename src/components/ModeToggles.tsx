@@ -47,8 +47,8 @@ export default function ModeToggles({ disabled = false }: Props) {
         aria-pressed={settings.webSearch}
         title={
           settings.webSearch
-            ? "Búsqueda web activada: se consulta DuckDuckGo antes de responder"
-            : "Activar búsqueda web (DuckDuckGo, sin cuenta)"
+            ? "Búsqueda web activada: el chat consulta DuckDuckGo antes de responder y el modo trabajo puede pedir usar la herramienta web_search."
+            : "Activar búsqueda web (DuckDuckGo, sin cuenta). Afecta al chat y al modo trabajo."
         }
         className={chip(settings.webSearch)}
       >

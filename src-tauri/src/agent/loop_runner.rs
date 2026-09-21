@@ -276,7 +276,8 @@ async fn run_loop(
     let state = app.state::<AppState>();
     let settings = state::load_settings(&state);
     let provider = state::build_tool_provider(&state)?;
-    let agent_tools = tools::build_tools(settings.run_command_enabled);
+    let agent_tools =
+        tools::build_tools(settings.run_command_enabled, settings.web_search);
     let mut definitions = meta_tool_definitions();
     definitions.extend(agent_tools.iter().map(|t| t.definition()));
 

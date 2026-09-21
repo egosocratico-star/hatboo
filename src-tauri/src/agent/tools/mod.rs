@@ -3,6 +3,7 @@ pub mod list_dir;
 pub mod read_file;
 pub mod run_command;
 pub mod search_files;
+pub mod web_search;
 pub mod write_file;
 
 use async_trait::async_trait;
@@ -15,6 +16,7 @@ pub use list_dir::ListDirTool;
 pub use read_file::ReadFileTool;
 pub use run_command::RunCommandTool;
 pub use search_files::SearchFilesTool;
+pub use web_search::WebSearchTool;
 pub use write_file::WriteFileTool;
 
 #[derive(Debug, thiserror::Error)]
@@ -103,8 +105,9 @@ pub fn resolve_in_project(project_root: &Path, rel: &str) -> Result<PathBuf, Too
     Ok(candidate)
 }
 
-/// Registro de herramientas para una sesión de trabajo.
-pub fn build_tools(run_command_enabled: bool) -> Vec<Box<dyn AgentTool>> {
+/// Registro de herramientas para una sesión de trabajo. `web_search_enabled` es
+/// el mismo interrupto 🌐 del chat: sin él el agente no puede salir a internet.
+pub fn build_tools(run_command_enabled: bool, web_search_enabled: bool) -> Vec<Box<dyn AgentTool>> {
     let mut tools: Vec<Box<dyn AgentTool>> = vec![
         Box::new(ReadFileTool),
         Box::new(ListDirTool),
@@ -118,5 +121,29 @@ pub fn build_tools(run_command_enabled: bool) -> Vec<Box<dyn AgentTool>> {
     if run_command_enabled {
         tools.push(Box::new(RunCommandTool));
     }
+    if web_search_enabled {
+        tools.push(Box::new(WebSearchTool));
+    }
     tools
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn names(run_command: bool, web_search: bool) -> Vec<String> {
+        build_tools(run_command, web_search)
+            .iter()
+            .map(|t| t.name().to_string())
+            .collect()
+    }
+
+    #[test]
+    fn las_tools_de_red_y_comandos_solo_aparecen_si_estan_activadas() {
+        let base = names(false, false);
+        assert!(!base.contains(&"run_command".to_string()));
+        assert!(!base.contains(&"web_search".to_string()));
+        assert!(names(false, true).contains(&"web_search".to_string()));
+        assert!(names(true, false).contains(&"run_command".to_string()));
+    }
 }
