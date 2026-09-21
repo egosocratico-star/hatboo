@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import {
   Check,
   Copy,
@@ -20,7 +20,7 @@ interface Props {
   message: Message;
   onRegenerate?: () => void;
   /** Editar un mensaje propio: sin esta prop el lápiz no aparece. */
-  onEdit?: (content: string) => void;
+  onEdit?: (messageId: string, content: string) => void;
   /** Bloquea editar mientras hay una respuesta en curso. */
   busy?: boolean;
 }
@@ -50,7 +50,7 @@ function ActionButton({
   );
 }
 
-export default function MessageBubble({
+function MessageBubble({
   message,
   onRegenerate,
   onEdit,
@@ -89,7 +89,7 @@ export default function MessageBubble({
   const commitEdit = () => {
     const text = draft.trim();
     setEditing(false);
-    if (text && text !== message.content) onEdit?.(text);
+    if (text && text !== message.content) onEdit?.(message.id, text);
   };
 
   const chips =
@@ -125,7 +125,7 @@ export default function MessageBubble({
 
   if (isUser) {
     return (
-      <div className="group flex flex-col items-end">
+      <div className="group flex animate-rise-in flex-col items-end">
         {editing ? (
           <div className="w-full max-w-2xl rounded-2xl border border-accent/40 bg-base-raised p-3">
             <textarea
@@ -189,7 +189,7 @@ export default function MessageBubble({
   }
 
   return (
-    <div className="group">
+    <div className="group animate-rise-in">
       {message.reasoning && (
         <ThinkingBlock
           reasoning={message.reasoning}
@@ -240,3 +240,6 @@ export default function MessageBubble({
     </div>
   );
 }
+
+// Las burbujas ya cerradas no tienen por qué re-renderizar con cada fragmento del stream.
+export default memo(MessageBubble);

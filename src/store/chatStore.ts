@@ -242,37 +242,20 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   clearError: () => set({ error: null, status: "idle" }),
 
-  appendChunk: (delta) =>
-    set((s) => {
-      if (s.status !== "streaming") return s;
-      // Con el primer carácter visible el pensamiento ya terminó: se congela la
-      // duración para que el bloque "Pensó N s" no siga contando durante la
-      // respuesta.
-      const frozen =
-        s.thinkingMs ?? (s.streamingReasoning ? Date.now() - s.startedAt : null);
-      return {
-        streamingText: s.streamingText + delta,
-        searching: false,
-        thinkingMs: frozen,
-      };
-    }),
+  appendChunk: (delta) => {
+    buffer.text += delta;
+    scheduleFlush();
+  },
 
-  appendReasoning: (delta) =>
-    set((s) => {
-      if (s.status !== "streaming") return s;
-      // El cronómetro arranca con el primer fragmento de razonamiento: la
-      // espera de la búsqueda web no cuenta como tiempo de pensamiento.
-      const firstThink = s.streamingReasoning === "";
-      return {
-        streamingReasoning: s.streamingReasoning + delta,
-        startedAt: firstThink ? Date.now() : s.startedAt,
-        searching: false,
-      };
-    }),
+  appendReasoning: (delta) => {
+    buffer.reasoning += delta;
+    scheduleFlush();
+  },
 
   setSearchStatus: (searching, note) => set({ searching, searchNote: note }),
 
-  finishStreaming: (message) =>
+  finishStreaming: (message) => {
+    clearBuffer();
     set((s) => ({
       // Un mismo chat:done puede llegar dos veces si un listener sobrevivió a
       // su desmontaje; el id del mensaje guardado lo hace idempotente.
@@ -281,10 +264,59 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         : [...s.messages, message],
       ...BLANK_STREAM,
       status: "idle",
-    })),
+    }));
+  },
 
-  cancelStreaming: () => set({ ...BLANK_STREAM, status: "idle" }),
+  cancelStreaming: () => {
+    clearBuffer();
+    set({ ...BLANK_STREAM, status: "idle" });
+  },
 
-  failStreaming: (message) =>
-    set({ ...BLANK_STREAM, status: "error", error: message }),
+  failStreaming: (message) => {
+    clearBuffer();
+    set({ ...BLANK_STREAM, status: "error", error: message });
+  },
 }));
+
+/**
+ * Los fragmentos llegan a ráfagas por IPC. Volcarlos uno por frame —en vez de
+ * provocar un render por token— es lo que quita los tirones mientras responde el
+ * modelo: cada render re-parsea el markdown de toda la respuesta.
+ */
+const buffer = { text: "", reasoning: "" };
+let frame: number | null = null;
+
+function clearBuffer() {
+  buffer.text = "";
+  buffer.reasoning = "";
+  if (frame !== null) {
+    cancelAnimationFrame(frame);
+    frame = null;
+  }
+}
+
+function scheduleFlush() {
+  if (frame !== null) return;
+  frame = requestAnimationFrame(() => {
+    frame = null;
+    const { text, reasoning } = buffer;
+    buffer.text = "";
+    buffer.reasoning = "";
+    if (!text && !reasoning) return;
+    useChatStore.setState((s) => {
+      if (s.status !== "streaming") return s;
+      // El cronómetro arranca con el primer razonamiento (la espera de la
+      // búsqueda web no cuenta) y se congela con el primer carácter visible.
+      const firstThink = s.streamingReasoning === "" && reasoning !== "";
+      const thinkingMs =
+        s.thinkingMs ?? (text && s.streamingReasoning ? Date.now() - s.startedAt : null);
+      return {
+        streamingText: s.streamingText + text,
+        streamingReasoning: s.streamingReasoning + reasoning,
+        searching: false,
+        thinkingMs,
+        startedAt: firstThink ? Date.now() : s.startedAt,
+      };
+    });
+  });
+}

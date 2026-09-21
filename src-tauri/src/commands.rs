@@ -470,13 +470,13 @@ const CODE_MODE_PROMPT: &str = "Modo código activo: responde como ingeniero sen
  que ya existen en el proyecto antes de proponer nuevas.";
 
 /// Lanza el streaming del proveedor para la conversación y emite chat:*.
+///
+/// Registrar el canal de cancelación es lo único que ocurre antes de devolver:
+/// construir el proveedor y leer el historial (que codifica las imágenes adjuntas
+/// en base64) se hace dentro de la tarea. Antes se hacían en el propio comando,
+/// y eso era el parón que se veía entre pulsar Enviar y ver el mensaje en pantalla.
 fn spawn_chat_stream(app: tauri::AppHandle, conversation_id: String) -> Result<(), String> {
     let state = app.state::<AppState>();
-    let provider = state::build_provider(&state)?;
-    let prompt = history(&state, &conversation_id)?;
-    let settings = state::load_settings(&state);
-    let provider_name = provider.name().to_string();
-
     let (tx, mut rx) = tokio::sync::mpsc::channel::<StreamDelta>(64);
     let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel::<()>();
     state
@@ -490,6 +490,25 @@ fn spawn_chat_stream(app: tauri::AppHandle, conversation_id: String) -> Result<(
 
     tauri::async_runtime::spawn(async move {
         let state = app_for_task.state::<AppState>();
+
+        let (provider, prompt) = match state::build_provider(&state)
+            .and_then(|provider| history(&state, &conv_id).map(|prompt| (provider, prompt)))
+        {
+            Ok(prepared) => prepared,
+            Err(e) => {
+                state.chat_runs.lock().ok().and_then(|mut r| r.remove(&conv_id));
+                let _ = app_for_task.emit(
+                    "chat:error",
+                    ErrorPayload {
+                        conversation_id: conv_id,
+                        message: e,
+                    },
+                );
+                return;
+            }
+        };
+        let settings = state::load_settings(&state);
+        let provider_name = provider.name().to_string();
         let mut messages = prompt;
 
         let mut system = String::new();

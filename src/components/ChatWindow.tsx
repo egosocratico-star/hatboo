@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
   ArrowUp,
@@ -49,12 +49,23 @@ export default function ChatWindow() {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [happy, setHappy] = useState(false);
   const [permOpen, setPermOpen] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const prevLen = useRef(messages.length);
+  // Solo se sigue el final si el usuario está cerca de él. Si ha subido a releer,
+  // el stream ya no le devuelve abajo a tirones.
+  const pinnedRef = useRef(true);
+
+  const onListScroll = () => {
+    const el = listRef.current;
+    if (!el) return;
+    pinnedRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+  };
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = listRef.current;
+    if (!el || !pinnedRef.current) return;
+    el.scrollTop = el.scrollHeight;
   }, [messages.length, streamingText, streamingReasoning]);
 
   // Cronómetro en vivo del pensamiento; `startedAt` lo fija el store al llegar
@@ -101,12 +112,21 @@ export default function ChatWindow() {
     setInput("");
     setAttachments([]);
     clearError();
+    pinnedRef.current = true;
     try {
       await sendMessage(text, sent);
     } catch (e) {
       useChatStore.getState().failStreaming(String(e));
     }
   };
+
+  // Identidades estables: sin esto cada fragmento del stream re-renderizaba
+  // también todas las burbujas ya cerradas.
+  const handleRegenerate = useCallback(() => void regenerate(), [regenerate]);
+  const handleEdit = useCallback(
+    (messageId: string, content: string) => void editMessage(messageId, content),
+    [editMessage],
+  );
 
   const busy = status === "streaming";
   // Con una respuesta en curso ya no es un chat vacío: hay que mostrar el
@@ -244,7 +264,7 @@ export default function ChatWindow() {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto">
+      <div ref={listRef} onScroll={onListScroll} className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-6 py-6 space-y-6">
           {messages.map((m, i) => {
             const isLastAssistant =
@@ -256,14 +276,8 @@ export default function ChatWindow() {
                 key={m.id}
                 message={m}
                 busy={busy}
-                onRegenerate={
-                  isLastAssistant ? () => void regenerate() : undefined
-                }
-                onEdit={
-                  m.role === "user" && !busy
-                    ? (content) => void editMessage(m.id, content)
-                    : undefined
-                }
+                onRegenerate={isLastAssistant ? handleRegenerate : undefined}
+                onEdit={m.role === "user" && !busy ? handleEdit : undefined}
               />
             );
           })}
@@ -291,7 +305,7 @@ export default function ChatWindow() {
                       <ThinkingBlock reasoning={streamingReasoning} ms={thinkMs} />
                     )}
                     <RichText text={streamingText} />
-                    <span className="inline-block w-2 h-4 ml-0.5 align-text-bottom bg-accent-soft animate-pulse" />
+                    <span className="inline-block w-2 h-4 ml-0.5 align-text-bottom bg-accent-soft animate-caret" />
                   </div>
                 ) : (
                   // Con razonamiento en vivo el encabezado del bloque ya cronometra.
@@ -307,7 +321,6 @@ export default function ChatWindow() {
               </div>
             </div>
           )}
-          <div ref={bottomRef} />
         </div>
       </div>
 
