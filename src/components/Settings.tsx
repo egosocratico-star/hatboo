@@ -349,7 +349,7 @@ export default function Settings() {
         if (e.target === e.currentTarget) close();
       }}
     >
-      <div className="relative flex w-full max-w-5xl h-[85vh] overflow-hidden rounded-2xl border border-base-border bg-base shadow-2xl shadow-black/50">
+      <div className="relative flex w-full max-w-5xl h-[85vh] overflow-clip rounded-2xl border border-base-border bg-base shadow-2xl shadow-black/50">
         <button
           onClick={close}
           title="Cerrar (Esc)"

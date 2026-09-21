@@ -6,6 +6,17 @@ html,
 body,
 #root {
   height: 100%;
+  /* `clip` en vez de `hidden`: en Chromium un contenedor con overflow:hidden sigue
+     siendo desplazable con la rueda/ratón y la ventana entera "patinaba". */
+  overflow: clip;
+  /* Nada de rebote ni de pan del documento en WebView2. */
+  overscroll-behavior: none;
+}
+
+/* Los scroll propios de cada panel contienen el deslizamiento: al llegar al
+   final no arrastran al contenedor de al lado. */
+#root [class*="overflow-"] {
+  overscroll-behavior: contain;
 }
 
 body {
@@ -25,4 +36,66 @@ body {
 }
 ::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* Animaciones: solo `transform` y `opacity`, que son las dos cosas que el
+   compositor mueve sin tocar el layout (animar top/height es lo que se ve a
+   saltos). */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pop-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+@keyframes caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.animate-rise-in {
+  animation: rise-in 0.18s ease-out both;
+}
+.animate-pop-in {
+  /* Sin `scale`: escalar un panel con texto lo re-muestrea y se ve borroso un
+     instante; deslizar 6px y aparecer en opacidad es igual de suave y nítido. */
+  animation: pop-in 0.16s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-caret {
+  animation: caret-blink 1s steps(1, end) infinite;
+}
+.animate-pop-out {
+  animation: pop-out 0.11s ease-in both;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

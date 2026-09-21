@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   Check,
   ChevronDown,
@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useChatStore } from "../store/chatStore";
 import { useWorkStore } from "../store/workStore";
+import Popover from "./Popover";
 import { APPROVAL_LEVELS, type ApprovalLevel } from "../types";
 
 function LevelIcon({ level, className }: { level: ApprovalLevel; className: string }) {
@@ -34,26 +35,19 @@ export default function PermissionPicker({ open, onOpenChange }: Props) {
   const setProjectLevel = useWorkStore((s) => s.setApprovalLevel);
 
   const [confirming, setConfirming] = useState<ApprovalLevel | null>(null);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   const fallback: ApprovalLevel = "approve_for_me";
   const level: ApprovalLevel = projectId
     ? project?.approvalLevel ?? fallback
     : settings?.defaultApprovalLevel ?? fallback;
 
-  useEffect(() => {
-    if (!open) {
-      setConfirming(null);
-      return;
-    }
-    const onDown = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) onOpenChange(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [open, onOpenChange]);
-
   const current = APPROVAL_LEVELS.find((l) => l.id === level) ?? APPROVAL_LEVELS[1];
+
+  const close = () => {
+    setConfirming(null);
+    onOpenChange(false);
+  };
 
   const apply = async (id: ApprovalLevel) => {
     onOpenChange(false);
@@ -76,9 +70,10 @@ export default function PermissionPicker({ open, onOpenChange }: Props) {
   };
 
   return (
-    <div ref={rootRef} className="relative shrink-0">
+    <div className="relative shrink-0">
       <button
-        onClick={() => onOpenChange(!open)}
+        ref={triggerRef}
+        onClick={() => (open ? close() : onOpenChange(true))}
         title={`Permisos de herramientas — ${current.label}`}
         className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs transition-colors ${
           level === "full_access"
@@ -93,8 +88,14 @@ export default function PermissionPicker({ open, onOpenChange }: Props) {
         />
       </button>
 
-      {open && (
-        <div className="absolute bottom-full mb-2 left-0 z-40 w-80 rounded-xl border border-base-border bg-base-raised shadow-2xl shadow-black/50 p-1.5">
+      <Popover
+        open={open}
+        anchorRef={triggerRef}
+        onClose={close}
+        width={320}
+        cap={420}
+        className="p-1.5"
+      >
           {!confirming ? (
             <>
               <p className="px-2.5 py-1.5 text-xs text-zinc-500">
@@ -171,8 +172,7 @@ export default function PermissionPicker({ open, onOpenChange }: Props) {
               </div>
             </div>
           )}
-        </div>
-      )}
+      </Popover>
     </div>
   );
 }

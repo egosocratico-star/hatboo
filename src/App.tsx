@@ -46,7 +46,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className="h-full flex bg-base text-zinc-100 overflow-hidden">
+    <div className="h-full flex bg-base text-zinc-100 overflow-clip">
       <Sidebar />
       <main className="flex-1 min-w-0 flex flex-col">
         {view === "work" ? <ProjectView /> : <ChatWindow />}

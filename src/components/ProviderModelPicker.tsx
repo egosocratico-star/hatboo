@@ -10,6 +10,7 @@ import {
   Settings2,
 } from "lucide-react";
 import { useChatStore } from "../store/chatStore";
+import Popover from "./Popover";
 import {
   REASONING_LEVELS,
   type ReasoningEffort,
@@ -42,7 +43,7 @@ export default function ProviderModelPicker() {
   const [probe, setProbe] = useState<Probe>(null);
   const [ollamaModels, setOllamaModels] = useState<string[] | null>(null);
   const [loadingModels, setLoadingModels] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   const probeKey = settings
     ? `${settings.activeProvider}|${settings.anthropicModel}|${settings.openaiModel}|${settings.localModel}|${settings.localEndpoint}`
@@ -64,15 +65,6 @@ export default function ProviderModelPicker() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [probeKey]);
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [open]);
 
   const refreshOllama = async () => {
     if (!settings) return;
@@ -117,8 +109,9 @@ export default function ProviderModelPicker() {
           : "bg-zinc-600";
 
   return (
-    <div ref={rootRef} className="relative shrink-0">
+    <div className="relative shrink-0">
       <button
+        ref={triggerRef}
         onClick={() => setOpen((v) => !v)}
         title="Proveedor y modelo activo"
         className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-zinc-400 hover:bg-white/5 hover:text-zinc-100 transition-colors max-w-72"
@@ -134,8 +127,15 @@ export default function ProviderModelPicker() {
         <ChevronDown className="w-3 h-3 shrink-0 text-zinc-500" />
       </button>
 
-      {open && (
-        <div className="absolute right-0 bottom-full mb-2 z-40 w-80 rounded-xl border border-base-border bg-base-raised shadow-xl shadow-black/40 p-2 space-y-1">
+      <Popover
+        open={open}
+        anchorRef={triggerRef}
+        onClose={() => setOpen(false)}
+        width={320}
+        cap={340}
+        align="end"
+        className="p-2 space-y-1"
+      >
           <div className="text-[10px] uppercase tracking-wider text-zinc-600 px-2 pt-1 pb-0.5">
             Proveedor
           </div>
@@ -162,7 +162,7 @@ export default function ProviderModelPicker() {
             Modelo ({PROVIDER_LABELS[settings.activeProvider]})
           </div>
           {settings.activeProvider === "local" ? (
-            <div className="px-1 pb-1 space-y-1 max-h-44 overflow-y-auto">
+            <div className="px-1 pb-1 space-y-1 min-h-[96px]">
               {loadingModels && (
                 <div className="flex items-center gap-2 px-1.5 py-1 text-[11px] text-zinc-500">
                   <RefreshCw className="w-3 h-3 animate-spin" /> Consultando Ollama…
@@ -183,7 +183,10 @@ export default function ProviderModelPicker() {
                 ollamaModels?.map((m) => (
                   <button
                     key={m}
-                    onClick={() => void patch({ localModel: m })}
+                    onClick={() => {
+                      void patch({ localModel: m });
+                      setOpen(false);
+                    }}
                     className={`w-full flex items-center gap-2 rounded-lg px-2 py-1 text-xs font-mono transition-colors truncate ${
                       settings.localModel === m
                         ? "bg-base-hover text-zinc-100"
@@ -241,8 +244,13 @@ export default function ProviderModelPicker() {
                 <ChevronRight className="w-3 h-3 shrink-0 text-zinc-600" />
               )}
             </button>
-            {reasonOpen && (
-              <div className="pl-2 pb-1 space-y-0.5">
+            <div
+              className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${
+                reasonOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+              }`}
+            >
+              <div className="overflow-hidden">
+                <div className="pl-2 pb-1 space-y-0.5">
                 {REASONING_LEVELS.map((l) => (
                   <button
                     key={l.id}
@@ -262,8 +270,9 @@ export default function ProviderModelPicker() {
                 <p className="px-2.5 pt-1 text-[10px] leading-snug text-zinc-600">
                   Solo con modelos que lo soportan. No se aplica al modo trabajo.
                 </p>
+                </div>
               </div>
-            )}
+            </div>
           </div>
 
           <button
@@ -277,8 +286,7 @@ export default function ProviderModelPicker() {
             Ajustes (claves, endpoints, pruebas)
             <ExternalLink className="w-3 h-3 ml-auto" />
           </button>
-        </div>
-      )}
+      </Popover>
     </div>
   );
 }

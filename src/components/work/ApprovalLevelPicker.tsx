@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { ChevronDown, ShieldCheck, ShieldAlert, ShieldQuestion } from "lucide-react";
 import { useWorkStore } from "../../store/workStore";
+import Popover from "../Popover";
 import { APPROVAL_LEVELS, type ApprovalLevel } from "../../types";
 
 function LevelIcon({ level }: { level: ApprovalLevel }) {
@@ -15,19 +16,12 @@ export default function ApprovalLevelPicker({ projectId }: { projectId: string }
   const setApprovalLevel = useWorkStore((s) => s.setApprovalLevel);
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState<ApprovalLevel | null>(null);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) {
-        setOpen(false);
-        setConfirming(null);
-      }
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [open]);
+  const close = () => {
+    setOpen(false);
+    setConfirming(null);
+  };
 
   const current = APPROVAL_LEVELS.find((l) => l.id === level)!;
 
@@ -44,8 +38,9 @@ export default function ApprovalLevelPicker({ projectId }: { projectId: string }
   };
 
   return (
-    <div ref={rootRef} className="relative shrink-0">
+    <div className="relative shrink-0">
       <button
+        ref={triggerRef}
         onClick={() => setOpen((v) => !v)}
         title={`Nivel de aprobación: ${current.label} — ${current.help}`}
         className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] transition-colors ${
@@ -59,8 +54,14 @@ export default function ApprovalLevelPicker({ projectId }: { projectId: string }
         <ChevronDown className="w-3 h-3" />
       </button>
 
-      {open && (
-        <div className="absolute right-0 top-full mt-1 z-40 w-72 rounded-xl border border-base-border bg-base-raised shadow-xl shadow-black/40 p-1">
+      <Popover
+        open={open}
+        anchorRef={triggerRef}
+        onClose={close}
+        width={288}
+        align="end"
+        className="p-1"
+      >
           {!confirming ? (
             APPROVAL_LEVELS.map((l) => (
               <button
@@ -120,8 +121,7 @@ export default function ApprovalLevelPicker({ projectId }: { projectId: string }
               </div>
             </div>
           )}
-        </div>
-      )}
+      </Popover>
     </div>
   );
 }

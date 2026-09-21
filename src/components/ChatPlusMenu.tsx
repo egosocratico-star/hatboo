@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import {
@@ -10,6 +10,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useChatStore } from "../store/chatStore";
+import Popover from "./Popover";
 import type { Attachment, Settings } from "../types";
 
 interface Props {
@@ -39,18 +40,9 @@ export default function ChatPlusMenu({ onPickFiles, disabled }: Props) {
   const [open_, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const settings = useChatStore((s) => s.settings);
   const visionOk = supportsVision(settings);
-
-  useEffect(() => {
-    if (!open_) return;
-    const onDown = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [open_]);
 
   const close = () => setOpen(false);
 
@@ -169,8 +161,9 @@ export default function ChatPlusMenu({ onPickFiles, disabled }: Props) {
     "w-full flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-200 hover:bg-base-raised rounded-lg transition-colors text-left";
 
   return (
-    <div ref={rootRef} className="relative">
+    <div className="relative">
       <button
+        ref={triggerRef}
         onClick={() => setOpen((v) => !v)}
         disabled={disabled}
         title="Añadir"
@@ -179,8 +172,13 @@ export default function ChatPlusMenu({ onPickFiles, disabled }: Props) {
         <Plus className="w-4 h-4" />
       </button>
 
-      {open_ && (
-        <div className="absolute bottom-full mb-2 left-0 z-40 w-64 rounded-xl border border-base-border bg-base-raised shadow-2xl p-1.5">
+      <Popover
+        open={open_}
+        anchorRef={triggerRef}
+        onClose={close}
+        width={256}
+        className="p-1.5"
+      >
           <div className="px-2 pt-1 pb-1 text-[10px] uppercase tracking-wider text-zinc-500">
             Añadir
           </div>
@@ -232,8 +230,7 @@ export default function ChatPlusMenu({ onPickFiles, disabled }: Props) {
           {notice && (
             <div className="px-2.5 py-1.5 mt-1 text-[11px] text-red-400">{notice}</div>
           )}
-        </div>
-      )}
+      </Popover>
     </div>
   );
 }
