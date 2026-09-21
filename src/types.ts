@@ -19,6 +19,16 @@ export interface WebSource {
   snippet: string;
 }
 
+/** Plantilla de comportamiento (Agent Skill). Con `enabled` viaja en el system
+ *  prompt de cada respuesta; además siempre se puede insertar en el mensaje. */
+export interface Skill {
+  id: string;
+  name: string;
+  prompt: string;
+  enabled: boolean;
+  createdAt: number;
+}
+
 export interface Message {
   id: string;
   conversationId: string;
@@ -77,6 +87,7 @@ export interface ImportReport {
   projectsAdded: number;
   conversationsAdded: number;
   messagesAdded: number;
+  skillsAdded: number;
   skippedExisting: number;
   imagesRestored: number;
   imagesMissing: number;

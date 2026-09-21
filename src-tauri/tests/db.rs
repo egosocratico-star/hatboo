@@ -196,3 +196,84 @@ fn prune_removes_only_empty_chat_conversations() {
 
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn skills_crud_y_bloque_del_system_prompt() {
+    let dir = std::env::temp_dir().join(format!("hatboo-test-{}", uuid::Uuid::new_v4()));
+    let conn = db::connect(&dir.join("test.db")).expect("connect+migrate");
+
+    let creada = db::save_skill(
+        &conn,
+        &db::Skill {
+            id: String::new(),
+            name: "  Explicar  ".into(),
+            prompt: "\n  Paso a paso, con ejemplos.  ".into(),
+            enabled: true,
+            created_at: 0,
+        },
+    )
+    .unwrap();
+    assert_eq!(creada.name, "Explicar");
+    assert_eq!(creada.prompt, "Paso a paso, con ejemplos.");
+    assert!(!creada.id.is_empty());
+    assert!(creada.created_at > 0);
+
+    let segunda = db::save_skill(
+        &conn,
+        &db::Skill {
+            id: String::new(),
+            name: "Bilingüe".into(),
+            prompt: "Añade un resumen en inglés.".into(),
+            enabled: false,
+            created_at: 0,
+        },
+    )
+    .unwrap();
+
+    // Editar conserva el id y el created_at originales.
+    let editada = db::save_skill(
+        &conn,
+        &db::Skill {
+            id: creada.id.clone(),
+            name: "Explicar".into(),
+            prompt: "Paso a paso, sin ejemplos.".into(),
+            enabled: creada.enabled,
+            created_at: 0,
+        },
+    )
+    .unwrap();
+    assert_eq!(editada.id, creada.id);
+    assert_eq!(editada.created_at, creada.created_at);
+    assert_eq!(db::list_skills(&conn).unwrap().len(), 2);
+
+    // Solo las activas van al prompt, y con el nombre delante.
+    let bloque = db::enabled_skills_prompt(&conn).unwrap();
+    assert!(bloque.contains("· Explicar: Paso a paso, sin ejemplos."));
+    assert!(!bloque.contains("Bilingüe"));
+
+    db::set_skill_enabled(&conn, &segunda.id, true).unwrap();
+    assert!(db::enabled_skills_prompt(&conn)
+        .unwrap()
+        .contains("Añade un resumen en inglés."));
+
+    // Sin activas no se añade nada a la petición.
+    db::set_skill_enabled(&conn, &creada.id, false).unwrap();
+    db::set_skill_enabled(&conn, &segunda.id, false).unwrap();
+    assert_eq!(db::enabled_skills_prompt(&conn).unwrap(), "");
+
+    db::delete_skill(&conn, &creada.id).unwrap();
+    assert_eq!(db::list_skills(&conn).unwrap().len(), 1);
+    // Nombre o texto vacío no se guardan.
+    assert!(db::save_skill(
+        &conn,
+        &db::Skill { id: String::new(), name: "x".into(), prompt: "   ".into(), enabled: true, created_at: 0 }
+    )
+    .is_err());
+    assert!(db::save_skill(
+        &conn,
+        &db::Skill { id: "no-existe".into(), name: "x".into(), prompt: "y".into(), enabled: true, created_at: 0 }
+    )
+    .is_err());
+
+    let _ = std::fs::remove_dir_all(dir);
+}

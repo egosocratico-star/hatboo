@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
-import type { Attachment, Conversation, Message, Settings } from "../types";
+import type { Attachment, Conversation, Message, Settings, Skill } from "../types";
 
 export type View = "chat" | "settings" | "work";
 export type Status = "idle" | "streaming" | "error";
@@ -25,6 +25,7 @@ interface ChatStore {
   settings: Settings | null;
   /** Fallo al leer los ajustes: Ajustes lo muestra con un reintento. */
   settingsError: string | null;
+  skills: Skill[];
 
   setView: (view: View) => void;
   loadConversations: () => Promise<void>;
@@ -39,6 +40,11 @@ interface ChatStore {
   clearMessages: () => Promise<void>;
   loadSettings: () => Promise<void>;
   saveSettings: (settings: Settings) => Promise<void>;
+  loadSkills: () => Promise<void>;
+  /** `id` vacío crea una plantilla nueva; devuelve la guardada. */
+  saveSkill: (skill: { id: string; name: string; prompt: string; enabled: boolean }) => Promise<Skill>;
+  setSkillEnabled: (id: string, enabled: boolean) => Promise<void>;
+  removeSkill: (id: string) => Promise<void>;
   clearError: () => void;
 
   // Actualizaciones desde useStreaming
@@ -70,6 +76,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   error: null,
   settings: null,
   settingsError: null,
+  skills: [],
 
   setView: (view) => set({ view }),
 
@@ -246,6 +253,41 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   saveSettings: async (settings) => {
     const saved = await invoke<Settings>("update_settings", { settings });
     set({ settings: saved });
+  },
+
+  loadSkills: async () => {
+    const skills = await invoke<Skill[]>("list_skills");
+    set({ skills });
+  },
+
+  saveSkill: async (skill) => {
+    const saved = await invoke<Skill>("save_skill", { skill });
+    set((state) => ({
+      skills: state.skills.some((s) => s.id === saved.id)
+        ? state.skills.map((s) => (s.id === saved.id ? saved : s))
+        : [...state.skills, saved],
+    }));
+    return saved;
+  },
+
+  setSkillEnabled: async (id, enabled) => {
+    // Optimista: el toggle tiene que responder al toque.
+    set((state) => ({
+      skills: state.skills.map((s) => (s.id === id ? { ...s, enabled } : s)),
+    }));
+    try {
+      await invoke("set_skill_enabled", { id, enabled });
+    } catch (e) {
+      set((state) => ({
+        skills: state.skills.map((s) => (s.id === id ? { ...s, enabled: !enabled } : s)),
+      }));
+      throw e;
+    }
+  },
+
+  removeSkill: async (id) => {
+    await invoke("delete_skill", { id });
+    set((state) => ({ skills: state.skills.filter((s) => s.id !== id) }));
   },
 
   clearError: () => set({ error: null, status: "idle" }),

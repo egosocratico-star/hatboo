@@ -111,6 +111,52 @@ pub fn delete_api_key(provider: String) -> Result<(), String> {
     providers::delete_api_key(&provider)
 }
 
+// ---------- Plantillas de comportamiento (Agent Skills) ----------
+
+/// Lo que envía la interfaz para crear o editar una plantilla. Con `id` vacío se
+/// crea una nueva; el resto de campos los normaliza `db::save_skill`.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillDraft {
+    #[serde(default)]
+    pub id: String,
+    pub name: String,
+    pub prompt: String,
+    #[serde(default)]
+    pub enabled: bool,
+}
+
+#[tauri::command]
+pub fn list_skills(app: State<AppState>) -> Result<Vec<db::Skill>, String> {
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    db::list_skills(&conn)
+}
+
+#[tauri::command]
+pub fn save_skill(app: State<AppState>, skill: SkillDraft) -> Result<db::Skill, String> {
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    let draft = db::Skill {
+        id: skill.id,
+        name: skill.name,
+        prompt: skill.prompt,
+        enabled: skill.enabled,
+        created_at: 0,
+    };
+    db::save_skill(&conn, &draft)
+}
+
+#[tauri::command]
+pub fn set_skill_enabled(app: State<AppState>, id: String, enabled: bool) -> Result<(), String> {
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    db::set_skill_enabled(&conn, &id, enabled)
+}
+
+#[tauri::command]
+pub fn delete_skill(app: State<AppState>, id: String) -> Result<(), String> {
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    db::delete_skill(&conn, &id)
+}
+
 /// Lista los modelos instalados en un servidor Ollama para el selector de Ajustes.
 #[tauri::command]
 pub async fn list_local_models(endpoint: String) -> Result<Vec<String>, String> {
@@ -597,6 +643,15 @@ fn spawn_chat_stream(app: tauri::AppHandle, conversation_id: String) -> Result<(
         if settings.code_mode {
             system.push_str(CODE_MODE_PROMPT);
         }
+        // Las plantillas activas van al final: si algo choca con el modo código,
+        // gana lo que el usuario escribió a mano para esa plantilla.
+        let skills = state
+            .db
+            .lock()
+            .ok()
+            .and_then(|conn| db::enabled_skills_prompt(&conn).ok())
+            .unwrap_or_default();
+        system.push_str(&skills);
         let system = system.trim();
         if !system.is_empty() {
             messages.insert(

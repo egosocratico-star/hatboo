@@ -56,3 +56,13 @@ CREATE TABLE IF NOT EXISTS tool_calls (
 );
 
 CREATE INDEX IF NOT EXISTS idx_tool_calls_conversation ON tool_calls (conversation_id);
+
+-- Plantillas de comportamiento (Agent Skills)
+
+CREATE TABLE IF NOT EXISTS skills (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    prompt TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL
+);

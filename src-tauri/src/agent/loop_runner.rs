@@ -99,7 +99,7 @@ fn needs_approval(approval_level: &str, risk: RiskLevel) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{needs_approval, RiskLevel};
+    use super::{needs_approval, system_prompt, RiskLevel};
 
     #[test]
     fn approval_levels_cross_with_risk() {
@@ -117,9 +117,30 @@ mod tests {
         assert!(!needs_approval("", low));
         assert!(needs_approval("", high));
     }
+
+    #[test]
+    fn las_plantillas_se_pegan_sin_tocar_las_reglas() {
+        let root = std::path::Path::new(".");
+        let raiz = root.canonicalize().unwrap();
+        let con = system_prompt(
+            &raiz,
+            "approve_for_me",
+            "Bicho",
+            "· Explica qué hace cada paso antes de hacerlo.\n",
+        );
+        assert!(con.contains("Explica qué hace cada paso"));
+        assert!(con.contains("SIN relajar ninguna regla anterior"));
+        assert!(con.contains("que lo llames «Bicho»"));
+        // La regla 4 del sandbox sigue ahí igualmente.
+        assert!(con.contains("nunca intentes salir de ella"));
+
+        let sin = system_prompt(&raiz, "approve_for_me", "", "");
+        assert!(!sin.contains("SIN relajar"));
+        assert!(!sin.contains("que lo llames"));
+    }
 }
 
-fn system_prompt(project_root: &Path, approval_level: &str, assistant_name: &str) -> String {
+fn system_prompt(project_root: &Path, approval_level: &str, assistant_name: &str, skills: &str) -> String {
     let listing = list_dir_brief(project_root);
     let approval_rule = match approval_level {
         "ask_always" => "El usuario aprueba TODAS tus acciones (incluidas lecturas); no te sorprendas si cada tool call pide confirmación.".to_string(),
@@ -135,6 +156,16 @@ fn system_prompt(project_root: &Path, approval_level: &str, assistant_name: &str
             assistant_name.trim()
         )
     };
+    // Una plantilla nunca relaja el sandbox ni las aprobaciones: se lo dice
+    // explícitamente porque si no, un "envía lo que haga falta" se lo toma al pie.
+    let skills_rule = if skills.trim().is_empty() {
+        String::new()
+    } else {
+        format!(
+            "\n{} Todo esto se cumple SIN relajar ninguna regla anterior.\n",
+            skills.trim()
+        )
+    };
     format!(
         "Eres Hatboo, un agente de trabajo que opera DENTRO del proyecto del usuario.\n\
          Raíz del proyecto: {}\n\n\
@@ -147,11 +178,12 @@ fn system_prompt(project_root: &Path, approval_level: &str, assistant_name: &str
          5. Si el proyecto es un repositorio git, revisa git_status antes de proponer un commit, y nunca propongas git_commit sin que el usuario lo pida explícitamente.\n\
          6. Cuando hayas terminado todos los pasos, responde SOLO con un resumen final en español, sin tool calls.\n\
          7. Responde siempre en español al usuario.\n\
-         {}",
+         {}{}",
         project_root.display(),
         listing,
         approval_rule,
-        name_rule
+        name_rule,
+        skills_rule
     )
 }
 
@@ -278,13 +310,19 @@ async fn run_loop(
     let provider = state::build_tool_provider(&state)?;
     let agent_tools =
         tools::build_tools(settings.run_command_enabled, settings.web_search);
+    let skills_prompt = state
+        .db
+        .lock()
+        .ok()
+        .and_then(|conn| db::enabled_skills_prompt(&conn).ok())
+        .unwrap_or_default();
     let mut definitions = meta_tool_definitions();
     definitions.extend(agent_tools.iter().map(|t| t.definition()));
 
     let mut messages = vec![
         AgentMessage {
             role: "system".into(),
-            content: system_prompt(project_root, approval_level, assistant_name),
+            content: system_prompt(project_root, approval_level, assistant_name, &skills_prompt),
             tool_calls: Vec::new(),
             tool_call_id: None,
         },

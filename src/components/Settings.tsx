@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Search,
   SlidersHorizontal,
+  Sparkles,
   Trash2,
   User,
   Database,
@@ -28,6 +29,7 @@ import {
 } from "lucide-react";
 import { useChatStore } from "../store/chatStore";
 import { useWorkStore } from "../store/workStore";
+import SkillsSettings from "./SkillsSettings";
 import {
   REASONING_LEVELS,
   type ReasoningEffort,
@@ -265,11 +267,12 @@ function ApiKeyField({ provider }: { provider: string }) {
 type CategoryId =
   | "api"
   | "agent"
+  | "skills"
   | "profile"
   | "shortcuts"
   | "about"
-  | "appearance"
   | "general"
+  | "appearance"
   | "system"
   | "data";
 
@@ -283,6 +286,7 @@ const CATEGORIES: Array<{
   { id: "appearance", label: "Apariencia", icon: Palette, ready: false },
   { id: "api", label: "API y modelos", icon: Cpu, ready: true },
   { id: "agent", label: "Agente", icon: Bot, ready: true },
+  { id: "skills", label: "Skills", icon: Sparkles, ready: true },
   { id: "profile", label: "Perfil", icon: User, ready: true },
   { id: "system", label: "Sistema", icon: HardDrive, ready: true },
   { id: "data", label: "Datos", icon: Database, ready: true },
@@ -332,6 +336,7 @@ export default function Settings() {
     loadStorage();
     void useChatStore.getState().loadConversations();
     void useChatStore.getState().loadSettings();
+    void useChatStore.getState().loadSkills();
     void useWorkStore.getState().loadProjects();
   };
 
@@ -370,6 +375,7 @@ export default function Settings() {
       const r = await invoke<ImportReport>("import_all_data", { path });
       setDataMsg(
         `Importación terminada: ${r.conversationsAdded} conversación(es) y ${r.messagesAdded} mensaje(s) nuevos` +
+          (r.skillsAdded > 0 ? `, ${r.skillsAdded} plantilla(s)` : "") +
           (r.skippedExisting > 0 ? `, ${r.skippedExisting} elemento(s) ya estaban` : "") +
           (r.imagesRestored > 0 ? `, ${r.imagesRestored} imagen(es) restaurada(s)` : "") +
           (r.imagesMissing > 0 ? `, ${r.imagesMissing} imagen(es) no estaban en la copia` : ""),
@@ -721,6 +727,16 @@ export default function Settings() {
                   herramientas globales llegarán en una próxima tanda.
                 </p>
               </section>
+            </>
+          )}
+
+          {cat === "skills" && (
+            <>
+              <SectionTitle
+                title="Skills"
+                subtitle="Plantillas de comportamiento escritas por ti."
+              />
+              <SkillsSettings />
             </>
           )}
 

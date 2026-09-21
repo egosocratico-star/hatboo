@@ -7,6 +7,7 @@ import {
   FolderKanban,
   Image as ImageIcon,
   Plus,
+  Sparkles,
   Trash2,
 } from "lucide-react";
 import { useChatStore } from "../store/chatStore";
@@ -15,6 +16,8 @@ import type { Attachment, Settings } from "../types";
 
 interface Props {
   onPickFiles: (files: Attachment[]) => void;
+  /** Insertar el texto de una plantilla en el mensaje, donde esté el cursor. */
+  onInsertTemplate: (text: string) => void;
   disabled?: boolean;
 }
 
@@ -36,12 +39,13 @@ function supportsVision(settings: Settings | null): boolean {
   return VISION_LOCAL_KEYWORDS.some((k) => model.includes(k));
 }
 
-export default function ChatPlusMenu({ onPickFiles, disabled }: Props) {
+export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }: Props) {
   const [open_, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const settings = useChatStore((s) => s.settings);
+  const skills = useChatStore((s) => s.skills);
   const visionOk = supportsVision(settings);
 
   const close = () => setOpen(false);
@@ -200,6 +204,43 @@ export default function ChatPlusMenu({ onPickFiles, disabled }: Props) {
               <span className="flex-1">Imagen</span>
               <span className="text-[10px] text-zinc-500">sin visión</span>
             </div>
+          )}
+
+          <div className="my-1.5 h-px bg-base-border" />
+          <div className="px-2 pt-0.5 pb-1 text-[10px] uppercase tracking-wider text-zinc-500">
+            Plantillas
+          </div>
+          {skills.length === 0 ? (
+            <div
+              className={item + " opacity-45 cursor-not-allowed"}
+              title="Créalas en Ajustes → Skills"
+            >
+              <Sparkles className="w-4 h-4 text-zinc-500 shrink-0" />
+              <span className="flex-1">Aún no hay plantillas</span>
+            </div>
+          ) : (
+            skills.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => {
+                  onInsertTemplate(s.prompt);
+                  close();
+                }}
+                className={item}
+                disabled={disabled}
+                title={
+                  s.enabled
+                    ? `${s.prompt}\n\n(esta plantilla ya se aplica sola a cada respuesta)`
+                    : s.prompt
+                }
+              >
+                <Sparkles className="w-4 h-4 text-accent-soft shrink-0" />
+                <span className="flex-1 truncate">{s.name}</span>
+                {s.enabled && (
+                  <span className="text-[10px] text-accent-soft/80">siempre</span>
+                )}
+              </button>
+            ))
           )}
 
           <div className="my-1.5 h-px bg-base-border" />

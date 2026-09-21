@@ -360,6 +360,7 @@ pub fn wipe_all(conn: &Connection) -> Result<(), String> {
          DELETE FROM messages;
          DELETE FROM conversations;
          DELETE FROM projects;
+         DELETE FROM skills;
          DELETE FROM settings;",
     )
     .map_err(|e| e.to_string())
@@ -802,4 +803,116 @@ pub fn get_tool_call(conn: &Connection, id: &str) -> Result<ToolCall, String> {
         },
     )
     .map_err(|e| e.to_string())
+}
+
+// ---------- Plantillas de comportamiento (Agent Skills) ----------
+
+/// Plantilla de instrucciones que el usuario escribe y Hatboo aplica. Con
+/// `enabled` viaja en el system prompt de cada respuesta (chat y agente);
+/// además siempre se puede insertar en el mensaje desde el menú «+».
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Skill {
+    pub id: String,
+    pub name: String,
+    pub prompt: String,
+    pub enabled: bool,
+    pub created_at: i64,
+}
+
+const SKILL_COLUMNS: &str = "SELECT id, name, prompt, enabled, created_at FROM skills";
+
+fn skill_from_row(row: &rusqlite::Row) -> rusqlite::Result<Skill> {
+    Ok(Skill {
+        id: row.get(0)?,
+        name: row.get(1)?,
+        prompt: row.get(2)?,
+        enabled: row.get::<_, i64>(3)? != 0,
+        created_at: row.get(4)?,
+    })
+}
+
+fn get_skill(conn: &Connection, id: &str) -> Result<Skill, String> {
+    conn.query_row(
+        &format!("{SKILL_COLUMNS} WHERE id = ?1"),
+        params![id],
+        skill_from_row,
+    )
+    .map_err(|e| e.to_string())
+}
+
+pub fn list_skills(conn: &Connection) -> Result<Vec<Skill>, String> {
+    let mut stmt = conn
+        .prepare(&format!("{SKILL_COLUMNS} ORDER BY created_at ASC"))
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], skill_from_row)
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+}
+
+/// Crea (con `id` vacío) o actualiza una plantilla, y devuelve el resultado.
+pub fn save_skill(conn: &Connection, skill: &Skill) -> Result<Skill, String> {
+    let name = skill.name.trim();
+    let prompt = skill.prompt.trim();
+    if name.is_empty() || prompt.is_empty() {
+        return Err("La plantilla necesita un nombre y un texto.".into());
+    }
+    if skill.id.is_empty() {
+        let created = Skill {
+            id: new_id(),
+            name: name.to_string(),
+            prompt: prompt.to_string(),
+            enabled: skill.enabled,
+            created_at: now_ms(),
+        };
+        conn.execute(
+            "INSERT INTO skills (id, name, prompt, enabled, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![created.id, created.name, created.prompt, created.enabled as i64, created.created_at],
+        )
+        .map_err(|e| e.to_string())?;
+        return Ok(created);
+    }
+    let changed = conn
+        .execute(
+            "UPDATE skills SET name = ?1, prompt = ?2, enabled = ?3 WHERE id = ?4",
+            params![name, prompt, skill.enabled as i64, skill.id],
+        )
+        .map_err(|e| e.to_string())?;
+    if changed == 0 {
+        return Err("Esa plantilla ya no existe.".into());
+    }
+    get_skill(conn, &skill.id)
+}
+
+pub fn set_skill_enabled(conn: &Connection, id: &str, enabled: bool) -> Result<(), String> {
+    conn.execute(
+        "UPDATE skills SET enabled = ?1 WHERE id = ?2",
+        params![enabled as i64, id],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+pub fn delete_skill(conn: &Connection, id: &str) -> Result<(), String> {
+    conn.execute("DELETE FROM skills WHERE id = ?1", params![id])
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Bloque de system prompt con las plantillas activas; vacío si no hay ninguna,
+/// para no añadir texto de más a las peticiones.
+pub fn enabled_skills_prompt(conn: &Connection) -> Result<String, String> {
+    let active: Vec<Skill> = list_skills(conn)?
+        .into_iter()
+        .filter(|s| s.enabled)
+        .collect();
+    if active.is_empty() {
+        return Ok(String::new());
+    }
+    let mut out = String::from("Plantillas que el usuario quiere que sigas siempre:\n");
+    for s in &active {
+        out.push_str(&format!("· {}: {}\n", s.name, s.prompt.trim()));
+    }
+    Ok(out)
 }

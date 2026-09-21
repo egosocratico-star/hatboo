@@ -39,6 +39,17 @@ fn seed(dir: &Path) -> (db::Conversation, std::path::PathBuf, String) {
         .unwrap();
     db::set_message_feedback(&conn, &answer.id, Some("up")).unwrap();
     db::set_setting(&conn, "settings", "{\"activeProvider\":\"local\"}").unwrap();
+    db::save_skill(
+        &conn,
+        &db::Skill {
+            id: String::new(),
+            name: "Explicar".into(),
+            prompt: "Explica qué hace cada paso antes de hacerlo.".into(),
+            enabled: true,
+            created_at: 0,
+        },
+    )
+    .unwrap();
     (conv, attachments, answer.id)
 }
 
@@ -61,6 +72,7 @@ fn snapshot_roundtrip_restores_everything_and_is_idempotent() {
     assert_eq!(report.conversations_added, 1);
     assert_eq!(report.messages_added, 2);
     assert_eq!(report.projects_added, 1);
+    assert_eq!(report.skills_added, 1);
     assert_eq!(report.images_restored, 1);
     assert_eq!(report.images_missing, 0);
 
@@ -75,12 +87,21 @@ fn snapshot_roundtrip_restores_everything_and_is_idempotent() {
     assert_eq!(restored[1].thinking_ms, Some(900));
     assert_eq!(restored[1].web_sources[0].url, "https://example.com");
     assert_eq!(restored[1].feedback.as_deref(), Some("up"));
+    let plantillas = db::list_skills(&conn2).unwrap();
+    assert_eq!(plantillas.len(), 1);
+    assert_eq!(plantillas[0].name, "Explicar");
+    assert!(plantillas[0].enabled);
+    assert!(db::enabled_skills_prompt(&conn2)
+        .unwrap()
+        .contains("Explica qué hace cada paso antes de hacerlo."));
 
     // Importar la misma copia otra vez no duplica nada.
     let segundo = backup::apply_snapshot(&conn2, &leido, &destino_attachments).unwrap();
     assert_eq!(segundo.conversations_added, 0);
     assert_eq!(segundo.messages_added, 0);
+    assert_eq!(segundo.skills_added, 0);
     assert_eq!(db::list_messages(&conn2, &conv.id).unwrap().len(), 2);
+    assert_eq!(db::list_skills(&conn2).unwrap().len(), 1);
 
     let _ = std::fs::remove_dir_all(&origin);
     let _ = std::fs::remove_dir_all(&destino);
@@ -116,6 +137,7 @@ fn wipe_all_vacía_toda_la_base() {
     assert_eq!(counts.conversations, 0);
     assert_eq!(counts.messages, 0);
     assert_eq!(counts.projects, 0);
+    assert!(db::list_skills(&conn).unwrap().is_empty());
     assert!(db::get_setting(&conn, "settings").unwrap().is_none());
 
     let _ = std::fs::remove_dir_all(&dir);

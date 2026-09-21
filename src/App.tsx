@@ -12,6 +12,7 @@ export default function App() {
   const view = useChatStore((s) => s.view);
   const loadConversations = useChatStore((s) => s.loadConversations);
   const loadSettings = useChatStore((s) => s.loadSettings);
+  const loadSkills = useChatStore((s) => s.loadSkills);
   const loadProjects = useWorkStore((s) => s.loadProjects);
 
   useStreaming();
@@ -20,8 +21,9 @@ export default function App() {
   useEffect(() => {
     void loadConversations();
     void loadSettings();
+    void loadSkills();
     void loadProjects();
-  }, [loadConversations, loadSettings, loadProjects]);
+  }, [loadConversations, loadSettings, loadSkills, loadProjects]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

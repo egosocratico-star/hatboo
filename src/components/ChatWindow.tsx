@@ -120,6 +120,25 @@ export default function ChatWindow() {
     requestAnimationFrame(() => searchRef.current?.focus());
   };
 
+  /** Inserta una plantilla en el cursor del textarea, no al final. */
+  const insertTemplate = (text: string) => {
+    const el = inputRef.current;
+    const from = el?.selectionStart ?? input.length;
+    const to = el?.selectionEnd ?? input.length;
+    const before = input.slice(0, from);
+    // Se separa de lo que haya escrito solo si hace falta.
+    const glue = before && !/\s$/.test(before) ? " " : "";
+    const next = before + glue + text + input.slice(to);
+    setInput(next);
+    const caret = before.length + glue.length + text.length;
+    requestAnimationFrame(() => {
+      const node = inputRef.current;
+      if (!node) return;
+      node.focus();
+      node.setSelectionRange(caret, caret);
+    });
+  };
+
   // Cambiar de conversación deja la búsqueda donde empezó.
   useEffect(() => {
     setQuery("");
@@ -257,6 +276,7 @@ export default function ChatWindow() {
       <div className="flex items-center gap-2">
         <ChatPlusMenu
           onPickFiles={(files) => setAttachments((prev) => [...prev, ...files])}
+          onInsertTemplate={insertTemplate}
           disabled={busy}
         />
         <PermissionPicker open={permOpen} onOpenChange={setPermOpen} />

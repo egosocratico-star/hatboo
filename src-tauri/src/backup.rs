@@ -85,6 +85,10 @@ pub struct Snapshot {
     pub conversations: Vec<ConversationRow>,
     #[serde(default)]
     pub messages: Vec<MessageRow>,
+    /// Plantillas de comportamiento. `db::Skill` ya serializa en camelCase y el
+    /// campo trae `#[serde(default)]`, así que las copias antiguas se leen igual.
+    #[serde(default)]
+    pub skills: Vec<db::Skill>,
     /// nombre de archivo -> bytes en base64
     #[serde(default)]
     pub images: BTreeMap<String, String>,
@@ -96,6 +100,7 @@ pub struct ImportReport {
     pub projects_added: usize,
     pub conversations_added: usize,
     pub messages_added: usize,
+    pub skills_added: usize,
     pub skipped_existing: usize,
     pub images_restored: usize,
     pub images_missing: usize,
@@ -200,6 +205,7 @@ pub fn build_snapshot(conn: &Connection, attachments_dir: &Path) -> Result<Snaps
         projects,
         conversations,
         messages,
+        skills: db::list_skills(conn)?,
         images,
     })
 }
@@ -282,6 +288,21 @@ pub fn apply_snapshot(
             report.skipped_existing += 1;
         } else {
             report.conversations_added += 1;
+        }
+    }
+
+    for skill in &snapshot.skills {
+        let added = conn
+            .execute(
+                "INSERT OR IGNORE INTO skills (id, name, prompt, enabled, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![skill.id, skill.name, skill.prompt, skill.enabled as i64, skill.created_at],
+            )
+            .map_err(|e| e.to_string())?;
+        if added == 0 {
+            report.skipped_existing += 1;
+        } else {
+            report.skills_added += 1;
         }
     }
 
