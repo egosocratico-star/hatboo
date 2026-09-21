@@ -65,6 +65,26 @@ export interface StorageInfo {
   };
 }
 
+export interface ExportSummary {
+  path: string;
+  bytes: number;
+  conversations: number;
+  messages: number;
+  images: number;
+}
+
+export interface ImportReport {
+  projectsAdded: number;
+  conversationsAdded: number;
+  messagesAdded: number;
+  skippedExisting: number;
+  imagesRestored: number;
+  imagesMissing: number;
+}
+
+/** Texto que hay que escribir para que el backend acepte el restablecimiento. */
+export const RESET_TOKEN = "BORRAR TODO";
+
 export const REASONING_LEVELS: {
   id: ReasoningEffort;
   label: string;

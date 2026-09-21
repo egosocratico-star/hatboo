@@ -23,6 +23,8 @@ interface ChatStore {
   status: Status;
   error: string | null;
   settings: Settings | null;
+  /** Fallo al leer los ajustes: Ajustes lo muestra con un reintento. */
+  settingsError: string | null;
 
   setView: (view: View) => void;
   loadConversations: () => Promise<void>;
@@ -67,6 +69,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   status: "idle",
   error: null,
   settings: null,
+  settingsError: null,
 
   setView: (view) => set({ view }),
 
@@ -231,8 +234,13 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   loadSettings: async () => {
-    const settings = await invoke<Settings>("get_settings");
-    set({ settings });
+    try {
+      const settings = await invoke<Settings>("get_settings");
+      set({ settings, settingsError: null });
+    } catch (e) {
+      // Sin esto el modal se quedaba para siempre en "Cargando ajustes…".
+      set({ settingsError: String(e) });
+    }
   },
 
   saveSettings: async (settings) => {

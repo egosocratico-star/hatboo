@@ -1,4 +1,5 @@
 pub mod agent;
+pub mod backup;
 pub mod commands;
 pub mod db;
 pub mod providers;
@@ -34,6 +35,9 @@ pub fn run() {
             commands::cancel_chat_stream,
             commands::clear_conversation_messages,
             commands::export_conversation,
+            commands::export_all_data,
+            commands::import_all_data,
+            commands::factory_reset,
             commands::read_attachment,
             commands::save_image_attachment,
             commands::list_local_models,

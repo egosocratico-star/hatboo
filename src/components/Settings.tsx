@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { open as pickFile, save as pickSavePath } from "@tauri-apps/plugin-dialog";
 import {
   CheckCircle2,
   Cpu,
@@ -17,7 +18,10 @@ import {
   Trash2,
   User,
   Database,
+  Download,
   HardDrive,
+  AlertTriangle,
+  Upload,
   X,
   XCircle,
   Zap,
@@ -29,6 +33,9 @@ import {
   type ReasoningEffort,
   type Settings as SettingsType,
   type StorageInfo,
+  type ExportSummary,
+  type ImportReport,
+  RESET_TOKEN,
 } from "../types";
 
 const PROVIDERS = [
@@ -295,9 +302,12 @@ const SHORTCUTS: Array<{ keys: string[]; desc: string }> = [
 
 export default function Settings() {
   const settings = useChatStore((s) => s.settings);
+  const settingsError = useChatStore((s) => s.settingsError);
+  const loadSettings = useChatStore((s) => s.loadSettings);
   const saveSettings = useChatStore((s) => s.saveSettings);
   const [draft, setDraft] = useState<SettingsType | null>(settings);
   const [savingMsg, setSavingMsg] = useState(false);
+  const [saveErr, setSaveErr] = useState<string | null>(null);
   const [cat, setCat] = useState<CategoryId>("api");
   const [query, setQuery] = useState("");
   const setView = useChatStore((s) => s.setView);
@@ -306,28 +316,147 @@ export default function Settings() {
 
   useEffect(() => setDraft(settings), [settings]);
 
+  const [dataBusy, setDataBusy] = useState(false);
+  const [dataMsg, setDataMsg] = useState<string | null>(null);
+  const [dataErr, setDataErr] = useState<string | null>(null);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetText, setResetText] = useState("");
+
   const loadStorage = () =>
     void invoke<StorageInfo>("get_storage_info")
       .then(setStorage)
       .catch(() => setStorage(null));
+
+  /** Tras importar o borrar hay que recargar todo lo que estaba en caché. */
+  const reloadEverywhere = () => {
+    loadStorage();
+    void useChatStore.getState().loadConversations();
+    void useChatStore.getState().loadSettings();
+    void useWorkStore.getState().loadProjects();
+  };
+
+  const exportAll = async () => {
+    const day = new Date().toISOString().slice(0, 10);
+    const path = await pickSavePath({
+      defaultPath: `hatboo-copia-${day}.json`,
+      filters: [{ name: "Copia de Hatboo", extensions: ["json"] }],
+    });
+    if (!path) return;
+    setDataBusy(true);
+    setDataMsg(null);
+    setDataErr(null);
+    try {
+      const r = await invoke<ExportSummary>("export_all_data", { path });
+      setDataMsg(
+        `Copia creada con ${r.conversations} conversación(es), ${r.messages} mensaje(s) y ${r.images} imagen(es) · ${Math.max(1, Math.round(r.bytes / 1024))} KB`,
+      );
+    } catch (e) {
+      setDataErr(String(e));
+    } finally {
+      setDataBusy(false);
+    }
+  };
+
+  const importAll = async () => {
+    const path = await pickFile({
+      multiple: false,
+      filters: [{ name: "Copia de Hatboo", extensions: ["json"] }],
+    });
+    if (typeof path !== "string") return;
+    setDataBusy(true);
+    setDataMsg(null);
+    setDataErr(null);
+    try {
+      const r = await invoke<ImportReport>("import_all_data", { path });
+      setDataMsg(
+        `Importación terminada: ${r.conversationsAdded} conversación(es) y ${r.messagesAdded} mensaje(s) nuevos` +
+          (r.skippedExisting > 0 ? `, ${r.skippedExisting} elemento(s) ya estaban` : "") +
+          (r.imagesRestored > 0 ? `, ${r.imagesRestored} imagen(es) restaurada(s)` : "") +
+          (r.imagesMissing > 0 ? `, ${r.imagesMissing} imagen(es) no estaban en la copia` : ""),
+      );
+      reloadEverywhere();
+    } catch (e) {
+      setDataErr(String(e));
+    } finally {
+      setDataBusy(false);
+    }
+  };
+
+  const doReset = async () => {
+    setDataBusy(true);
+    setDataErr(null);
+    try {
+      await invoke("factory_reset", { token: resetText });
+      setResetOpen(false);
+      setResetText("");
+      setDataMsg("Hatboo restablecida: sin conversaciones, sin proyectos, sin claves guardadas.");
+      reloadEverywhere();
+    } catch (e) {
+      setDataErr(String(e));
+    } finally {
+      setDataBusy(false);
+    }
+  };
 
   useEffect(() => {
     void getVersion().then(setVersion).catch(() => setVersion(""));
     loadStorage();
   }, []);
 
+  // Si `get_settings` falla no puede quedar un "Cargando ajustes…" eterno: hay
+  // que poder cerrar y reintentar desde el propio modal.
   if (!draft) {
-    return <div className="p-8 text-sm text-zinc-500">Cargando ajustes…</div>;
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6"
+        onMouseDown={(e) => {
+          if (e.target === e.currentTarget) setView("chat");
+        }}
+      >
+        <div className="w-full max-w-md rounded-2xl border border-base-border bg-base p-5 shadow-2xl shadow-black/50">
+          <p className="text-sm font-medium text-zinc-100">
+            {settingsError ? "No se pudieron leer los ajustes" : "Cargando ajustes…"}
+          </p>
+          <p className="mt-1.5 text-xs leading-snug text-zinc-500">
+            {settingsError ??
+              "Tarda más de lo normal; puedes cerrar y volver a abrir."}
+          </p>
+          <div className="mt-4 flex justify-end gap-2">
+            <button
+              onClick={() => setView("chat")}
+              className="rounded-lg border border-base-border px-3 py-1.5 text-xs text-zinc-300 hover:border-zinc-500 transition-colors"
+            >
+              Cerrar
+            </button>
+            <button
+              onClick={() => void loadSettings()}
+              className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs text-white hover:bg-accent-dim transition-colors"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Reintentar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const activeProviderMeta = PROVIDERS.find(
     (p) => p.id === draft.activeProvider,
   );
 
-  const save = async () => {
-    await saveSettings(draft);
-    setSavingMsg(true);
-    setTimeout(() => setSavingMsg(false), 1500);
+  /** Devuelve si se guardó, para no refrescar dependencias en vano. */
+  const save = async (): Promise<boolean> => {
+    setSaveErr(null);
+    try {
+      await saveSettings(draft);
+      setSavingMsg(true);
+      setTimeout(() => setSavingMsg(false), 1500);
+      return true;
+    } catch (e) {
+      setSaveErr(String(e));
+      return false;
+    }
   };
 
   const field =
@@ -707,8 +836,9 @@ export default function Settings() {
                 title="Datos"
                 subtitle="Resumen de lo que hay en tu base de datos local."
               />
-              {storage ? (
-                <div className="space-y-4">
+              <div className="space-y-4">
+                {storage ? (
+                  <>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     <Stat label="Conversaciones" value={storage.counts.conversations} />
                     <Stat label="Mensajes" value={storage.counts.messages} />
@@ -727,17 +857,89 @@ export default function Settings() {
                     exportar una conversación concreta desde el botón{" "}
                     <span className="text-zinc-400">+</span> del chat.
                   </p>
-                  <p className="text-xs text-zinc-600">
-                    Exportar e importar el conjunto completo, y el
-                    restablecimiento de fábrica, llegarán en una próxima
-                    versión.
+                  </>
+                ) : (
+                  <p className="text-sm text-zinc-500">
+                    No se pudo leer la base de datos ahora mismo; más abajo
+                    puedes exportar, importar o restablecer igualmente.
                   </p>
-                </div>
-              ) : (
-                <p className="text-sm text-zinc-500">
-                  No se pudo leer la base de datos.
-                </p>
-              )}
+                )}
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <button
+                      onClick={() => void exportAll()}
+                      disabled={dataBusy}
+                      className="flex items-center gap-1.5 rounded-lg border border-base-border px-3 py-1.5 text-xs text-zinc-300 hover:border-accent/50 hover:text-white transition-colors disabled:opacity-40"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Exportar todo (JSON)
+                    </button>
+                    <button
+                      onClick={() => void importAll()}
+                      disabled={dataBusy}
+                      className="flex items-center gap-1.5 rounded-lg border border-base-border px-3 py-1.5 text-xs text-zinc-300 hover:border-accent/50 hover:text-white transition-colors disabled:opacity-40"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      Importar copia
+                    </button>
+                    <button
+                      onClick={() => {
+                        setResetOpen(true);
+                        setDataErr(null);
+                      }}
+                      disabled={dataBusy}
+                      className="flex items-center gap-1.5 rounded-lg border border-red-500/40 px-3 py-1.5 text-xs text-red-300 hover:bg-red-500/10 transition-colors disabled:opacity-40"
+                    >
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      Restablecer de fábrica
+                    </button>
+                  </div>
+                  {dataMsg && (
+                    <p className="text-xs text-emerald-400/80">{dataMsg}</p>
+                  )}
+                  {dataErr && <p className="text-xs text-red-400">{dataErr}</p>}
+                  {resetOpen && (
+                    <div className="space-y-2 rounded-xl border border-red-500/40 bg-red-500/5 p-3">
+                      <p className="text-sm font-medium text-zinc-100">
+                        Restablecer Hatboo
+                      </p>
+                      <p className="text-[11px] leading-snug text-zinc-400">
+                        Se borran de este PC todas las conversaciones, los
+                        proyectos, las tareas, las imágenes adjuntas y los
+                        ajustes, y también las claves de API del llavero. No se
+                        puede deshacer: exporta una copia antes si quieres
+                        conservar algo. Escribe{" "}
+                        <span className="font-medium text-zinc-100">
+                          {RESET_TOKEN}
+                        </span>{" "}
+                        para confirmar.
+                      </p>
+                      <input
+                        value={resetText}
+                        onChange={(e) => setResetText(e.target.value)}
+                        placeholder={RESET_TOKEN}
+                        className="w-full rounded-lg border border-base-border bg-base px-2.5 py-1.5 text-xs outline-none focus:border-red-500/50"
+                      />
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => {
+                            setResetOpen(false);
+                            setResetText("");
+                          }}
+                          className="rounded-lg border border-base-border px-3 py-1.5 text-xs text-zinc-300 hover:border-zinc-500 transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          onClick={() => void doReset()}
+                          disabled={resetText.trim() !== RESET_TOKEN || dataBusy}
+                          className="rounded-lg bg-red-500 px-3 py-1.5 text-xs text-white hover:bg-red-600 disabled:opacity-40 transition-colors"
+                        >
+                          Borrar todo
+                        </button>
+                      </div>
+                    </div>
+                  )}
+              </div>
             </>
           )}
 
@@ -796,14 +998,17 @@ export default function Settings() {
             <div className="flex items-center gap-3 pt-2">
               <button
                 onClick={() =>
-                  void save().then(() =>
-                    useWorkStore.getState().refreshToolSupport(),
-                  )
+                  void save().then((ok) => {
+                    if (ok) useWorkStore.getState().refreshToolSupport();
+                  })
                 }
                 className="px-4 py-2 rounded-lg bg-accent text-white text-sm hover:bg-accent-dim transition-colors"
               >
                 {savingMsg ? "Guardado ✓" : "Guardar ajustes"}
               </button>
+              {saveErr && (
+                <span className="text-xs text-red-400">{saveErr}</span>
+              )}
             </div>
           )}
         </div>

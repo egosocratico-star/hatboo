@@ -1,9 +1,10 @@
+use crate::backup;
 use crate::db;
 use crate::providers::{self, ChatMessage, StreamDelta};
 use crate::state::{self, AppState, Settings};
 use crate::web;
 use serde::Serialize;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::{Emitter, Manager, State};
 
 #[derive(Debug, Clone, Serialize)]
@@ -715,6 +716,71 @@ fn spawn_chat_stream(app: tauri::AppHandle, conversation_id: String) -> Result<(
         }
     });
 
+    Ok(())
+}
+
+/// Resumen de una exportación completa, para mostrarlo en Ajustes → Datos.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportSummary {
+    pub path: String,
+    pub bytes: u64,
+    pub conversations: usize,
+    pub messages: usize,
+    pub images: usize,
+}
+
+/// Palabra que la interfaz pide escribir para el restablecimiento de fábrica.
+/// Se comprueba también aquí: el borrado no depende solo del frontend.
+pub const RESET_TOKEN: &str = "BORRAR TODO";
+
+#[tauri::command]
+pub fn export_all_data(app: State<AppState>, path: String) -> Result<ExportSummary, String> {
+    let snapshot = {
+        let conn = app.db.lock().map_err(|e| e.to_string())?;
+        backup::build_snapshot(&conn, &app.data_dir.join("attachments"))?
+    };
+    backup::write_snapshot(Path::new(&path), &snapshot)?;
+    Ok(ExportSummary {
+        bytes: std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0),
+        path,
+        conversations: snapshot.conversations.len(),
+        messages: snapshot.messages.len(),
+        images: snapshot.images.len(),
+    })
+}
+
+/// Añade lo que falte de una copia (identificado por `id`): importar dos veces
+/// el mismo archivo no duplica nada.
+#[tauri::command]
+pub fn import_all_data(app: State<AppState>, path: String) -> Result<backup::ImportReport, String> {
+    let snapshot = backup::read_snapshot(Path::new(&path))?;
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    backup::apply_snapshot(&conn, &snapshot, &app.data_dir.join("attachments"))
+}
+
+/// Deja la app como recién instalada: borra conversaciones, mensajes, proyectos,
+/// tareas, ajustes, las imágenes en disco y las claves del llavero.
+#[tauri::command]
+pub fn factory_reset(app: State<AppState>, token: String) -> Result<(), String> {
+    if token.trim() != RESET_TOKEN {
+        return Err("Escribe el texto de confirmación tal cual para restablecer.".into());
+    }
+    {
+        let conn = app.db.lock().map_err(|e| e.to_string())?;
+        db::wipe_all(&conn)?;
+    }
+    let attachments = app.data_dir.join("attachments");
+    if let Ok(entries) = std::fs::read_dir(&attachments) {
+        for entry in entries.flatten() {
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
+    // Las claves viven en el llavero del sistema, no en la base de datos: hay
+    // que borrarlas aquí para que el restablecimiento sea de verdad completo.
+    for provider in ["anthropic", "openai"] {
+        let _ = providers::delete_api_key(provider);
+    }
     Ok(())
 }
 

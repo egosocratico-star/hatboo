@@ -349,6 +349,22 @@ pub fn clear_messages(conn: &Connection, conversation_id: &str) -> Result<(), St
     Ok(())
 }
 
+/// Borra todo el contenido del histórico: conversaciones, mensajes, proyectos,
+/// tareas y llamadas a herramientas, más los ajustes guardados. Lo único que no
+/// toca son las imágenes en disco (las borra el comando) y las claves del
+/// llavero (las borra `providers::delete_api_key`).
+pub fn wipe_all(conn: &Connection) -> Result<(), String> {
+    conn.execute_batch(
+        "DELETE FROM tool_calls;
+         DELETE FROM tasks;
+         DELETE FROM messages;
+         DELETE FROM conversations;
+         DELETE FROM projects;
+         DELETE FROM settings;",
+    )
+    .map_err(|e| e.to_string())
+}
+
 /// Rutas en disco de todas las imágenes adjuntas (M3) de una conversación,
 /// para poder borrar los archivos al limpiar o eliminar la conversación.
 pub fn conversation_image_files(conn: &Connection, conversation_id: &str) -> Result<Vec<String>, String> {
