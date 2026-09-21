@@ -49,10 +49,11 @@ impl OpenAiProvider {
     }
 
     /// Activa el razonamiento extendido. `"off"` o un valor desconocido dejan
-    /// el cuerpo de petición intacto.
+    /// el cuerpo de petición intacto; `"none"` y `"minimal"` sí se reenvían
+    /// (los servidores locales los necesitan para APAGAR el pensamiento).
     pub fn with_reasoning(mut self, effort: &str) -> Self {
         self.reasoning_effort = match effort {
-            "low" | "medium" | "high" => Some(effort.to_string()),
+            "none" | "minimal" | "low" | "medium" | "high" => Some(effort.to_string()),
             _ => None,
         };
         self
@@ -214,6 +215,16 @@ mod tests {
             .with_reasoning("medium")
             .client_body(&one_message(), false);
         assert_eq!(body["reasoning_effort"], json!("medium"));
+    }
+
+    #[test]
+    fn none_y_minimal_se_reenvian_pero_off_no() {
+        let none = provider().with_reasoning("none").client_body(&one_message(), false);
+        assert_eq!(none["reasoning_effort"], json!("none"));
+        let minimal = provider()
+            .with_reasoning("minimal")
+            .client_body(&one_message(), false);
+        assert_eq!(minimal["reasoning_effort"], json!("minimal"));
     }
 
     #[test]

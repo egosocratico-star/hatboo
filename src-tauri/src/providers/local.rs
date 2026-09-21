@@ -24,10 +24,16 @@ impl LocalProvider {
         &self.inner
     }
 
-    /// Ollama expone el mismo campo `reasoning_effort` en su endpoint
-    /// compatible con OpenAI; `"off"` deja la petición como siempre.
+    /// Ollama piensa por defecto con los modelos híbridos (qwen3, deepseek-r1):
+    /// si el campo `reasoning_effort` falta, el razonamiento sigue saliendo. Para
+    /// "off" hay que pedir explícitamente `"none"`, medido sobre Ollama 0.34.
     pub fn with_reasoning(mut self, effort: &str) -> Self {
-        self.inner = self.inner.with_reasoning(effort);
+        let mapped = if effort == "off" || effort.is_empty() {
+            "none"
+        } else {
+            effort
+        };
+        self.inner = self.inner.with_reasoning(mapped);
         self
     }
 }
@@ -48,5 +54,39 @@ impl AiProvider for LocalProvider {
         on_chunk: Sender<StreamDelta>,
     ) -> Result<(), ProviderError> {
         self.inner.stream_response(messages, on_chunk).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn one_message() -> Vec<ChatMessage> {
+        vec![ChatMessage {
+            role: "user".into(),
+            content: "hola".into(),
+            images: Vec::new(),
+        }]
+    }
+
+    #[test]
+    fn off_pides_none_para_apagar_el_pensamiento_de_ollama() {
+        let body = LocalProvider::new("http://localhost:11434", "qwen3:1.7b")
+            .with_reasoning("off")
+            .openai_inner()
+            .client_body(&one_message(), false);
+        assert_eq!(body["reasoning_effort"], json!("none"));
+    }
+
+    #[test]
+    fn los_niveles_se_reenvian_tales_cual() {
+        for level in ["low", "medium", "high"] {
+            let body = LocalProvider::new("http://localhost:11434", "qwen3:1.7b")
+                .with_reasoning(level)
+                .openai_inner()
+                .client_body(&one_message(), false);
+            assert_eq!(body["reasoning_effort"], json!(level));
+        }
     }
 }
