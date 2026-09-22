@@ -16,7 +16,8 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
       return (
         <code
           key={`${keyPrefix}-${i}`}
-          className="rounded px-1.5 py-0.5 bg-base-code border border-base-border font-mono text-[12.5px] text-accent-soft"
+          className="rounded px-1.5 py-0.5 bg-base-code border border-base-border font-mono text-accent-soft"
+          style={{ fontSize: "calc(var(--chat-fs, 15px) - 2.5px)" }}
         >
           {part.slice(1, -1)}
         </code>
@@ -28,7 +29,10 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
 
 function CodeBlock({ lang, code }: { lang: string; code: string }) {
   return (
-    <pre className="my-2.5 p-3 rounded-lg bg-base-code border border-base-border overflow-x-auto text-[13px] leading-relaxed font-mono text-zinc-200">
+    <pre
+      className="my-2.5 p-3 rounded-lg bg-base-code border border-base-border overflow-x-auto leading-relaxed font-mono text-zinc-200"
+      style={{ fontSize: "calc(var(--chat-fs, 15px) - 2px)" }}
+    >
       <div className="text-[10px] uppercase tracking-wider text-accent-soft mb-1.5">
         {lang}
       </div>
@@ -98,5 +102,9 @@ export default function RichText({ text }: { text: string }) {
   }
   if (last < trimmed.length) pushProse(trimmed.slice(last));
 
-  return <div className="text-[15px] leading-[1.65]">{blocks}</div>;
+  return (
+    <div className="leading-[1.65]" style={{ fontSize: "var(--chat-fs, 15px)" }}>
+      {blocks}
+    </div>
+  );
 }

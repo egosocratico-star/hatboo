@@ -79,7 +79,9 @@
   --zinc-300: 63 63 70;
   --zinc-400: 82 82 91;
   --zinc-500: 113 113 122;
-  --zinc-600: 138 138 148;
+  /* Un punto más oscuro que el paso equivalente en oscuro: estas etiquetas son
+     de 10px y sobre blanco a 138 se quedaban en 3.4:1. */
+  --zinc-600: 122 122 132;
 
   --red-300: 185 28 28;
   --red-400: 220 38 38;

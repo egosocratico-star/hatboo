@@ -33,6 +33,7 @@ import SkillsSettings from "./SkillsSettings";
 import { applyTheme, type ThemeChoice } from "../theme";
 import {
   REASONING_LEVELS,
+  CHAT_FONT_SIZES,
   type ReasoningEffort,
   type Settings as SettingsType,
   type StorageInfo,
@@ -308,7 +309,8 @@ const SHORTCUTS: Array<{ keys: string[]; desc: string }> = [
   { keys: ["Shift", "Enter"], desc: "Salto de línea en el campo" },
   { keys: [MOD, "N"], desc: "Nueva conversación" },
   { keys: [MOD, ","], desc: "Abrir Ajustes" },
-  { keys: ["Esc"], desc: "Volver al chat desde Ajustes" },
+  { keys: [MOD, "F"], desc: "Buscar en la conversación" },
+  { keys: ["Esc"], desc: "Volver al chat desde Ajustes / cerrar un menú" },
 ];
 
 export default function Settings() {
@@ -475,11 +477,11 @@ export default function Settings() {
   const field =
     "w-full rounded-lg border border-base-border bg-base px-3 py-2 text-sm outline-none focus:border-accent/70";
 
-  /** El tema se ve al pulsarlo: esperar a «Guardar ajustes» sería despistado. */
-  const pickTheme = async (choice: ThemeChoice) => {
-    const next = { ...draft, theme: choice };
+  /** Apariencia se aplica al pulsar: esperar a «Guardar ajustes» sería despistado. */
+  const patchAppearance = async (part: Partial<SettingsType>) => {
+    const next = { ...draft, ...part };
     setDraft(next);
-    applyTheme(choice);
+    if (part.theme) applyTheme(part.theme);
     setSaveErr(null);
     try {
       await saveSettings(next);
@@ -767,7 +769,7 @@ export default function Settings() {
                     {THEMES.map((t) => (
                       <button
                         key={t.id}
-                        onClick={() => void pickTheme(t.id)}
+                        onClick={() => void patchAppearance({ theme: t.id })}
                         className={`px-2.5 py-1 rounded-md text-xs transition-colors ${
                           (draft.theme || "dark") === t.id
                             ? "bg-accent/20 text-accent-soft"
@@ -778,6 +780,41 @@ export default function Settings() {
                       </button>
                     ))}
                   </div>
+                </div>
+
+                <div className="rounded-lg border border-base-border bg-base px-3 py-3">
+                  <p className="text-sm text-zinc-200">Tamaño del texto del chat</p>
+                  <p className="mt-0.5 mb-2.5 text-xs text-zinc-500">
+                    Afecta a las respuestas y a tus mensajes; el código va dos
+                    puntos por debajo.
+                  </p>
+                  <div className="flex gap-1">
+                    {CHAT_FONT_SIZES.map((f) => (
+                      <button
+                        key={f.id}
+                        onClick={() => void patchAppearance({ chatFontSize: f.id })}
+                        className={`px-2.5 py-1 rounded-md transition-colors ${
+                          (draft.chatFontSize || "md") === f.id
+                            ? "bg-accent/20 text-accent-soft"
+                            : "text-zinc-500 hover:text-zinc-300"
+                        }`}
+                        style={{ fontSize: f.px * 0.8 }}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p
+                    className="mt-2.5 text-zinc-300"
+                    style={{
+                      fontSize:
+                        CHAT_FONT_SIZES.find(
+                          (f) => f.id === (draft.chatFontSize || "md"),
+                        )?.px ?? 15,
+                    }}
+                  >
+                    Ejemplo: así se vería una respuesta de Hatboo.
+                  </p>
                 </div>
                 {saveErr && <p className="text-xs text-red-400">{saveErr}</p>}
               </section>

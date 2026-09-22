@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   AlertCircle,
   ArrowUp,
@@ -20,6 +20,7 @@ import PermissionPicker from "./PermissionPicker";
 import ModeToggles from "./ModeToggles";
 import ThinkingBlock, { formatDuration } from "./ThinkingBlock";
 import type { Attachment, MascotState } from "../types";
+import { CHAT_FONT_SIZES } from "../types";
 
 const SUGGESTIONS = [
   "Resúmeme un archivo",
@@ -43,6 +44,8 @@ export default function ChatWindow() {
     return conv?.title ?? "Chat";
   });
   const activeId = useChatStore((s) => s.activeId);
+  const chatFontSize = useChatStore((s) => s.settings?.chatFontSize ?? "md");
+  const findNonce = useChatStore((s) => s.findNonce);
   const sendMessage = useChatStore((s) => s.sendMessage);
   const regenerate = useChatStore((s) => s.regenerate);
   const editMessage = useChatStore((s) => s.editMessage);
@@ -145,6 +148,18 @@ export default function ChatWindow() {
     setHitIdx(0);
     setSearchOpen(false);
   }, [activeId]);
+
+  // Ctrl/Cmd+F se pide desde el atajo global de App (veáse chatStore.findNonce).
+  useEffect(() => {
+    if (!findNonce) return;
+    setSearchOpen(true);
+    requestAnimationFrame(() => searchRef.current?.focus());
+  }, [findNonce]);
+
+  const fontPx = CHAT_FONT_SIZES.find((f) => f.id === chatFontSize)?.px ?? 15;
+  // La lista exporta el tamaño base; RichText y la burbuja del usuario derivan
+  // el suyo con calc(), así escalar mueve todo el texto a la vez.
+  const fontVars = { "--chat-fs": `${fontPx}px` } as CSSProperties;
 
   useEffect(() => {
     const el = listRef.current;
@@ -403,7 +418,12 @@ export default function ChatWindow() {
         )}
       </header>
 
-      <div ref={listRef} onScroll={onListScroll} className="flex-1 overflow-y-auto">
+      <div
+        ref={listRef}
+        onScroll={onListScroll}
+        style={fontVars}
+        className="flex-1 overflow-y-auto"
+      >
         <div className="max-w-3xl mx-auto px-6 py-6 space-y-6">
           {messages.map((m, i) => {
             const isLastAssistant =

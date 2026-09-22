@@ -57,6 +57,13 @@ pub struct Settings {
     /// resultado al modelo. Sin API key; requiere salida a internet.
     #[serde(default)]
     pub web_search: bool,
+    /// Tamaño del texto de las respuestas del chat: `sm` | `md` | `lg`.
+    #[serde(default = "default_chat_font_size")]
+    pub chat_font_size: String,
+}
+
+fn default_chat_font_size() -> String {
+    "md".to_string()
 }
 
 fn default_reasoning() -> String {
@@ -91,6 +98,7 @@ impl Default for Settings {
             default_approval_level: default_approval_level(),
             code_mode: false,
             web_search: false,
+            chat_font_size: default_chat_font_size(),
         }
     }
 }

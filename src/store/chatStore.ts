@@ -26,6 +26,8 @@ interface ChatStore {
   /** Fallo al leer los ajustes: Ajustes lo muestra con un reintento. */
   settingsError: string | null;
   skills: Skill[];
+  /** Se incrementa con Ctrl/Cmd+F; el chat lo mira para abrir su buscador. */
+  findNonce: number;
 
   setView: (view: View) => void;
   loadConversations: () => Promise<void>;
@@ -45,6 +47,7 @@ interface ChatStore {
   saveSkill: (skill: { id: string; name: string; prompt: string; enabled: boolean }) => Promise<Skill>;
   setSkillEnabled: (id: string, enabled: boolean) => Promise<void>;
   removeSkill: (id: string) => Promise<void>;
+  openFinder: () => void;
   clearError: () => void;
 
   // Actualizaciones desde useStreaming
@@ -77,6 +80,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   settings: null,
   settingsError: null,
   skills: [],
+  findNonce: 0,
 
   setView: (view) => set({ view }),
 
@@ -289,6 +293,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     await invoke("delete_skill", { id });
     set((state) => ({ skills: state.skills.filter((s) => s.id !== id) }));
   },
+
+  openFinder: () => set((state) => ({ findNonce: state.findNonce + 1 })),
 
   clearError: () => set({ error: null, status: "idle" }),
 

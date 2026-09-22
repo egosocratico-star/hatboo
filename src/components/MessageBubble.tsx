@@ -154,7 +154,10 @@ function MessageBubble({
             <div className="max-w-[85%] rounded-3xl bg-accent px-4 py-2.5 text-white">
               {chips}
               {message.content && (
-                <div className="whitespace-pre-wrap break-words text-[14.5px] leading-relaxed">
+                <div
+                  className="whitespace-pre-wrap break-words leading-relaxed"
+                  style={{ fontSize: "calc(var(--chat-fs, 15px) - 0.5px)" }}
+                >
                   {message.content}
                 </div>
               )}

@@ -48,6 +48,14 @@ export default function App() {
       } else if (key === ",") {
         e.preventDefault();
         useChatStore.getState().setView("settings");
+      } else if (key === "f") {
+        // El buscador vive en la cabecera del chat, que solo existe si hay
+        // mensajes: en un chat vacío no hay nada que buscar.
+        const { view, messages } = useChatStore.getState();
+        if (view === "chat" && messages.length > 0) {
+          e.preventDefault();
+          useChatStore.getState().openFinder();
+        }
       }
     };
     window.addEventListener("keydown", onKey);

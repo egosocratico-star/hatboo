@@ -14,6 +14,7 @@ import FileTree from "./FileTree";
 import TaskList from "./TaskList";
 import ToolApprovalModal from "./ToolApprovalModal";
 import ApprovalLevelPicker from "./ApprovalLevelPicker";
+import SkillMenu from "../SkillMenu";
 import type { MascotState } from "../../types";
 
 export default function ProjectView() {
@@ -53,7 +54,24 @@ export default function ProjectView() {
   const [newName, setNewName] = useState("");
   const [happy, setHappy] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const taskRef = useRef<HTMLTextAreaElement>(null);
   const prevStatus = useRef(agentStatus);
+
+  /** Inserta una plantilla en el cursor, no al final del texto ya escrito. */
+  const insertTemplate = (text: string) => {
+    const el = taskRef.current;
+    const from = el?.selectionStart ?? input.length;
+    const to = el?.selectionEnd ?? input.length;
+    const before = input.slice(0, from);
+    const glue = before && !/\s$/.test(before) ? " " : "";
+    setInput(before + glue + text + input.slice(to));
+    const caret = before.length + glue.length + text.length;
+    requestAnimationFrame(() => {
+      if (!taskRef.current) return;
+      taskRef.current.focus();
+      taskRef.current.setSelectionRange(caret, caret);
+    });
+  };
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -271,7 +289,9 @@ export default function ProjectView() {
 
         <div className="shrink-0 border-t border-base-border bg-base-raised/60 px-6 py-4">
           <div className="flex items-end gap-2 rounded-xl border border-base-border bg-base px-3 py-2 focus-within:border-accent/70 transition-colors">
+            <SkillMenu onPick={insertTemplate} disabled={toolSupport === false} />
             <textarea
+              ref={taskRef}
               id="work-task-input"
               value={input}
               onChange={(e) => setInput(e.target.value)}

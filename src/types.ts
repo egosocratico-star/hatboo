@@ -56,7 +56,18 @@ export interface Settings {
   defaultApprovalLevel: ApprovalLevel;
   codeMode: boolean;
   webSearch: boolean;
+  chatFontSize: ChatFontSize;
 }
+
+export type ChatFontSize = "sm" | "md" | "lg";
+
+/** Base del texto de las respuestas; lo demás (código, burbuja del usuario)
+ *  se deriva de esto con `calc()`, así todo escala junto. */
+export const CHAT_FONT_SIZES: { id: ChatFontSize; label: string; px: number }[] = [
+  { id: "sm", label: "Pequeña", px: 13.5 },
+  { id: "md", label: "Normal", px: 15 },
+  { id: "lg", label: "Grande", px: 16.5 },
+];
 
 export type ReasoningEffort = "off" | "low" | "medium" | "high";
 
