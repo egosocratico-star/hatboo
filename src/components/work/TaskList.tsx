@@ -1,6 +1,14 @@
 import type { ReactNode } from "react";
-import { CircleDashed, Loader2, CircleCheck, CircleX, ListChecks } from "lucide-react";
+import {
+  CircleDashed,
+  Loader2,
+  CircleCheck,
+  CircleX,
+  ListChecks,
+  Wrench,
+} from "lucide-react";
 import type { Task } from "../../types";
+import type { StepLine } from "../../store/workStore";
 
 const ICONS: Record<Task["status"], ReactNode> = {
   pending: <CircleDashed className="w-4 h-4 text-zinc-600" />,
@@ -9,7 +17,15 @@ const ICONS: Record<Task["status"], ReactNode> = {
   failed: <CircleX className="w-4 h-4 text-red-400" />,
 };
 
-export default function TaskList({ tasks }: { tasks: Task[] }) {
+interface Props {
+  tasks: Task[];
+  /** Lo que el agente fue ejecutando. Muchos modelos locales no llaman a
+   *  submit_plan: sin esto el panel se queda vacío aunque haya trabajado. */
+  stepLines: StepLine[];
+  running: boolean;
+}
+
+export default function TaskList({ tasks, stepLines, running }: Props) {
   return (
     <div className="h-full flex flex-col">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-base-border text-xs font-medium text-zinc-400 uppercase tracking-wider">
@@ -17,7 +33,7 @@ export default function TaskList({ tasks }: { tasks: Task[] }) {
         Tareas
       </div>
       <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1.5">
-        {tasks.length === 0 && (
+        {tasks.length === 0 && stepLines.length === 0 && (
           <p className="text-[11px] text-zinc-600">
             El plan aparecerá aquí cuando el agente empiece.
           </p>
@@ -36,6 +52,40 @@ export default function TaskList({ tasks }: { tasks: Task[] }) {
             </span>
           </div>
         ))}
+
+        {tasks.length === 0 && stepLines.length > 0 && (
+          <>
+            <p className="text-[11px] text-zinc-600 pb-0.5">
+              Sin plan: acciones de esta tarea
+            </p>
+            {stepLines.map((l, i) => (
+              <div key={i} className="flex items-start gap-2 text-xs leading-relaxed">
+                <span className="shrink-0 mt-0.5">
+                  {l.ok ? (
+                    <CircleCheck className="w-4 h-4 text-emerald-400" />
+                  ) : (
+                    <CircleX className="w-4 h-4 text-red-400" />
+                  )}
+                </span>
+                <span className="min-w-0">
+                  <span className="inline-flex items-center gap-1 font-mono text-[11px] text-zinc-400">
+                    <Wrench className="w-3 h-3 shrink-0" />
+                    {l.toolName}
+                  </span>
+                  {l.brief && (
+                    <span className="block break-words text-zinc-500">{l.brief}</span>
+                  )}
+                </span>
+              </div>
+            ))}
+            {running && (
+              <p className="text-[11px] text-zinc-600 pt-0.5">
+                <span className="inline-block w-1.5 h-1.5 mr-1 rounded-full bg-accent-soft animate-pulse" />
+                Trabajando…
+              </p>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

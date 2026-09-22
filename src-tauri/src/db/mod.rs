@@ -114,6 +114,27 @@ fn migrate(conn: &Connection) -> Result<(), String> {
     let _ = conn.execute("ALTER TABLE messages ADD COLUMN thinking_ms INTEGER", []);
     let _ = conn.execute("ALTER TABLE messages ADD COLUMN web_sources TEXT", []);
     let _ = conn.execute("ALTER TABLE messages ADD COLUMN feedback TEXT", []);
+
+    // Los proyectos abiertos antes se guardaban con el prefijo verbatim que
+    // devuelve canonicalize(); aparecía tal cual en la cabecera del modo trabajo.
+    let verbos: Vec<(String, String)> = {
+        let mut stmt = conn
+            .prepare("SELECT id, root_path FROM projects")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))
+            .map_err(|e| e.to_string())?;
+        rows.filter_map(|x| x.ok())
+            .filter(|(_, path)| path.starts_with(r"\\?\"))
+            .map(|(id, path)| (id, clean_root_path(&path)))
+            .collect()
+    };
+    for (id, path) in &verbos {
+        let _ = conn.execute(
+            "UPDATE projects SET root_path = ?2 WHERE id = ?1",
+            params![id, path],
+        );
+    }
     Ok(())
 }
 
@@ -346,6 +367,19 @@ pub fn clear_messages(conn: &Connection, conversation_id: &str) -> Result<(), St
         params![conversation_id],
     )
     .map_err(|e| e.to_string())?;
+    // En una sesión de trabajo "limpiar" también deja el plan y el registro de
+    // herramientas; si no, el panel de Tareas seguiría enseñando una tarea vieja
+    // aunque el chat esté vacío.
+    conn.execute(
+        "DELETE FROM tasks WHERE conversation_id = ?1",
+        params![conversation_id],
+    )
+    .map_err(|e| e.to_string())?;
+    conn.execute(
+        "DELETE FROM tool_calls WHERE conversation_id = ?1",
+        params![conversation_id],
+    )
+    .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -570,6 +604,16 @@ pub struct ToolCall {
     pub created_at: i64,
 }
 
+/// `Path::canonicalize()` en Windows devuelve `\\?\C:\...`. Guardamos la forma
+/// legible; las tools vuelven a canonicalizar antes de validar rutas, así que
+/// el sandbox no depende del prefijo.
+fn clean_root_path(raw: &str) -> String {
+    if let Some(unc) = raw.strip_prefix(r"\\?\UNC\") {
+        return format!("\\\\{unc}");
+    }
+    raw.strip_prefix(r"\\?\").unwrap_or(raw).to_string()
+}
+
 pub fn create_project(
     conn: &Connection,
     name: &str,
@@ -579,7 +623,7 @@ pub fn create_project(
     let project = Project {
         id: new_id(),
         name: name.to_string(),
-        root_path: root_path.to_string(),
+        root_path: clean_root_path(root_path),
         created_at: now_ms(),
         last_opened_at: now_ms(),
         approval_level: approval_level.to_string(),
@@ -652,6 +696,15 @@ pub fn touch_project(conn: &Connection, id: &str) -> Result<(), String> {
 }
 
 pub fn delete_project(conn: &Connection, id: &str) -> Result<(), String> {
+    // Las sesiones sin ni un mensaje son basura de haber abierto el proyecto:
+    // se van con él. Las que tienen historial se conservan como conversación.
+    conn.execute(
+        "DELETE FROM conversations
+         WHERE project_id = ?1
+           AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = conversations.id)",
+        params![id],
+    )
+    .map_err(|e| e.to_string())?;
     conn.execute(
         "UPDATE conversations SET project_id = NULL WHERE project_id = ?1",
         params![id],
@@ -915,4 +968,17 @@ pub fn enabled_skills_prompt(conn: &Connection) -> Result<String, String> {
         out.push_str(&format!("· {}: {}\n", s.name, s.prompt.trim()));
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::clean_root_path;
+
+    #[test]
+    fn la_ruta_canonica_de_windows_se_guarda_legible() {
+        assert_eq!(clean_root_path(r"\\?\C:\proyecto"), r"C:\proyecto");
+        assert_eq!(clean_root_path(r"\\?\UNC\servidor\share"), r"\\servidor\share");
+        assert_eq!(clean_root_path(r"C:\proyecto"), r"C:\proyecto");
+        assert_eq!(clean_root_path("/home/ana/proyecto"), "/home/ana/proyecto");
+    }
 }

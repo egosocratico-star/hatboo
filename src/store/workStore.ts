@@ -19,6 +19,8 @@ interface StepLine {
   brief: string;
 }
 
+export type { StepLine };
+
 export interface GitInfo {
   isRepo: boolean;
   branch: string | null;
@@ -26,7 +28,7 @@ export interface GitInfo {
 }
 
 /// Estado independiente por pestaña de proyecto.
-interface TabState {
+export interface TabState {
   sessionId: string | null;
   messages: Message[];
   tasks: Task[];
@@ -58,15 +60,6 @@ interface WorkStore {
   error: string | null;
   newProjectDraft: { parentPath: string } | null;
   treeVersion: number;
-
-  // Derivados de la pestaña activa (shorthand para la UI)
-  readonly activeSessionId: string | null;
-  readonly messages: Message[];
-  readonly tasks: Task[];
-  readonly stepLines: StepLine[];
-  readonly agentStatus: AgentStatus;
-  readonly approval: PendingApproval | null;
-  readonly approvalLevel: ApprovalLevel;
 
   loadProjects: () => Promise<void>;
   openProjectPicker: () => Promise<void>;
@@ -121,8 +114,12 @@ export const useWorkStore = create<WorkStore>((set, get) => {
   const patchTab = (projectId: string, patch: Partial<TabState>) =>
     set((s) => {
       const tab = s.tabs[projectId];
-      if (!tab) return {};
-      return { tabs: { ...s.tabs, [projectId]: { ...tab, ...patch } } };
+      if (tab) return { tabs: { ...s.tabs, [projectId]: { ...tab, ...patch } } };
+      // Sin pestaña abierta para ese proyecto: solo se monta si es la que el
+      // usuario tiene delante. Crearla siempre haría que un evento tardío
+      // resucitara una pestaña que ya cerró.
+      if (projectId !== s.activeProjectId) return {};
+      return { tabs: { ...s.tabs, [projectId]: { ...emptyTab(), ...patch } } };
     });
 
   const patchSession = (conversationId: string, patch: Partial<TabState>) => {
@@ -144,28 +141,6 @@ export const useWorkStore = create<WorkStore>((set, get) => {
     error: null,
     newProjectDraft: null,
     treeVersion: 0,
-
-    get activeSessionId() {
-      return activeTab(get())?.sessionId ?? null;
-    },
-    get messages() {
-      return activeTab(get())?.messages ?? [];
-    },
-    get tasks() {
-      return activeTab(get())?.tasks ?? [];
-    },
-    get stepLines() {
-      return activeTab(get())?.stepLines ?? [];
-    },
-    get agentStatus() {
-      return activeTab(get())?.agentStatus ?? "idle";
-    },
-    get approval() {
-      return activeTab(get())?.approval ?? null;
-    },
-    get approvalLevel() {
-      return activeTab(get())?.approvalLevel ?? "approve_for_me";
-    },
 
     loadProjects: async () => {
       const projects = await invoke<Project[]>("list_projects");
@@ -215,14 +190,9 @@ export const useWorkStore = create<WorkStore>((set, get) => {
             invoke<Task[]>("get_tasks", { conversationId: sessions[0].id }),
           ]);
           tab = { ...tab, sessionId: sessions[0].id, messages, tasks };
-        } else {
-          const conv = await invoke<Conversation>("create_conversation", {
-            title: "Sesión de trabajo",
-            projectId: id,
-          });
-          tab = { ...tab, sessionId: conv.id };
-          void useChatStore.getState().loadConversations();
         }
+        // Sin sesiones no se crea una vacía: `startTask` la hace con el primer
+        // mensaje. Abrir un proyecto no debe dejar filas sueltas en el historial.
         set((s) => ({ tabs: { ...s.tabs, [id]: tab } }));
         void get().refreshGit(id);
       }
@@ -261,6 +231,8 @@ export const useWorkStore = create<WorkStore>((set, get) => {
         return { tabs, activeProjectId };
       });
       await get().loadProjects();
+      // Las sesiones con historial sobreviven al proyecto como conversación.
+      void useChatStore.getState().loadConversations();
     },
 
     newWorkSession: async (projectId) => {
@@ -355,7 +327,7 @@ export const useWorkStore = create<WorkStore>((set, get) => {
     },
 
     cancelTask: async () => {
-      const { activeSessionId } = get();
+      const activeSessionId = activeTab(get())?.sessionId ?? null;
       if (!activeSessionId) return;
       try {
         await invoke("cancel_work_task", { conversationId: activeSessionId });
@@ -375,7 +347,7 @@ export const useWorkStore = create<WorkStore>((set, get) => {
     },
 
     respond: async (approved) => {
-      const approval = get().approval;
+      const approval = activeTab(get())?.approval ?? null;
       if (!approval) return;
       await invoke("respond_to_approval", {
         toolCallId: approval.toolCallId,
@@ -443,3 +415,13 @@ export const useWorkStore = create<WorkStore>((set, get) => {
     },
   };
 });
+
+/**
+ * Pestaña del proyecto activo. Los datos de la sesión se leen SIEMPRE desde aquí:
+ * zustand fusiona el estado con `Object.assign({}, state, patch)`, y eso lee los
+ * getters una sola vez y los deja como valores congelados en el nuevo objeto.
+ * Tener `messages`/`tasks`/`agentStatus` como getters del store hacía que la vista
+ * de trabajo se quedara mirando la foto vacía del arranque para siempre.
+ */
+export const useActiveTab = (): TabState | undefined =>
+  useWorkStore((s) => (s.activeProjectId ? s.tabs[s.activeProjectId] : undefined));

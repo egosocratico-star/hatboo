@@ -49,13 +49,18 @@ export default function App() {
         e.preventDefault();
         useChatStore.getState().setView("settings");
       } else if (key === "f") {
-        // El buscador vive en la cabecera del chat, que solo existe si hay
-        // mensajes: en un chat vacío no hay nada que buscar.
+        // La tecla SIEMPRE se reclama aquí: si no, WebView2 abre su propia barra
+        // «Buscar en la página», que desentona con la app y no busca en la
+        // conversación. El buscador vive en la cabecera del chat, que solo
+        // existe si hay mensajes.
+        e.preventDefault();
         const { view, messages } = useChatStore.getState();
         if (view === "chat" && messages.length > 0) {
-          e.preventDefault();
           useChatStore.getState().openFinder();
         }
+      } else if (key === "p") {
+        // Idem con el diálogo de imprimir de Chromium: no es una app de páginas.
+        e.preventDefault();
       }
     };
     window.addEventListener("keydown", onKey);

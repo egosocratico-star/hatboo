@@ -127,6 +127,7 @@ mod tests {
             "approve_for_me",
             "Bicho",
             "· Explica qué hace cada paso antes de hacerlo.\n",
+            false,
         );
         assert!(con.contains("Explica qué hace cada paso"));
         assert!(con.contains("SIN relajar ninguna regla anterior"));
@@ -134,13 +135,24 @@ mod tests {
         // La regla 4 del sandbox sigue ahí igualmente.
         assert!(con.contains("nunca intentes salir de ella"));
 
-        let sin = system_prompt(&raiz, "approve_for_me", "", "");
+        let sin = system_prompt(&raiz, "approve_for_me", "", "", false);
         assert!(!sin.contains("SIN relajar"));
         assert!(!sin.contains("que lo llames"));
+        // El chip de código también llega al agente.
+        assert!(!sin.contains("Modo código activo"));
+        let con_codigo = system_prompt(&raiz, "approve_for_me", "", "", true);
+        assert!(con_codigo.contains("Modo código activo"));
+        assert!(con_codigo.contains("nunca intentes salir de ella"));
     }
 }
 
-fn system_prompt(project_root: &Path, approval_level: &str, assistant_name: &str, skills: &str) -> String {
+fn system_prompt(
+    project_root: &Path,
+    approval_level: &str,
+    assistant_name: &str,
+    skills: &str,
+    code_mode: bool,
+) -> String {
     let listing = list_dir_brief(project_root);
     let approval_rule = match approval_level {
         "ask_always" => "El usuario aprueba TODAS tus acciones (incluidas lecturas); no te sorprendas si cada tool call pide confirmación.".to_string(),
@@ -166,6 +178,11 @@ fn system_prompt(project_root: &Path, approval_level: &str, assistant_name: &str
             skills.trim()
         )
     };
+    let code_rule = if code_mode {
+        format!("{} \n", crate::commands::CODE_MODE_PROMPT)
+    } else {
+        String::new()
+    };
     format!(
         "Eres Hatboo, un agente de trabajo que opera DENTRO del proyecto del usuario.\n\
          Raíz del proyecto: {}\n\n\
@@ -178,11 +195,12 @@ fn system_prompt(project_root: &Path, approval_level: &str, assistant_name: &str
          5. Si el proyecto es un repositorio git, revisa git_status antes de proponer un commit, y nunca propongas git_commit sin que el usuario lo pida explícitamente.\n\
          6. Cuando hayas terminado todos los pasos, responde SOLO con un resumen final en español, sin tool calls.\n\
          7. Responde siempre en español al usuario.\n\
-         {}{}",
+         {}{}{}",
         project_root.display(),
         listing,
         approval_rule,
         name_rule,
+        code_rule,
         skills_rule
     )
 }
@@ -322,7 +340,13 @@ async fn run_loop(
     let mut messages = vec![
         AgentMessage {
             role: "system".into(),
-            content: system_prompt(project_root, approval_level, assistant_name, &skills_prompt),
+            content: system_prompt(
+                project_root,
+                approval_level,
+                assistant_name,
+                &skills_prompt,
+                settings.code_mode,
+            ),
             tool_calls: Vec::new(),
             tool_call_id: None,
         },

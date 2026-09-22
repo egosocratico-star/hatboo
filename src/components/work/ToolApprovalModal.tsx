@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
-import { useWorkStore } from "../../store/workStore";
+import { useWorkStore, useActiveTab } from "../../store/workStore";
 
 export default function ToolApprovalModal() {
-  const approval = useWorkStore((s) => s.approval);
-  const approvalLevel = useWorkStore((s) => s.approvalLevel);
+  const tab = useActiveTab();
+  const approval = tab?.approval ?? null;
+  const approvalLevel = tab?.approvalLevel ?? "approve_for_me";
   const respond = useWorkStore((s) => s.respond);
   const [busy, setBusy] = useState(false);
 

@@ -1,38 +1,47 @@
 import { useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
-  Send,
+  ArrowUp,
+  Paperclip,
   Square,
   X,
   FolderTree,
   GitBranch,
 } from "lucide-react";
-import { useWorkStore } from "../../store/workStore";
+import { useWorkStore, useActiveTab, type StepLine } from "../../store/workStore";
 import MessageBubble from "../MessageBubble";
 import Mascot from "../mascot/Mascot";
 import FileTree from "./FileTree";
 import TaskList from "./TaskList";
 import ToolApprovalModal from "./ToolApprovalModal";
 import ApprovalLevelPicker from "./ApprovalLevelPicker";
-import SkillMenu from "../SkillMenu";
-import type { MascotState } from "../../types";
+import WorkPlusMenu from "./WorkPlusMenu";
+import ModeToggles from "../ModeToggles";
+import ProviderModelPicker from "../ProviderModelPicker";
+import type { Attachment, MascotState, Message, Task } from "../../types";
+
+/** Constantes estables: si no hay pestaña, devolver un array nuevo en cada render
+ *  re-renderizaría las listas hijas sin motivo. */
+const NO_MESSAGES: Message[] = [];
+const NO_TASKS: Task[] = [];
+const NO_STEPS: StepLine[] = [];
 
 export default function ProjectView() {
   const project = useWorkStore((s) =>
     s.projects.find((p) => p.id === s.activeProjectId) ?? null,
   );
-  const messages = useWorkStore((s) => s.messages);
-  const tasks = useWorkStore((s) => s.tasks);
-  const stepLines = useWorkStore((s) => s.stepLines);
-  const agentStatus = useWorkStore((s) => s.agentStatus);
+  const tab = useActiveTab();
+  const messages = tab?.messages ?? NO_MESSAGES;
+  const tasks = tab?.tasks ?? NO_TASKS;
+  const stepLines = tab?.stepLines ?? NO_STEPS;
+  const agentStatus = tab?.agentStatus ?? "idle";
   const toolSupport = useWorkStore((s) => s.toolSupport);
-  const error = useWorkStore((s) => s.error);
+  const error = tab?.error ?? null;
   const newProjectDraft = useWorkStore((s) => s.newProjectDraft);
   const treeVersion = useWorkStore((s) => s.treeVersion);
-  const git = useWorkStore((s) => s.tabs[s.activeProjectId ?? ""]?.git ?? null);
-  const approvalLevel = useWorkStore(
-    (s) => s.tabs[s.activeProjectId ?? ""]?.approvalLevel ?? "approve_for_me",
-  );
+  const git = tab?.git ?? null;
+  const approvalLevel = tab?.approvalLevel ?? "approve_for_me";
+  const busy = agentStatus === "running" || agentStatus === "awaiting";
   const startTask = useWorkStore((s) => s.startTask);
   const cancelTask = useWorkStore((s) => s.cancelTask);
   const clearError = useWorkStore((s) => s.clearError);
@@ -53,6 +62,7 @@ export default function ProjectView() {
   const [treeOpen, setTreeOpen] = useState(true);
   const [newName, setNewName] = useState("");
   const [happy, setHappy] = useState(false);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const taskRef = useRef<HTMLTextAreaElement>(null);
   const prevStatus = useRef(agentStatus);
@@ -105,14 +115,22 @@ export default function ProjectView() {
 
   const submit = async () => {
     const text = input.trim();
-    if (!text || agentStatus === "running" || agentStatus === "awaiting") return;
+    if ((!text && attachments.length === 0) || agentStatus === "running" || agentStatus === "awaiting") return;
+    const sent = attachments;
     setInput("");
+    setAttachments([]);
     clearError();
+    // El agente no tiene adjuntos como el chat: el texto de los archivos se
+    // antepone a la petición, que es lo que recibe igual que en el chat.
+    const prefix = sent
+      .filter((a) => !a.imageFile)
+      .map((a) => `[Archivo adjunto: ${a.name}]\n${a.text}\n\n`)
+      .join("");
     try {
-      await startTask(text);
+      await startTask(`${prefix}${text}`);
     } catch (e) {
       useWorkStore.getState().onError(
-        useWorkStore.getState().activeSessionId ?? "",
+        useWorkStore.getState().tabs[activeProjectId ?? ""]?.sessionId ?? "",
         String(e),
       );
     }
@@ -287,9 +305,30 @@ export default function ProjectView() {
           </div>
         )}
 
-        <div className="shrink-0 border-t border-base-border bg-base-raised/60 px-6 py-4">
-          <div className="flex items-end gap-2 rounded-xl border border-base-border bg-base px-3 py-2 focus-within:border-accent/70 transition-colors">
-            <SkillMenu onPick={insertTemplate} disabled={toolSupport === false} />
+        <div className="shrink-0 px-6 pb-5 pt-2">
+          <div className="mx-auto max-w-3xl rounded-2xl border border-base-border bg-base-raised/70 px-3 pb-2.5 pt-3 shadow-xl shadow-shade/30 transition-colors focus-within:border-accent/50">
+            {attachments.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 pb-2 pl-0.5">
+                {attachments.map((a, i) => (
+                  <span
+                    key={i}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-base-border bg-base px-2 py-1 text-[11px] text-zinc-300"
+                    title={`${a.text.length.toLocaleString("es")} caracteres`}
+                  >
+                    <Paperclip className="w-3 h-3 shrink-0 text-accent-soft" />
+                    <span className="max-w-[200px] truncate">{a.name}</span>
+                    <button
+                      onClick={() => setAttachments((prev) => prev.filter((_, j) => j !== i))}
+                      className="rounded p-0.5 text-zinc-500 hover:bg-white/10 hover:text-white transition-colors"
+                      title="Quitar adjunto"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
             <textarea
               ref={taskRef}
               id="work-task-input"
@@ -304,35 +343,43 @@ export default function ProjectView() {
               rows={Math.min(6, Math.max(1, input.split("\n").length))}
               placeholder="¿Qué quieres hacer en este proyecto?"
               disabled={toolSupport === false}
-              className="flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-zinc-600 max-h-48 disabled:cursor-not-allowed"
+              className="max-h-48 w-full resize-none bg-transparent px-1 pb-2 text-sm leading-relaxed outline-none placeholder:text-zinc-600 disabled:cursor-not-allowed"
             />
-            {agentStatus === "running" || agentStatus === "awaiting" ? (
-              <button
-                onClick={() => void cancelTask()}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-500/50 text-red-300 text-sm hover:bg-red-500/10 transition-colors"
-                title="Detener la tarea en curso"
-              >
-                <Square className="w-3.5 h-3.5" />
-                Cancelar
-              </button>
-            ) : (
-              <button
-                onClick={() => void submit()}
-                disabled={
-                  !input.trim() || toolSupport === false
-                }
-                className="p-2 rounded-lg bg-accent text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-accent-dim transition-colors"
-                title="Enviar"
-              >
-                <Send className="w-4 h-4" />
-              </button>
-            )}
+
+            <div className="flex items-center gap-2">
+              <WorkPlusMenu
+                onPickFiles={(files) => setAttachments((prev) => [...prev, ...files])}
+                onInsertTemplate={insertTemplate}
+                disabled={busy || toolSupport === false}
+              />
+              <ModeToggles disabled={busy} />
+              <div className="flex-1 min-w-0" />
+              <ProviderModelPicker />
+              {busy ? (
+                <button
+                  onClick={() => void cancelTask()}
+                  className="grid place-items-center w-8 h-8 shrink-0 rounded-full bg-accent text-white hover:bg-accent-dim transition-colors"
+                  title="Detener la tarea en curso"
+                >
+                  <Square className="w-3 h-3 fill-current" />
+                </button>
+              ) : (
+                <button
+                  onClick={() => void submit()}
+                  disabled={(!input.trim() && attachments.length === 0) || toolSupport === false}
+                  className="grid place-items-center w-8 h-8 shrink-0 rounded-full bg-accent text-white disabled:opacity-35 disabled:cursor-not-allowed hover:bg-accent-dim transition-colors"
+                  title="Enviar"
+                >
+                  <ArrowUp className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
       <div className="w-72 shrink-0 border-l border-base-border bg-base-raised/40">
-        <TaskList tasks={tasks} />
+        <TaskList tasks={tasks} stepLines={stepLines} running={busy} />
       </div>
 
       <ToolApprovalModal />

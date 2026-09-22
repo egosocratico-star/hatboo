@@ -586,8 +586,9 @@ fn human_ms(ms: i64) -> String {
     }
 }
 
-/// Prompt de sistema del modo código.
-const CODE_MODE_PROMPT: &str = "Modo código activo: responde como ingeniero senior. Ve directo \
+/// Prompt de sistema del modo código. También lo usa el agente del modo trabajo,
+/// para que el chip «Código» signifique lo mismo en las dos vistas.
+pub(crate) const CODE_MODE_PROMPT: &str = "Modo código activo: responde como ingeniero senior. Ve directo \
  al código que funciona, sin preámbulos. Entrega bloques completos y ejecutables, indica la ruta \
  del archivo cuando sea relevante y señala las suposiciones que hagas. Si hay un error, explica \
  la causa raíz en una línea antes del arreglo. Prefiere la solución más simple y las dependencias \
