@@ -57,6 +57,9 @@ export interface Settings {
   codeMode: boolean;
   webSearch: boolean;
   chatFontSize: ChatFontSize;
+  sidebarCompact: boolean;
+  filesPanelOpen: boolean;
+  tasksPanelOpen: boolean;
 }
 
 export type ChatFontSize = "sm" | "md" | "lg";

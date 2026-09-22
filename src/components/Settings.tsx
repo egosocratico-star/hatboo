@@ -310,6 +310,7 @@ const SHORTCUTS: Array<{ keys: string[]; desc: string }> = [
   { keys: [MOD, "N"], desc: "Nueva conversación" },
   { keys: [MOD, ","], desc: "Abrir Ajustes" },
   { keys: [MOD, "F"], desc: "Buscar en la conversación" },
+  { keys: [MOD, "B"], desc: "Plegar o desplegar la barra lateral" },
   { keys: ["Esc"], desc: "Volver al chat desde Ajustes / cerrar un menú" },
 ];
 

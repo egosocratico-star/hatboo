@@ -61,6 +61,10 @@ export default function App() {
       } else if (key === "p") {
         // Idem con el diálogo de imprimir de Chromium: no es una app de páginas.
         e.preventDefault();
+      } else if (key === "b") {
+        e.preventDefault();
+        const s = useChatStore.getState();
+        s.setLayout("sidebarCompact", !(s.settings?.sidebarCompact ?? false));
       }
     };
     window.addEventListener("keydown", onKey);

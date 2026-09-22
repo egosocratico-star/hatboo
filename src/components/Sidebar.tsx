@@ -10,6 +10,8 @@ import {
   MessageCircle,
   ChevronDown,
   ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
 } from "lucide-react";
 import { useChatStore } from "../store/chatStore";
@@ -21,6 +23,10 @@ const PROVIDER_LABEL: Record<string, string> = {
   openai: "OpenAI",
   local: "Local",
 };
+
+/** Botón del lateral plegado: sin texto, todo a `title`. */
+const RAIL_BTN =
+  "shrink-0 grid place-items-center h-9 rounded-lg transition-colors";
 
 const fmtDate = (ms: number) =>
   new Intl.DateTimeFormat("es", {
@@ -109,6 +115,8 @@ export default function Sidebar() {
   const selectSession = useWorkStore((s) => s.selectSession);
   const newWorkSession = useWorkStore((s) => s.newWorkSession);
   const removeProject = useWorkStore((s) => s.removeProject);
+  const compact = settings?.sidebarCompact ?? false;
+  const setLayout = useChatStore((s) => s.setLayout);
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const toggleExpanded = (id: string) =>
@@ -139,11 +147,109 @@ export default function Sidebar() {
     })();
   };
 
+  if (compact) {
+    return (
+      <aside className="w-14 shrink-0 h-full flex flex-col gap-1 px-2.5 py-2 border-r border-base-border bg-base-raised transition-[width] duration-200 ease-[cubic-bezier(.2,.8,.2,1)]">
+        <button
+          onClick={() => setLayout("sidebarCompact", false)}
+          className={`${RAIL_BTN} text-accent-soft hover:bg-base-hover`}
+          title="Desplegar la barra lateral (Ctrl+B)"
+        >
+          <Ghost className="w-5 h-5" />
+        </button>
+        <button
+          onClick={() => void newConversation()}
+          className={`${RAIL_BTN} text-accent-soft hover:bg-base-hover`}
+          title="Nueva conversación (Ctrl+N)"
+        >
+          <Plus className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => void openProjectPicker()}
+          className={`${RAIL_BTN} text-zinc-400 hover:bg-base-hover hover:text-zinc-100`}
+          title="Abrir carpeta existente"
+        >
+          <FolderOpen className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => void startCreateProject()}
+          className={`${RAIL_BTN} text-zinc-400 hover:bg-base-hover hover:text-zinc-100`}
+          title="Crear proyecto nuevo"
+        >
+          <FolderPlus className="w-4 h-4" />
+        </button>
+
+        <div className="flex-1 min-h-0 mt-1 pt-1 border-t border-base-border overflow-y-auto space-y-1">
+          {projects.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => {
+                setView("work");
+                void selectProject(p.id);
+              }}
+              className={`${RAIL_BTN} w-full ${
+                p.id === activeProjectId && view === "work"
+                  ? "bg-base-hover text-zinc-100"
+                  : "text-zinc-400 hover:bg-base-hover hover:text-zinc-200"
+              }`}
+              title={p.name}
+            >
+              <Briefcase className="w-4 h-4" />
+            </button>
+          ))}
+          {chatConversations.map((conv) => (
+            <button
+              key={conv.id}
+              onClick={() => {
+                setView("chat");
+                void selectConversation(conv.id);
+              }}
+              className={`${RAIL_BTN} w-full ${
+                conv.id === activeId && view === "chat"
+                  ? "bg-base-hover text-zinc-100"
+                  : "text-zinc-400 hover:bg-base-hover hover:text-zinc-200"
+              }`}
+              title={conv.title}
+            >
+              <MessageSquare className="w-4 h-4" />
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={() => setView(view === "settings" ? "chat" : "settings")}
+          className={`${RAIL_BTN} w-full ${
+            view === "settings"
+              ? "text-accent-soft bg-base-hover"
+              : "text-zinc-500 hover:text-zinc-100 hover:bg-base-hover"
+          }`}
+          title="Ajustes (Ctrl+,)"
+        >
+          <Settings className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => setLayout("sidebarCompact", false)}
+          className={`${RAIL_BTN} w-full text-zinc-500 hover:bg-base-hover hover:text-zinc-100`}
+          title="Desplegar la barra lateral (Ctrl+B)"
+        >
+          <PanelLeftOpen className="w-4 h-4" />
+        </button>
+      </aside>
+    );
+  }
+
   return (
-    <aside className="w-64 shrink-0 h-full flex flex-col border-r border-base-border bg-base-raised">
-      <div className="flex items-center gap-2 px-4 h-14">
-        <Ghost className="w-5 h-5 text-accent-soft" />
-        <span className="font-semibold tracking-tight">Hatboo</span>
+    <aside className="w-64 shrink-0 h-full flex flex-col border-r border-base-border bg-base-raised transition-[width] duration-200 ease-[cubic-bezier(.2,.8,.2,1)]">
+      <div className="flex items-center gap-2 pl-4 pr-2 h-14">
+        <Ghost className="w-5 h-5 shrink-0 text-accent-soft" />
+        <span className="flex-1 font-semibold tracking-tight truncate">Hatboo</span>
+        <button
+          onClick={() => setLayout("sidebarCompact", true)}
+          className="shrink-0 p-1.5 rounded-lg text-zinc-500 hover:bg-base-hover hover:text-zinc-100 transition-colors"
+          title="Plegar la barra lateral (Ctrl+B)"
+        >
+          <PanelLeftClose className="w-4 h-4" />
+        </button>
       </div>
 
       <div className="px-3 pb-2">

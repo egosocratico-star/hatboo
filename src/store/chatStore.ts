@@ -42,6 +42,12 @@ interface ChatStore {
   clearMessages: () => Promise<void>;
   loadSettings: () => Promise<void>;
   saveSettings: (settings: Settings) => Promise<void>;
+  /** Plegar la barra lateral o uno de los paneles del modo trabajo. Optimista:
+   *  el ancho tiene que seguir al clic, no al viaje de ida y vuelta con SQLite. */
+  setLayout: (
+    key: "sidebarCompact" | "filesPanelOpen" | "tasksPanelOpen",
+    value: boolean,
+  ) => void;
   loadSkills: () => Promise<void>;
   /** `id` vacío crea una plantilla nueva; devuelve la guardada. */
   saveSkill: (skill: { id: string; name: string; prompt: string; enabled: boolean }) => Promise<Skill>;
@@ -257,6 +263,16 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   saveSettings: async (settings) => {
     const saved = await invoke<Settings>("update_settings", { settings });
     set({ settings: saved });
+  },
+
+  setLayout: (key, value) => {
+    const current = get().settings;
+    if (!current || current[key] === value) return;
+    const next: Settings = { ...current, [key]: value };
+    set({ settings: next });
+    void invoke<Settings>("update_settings", { settings: next })
+      .then((saved) => set({ settings: saved }))
+      .catch(() => set({ settings: current }));
   },
 
   loadSkills: async () => {

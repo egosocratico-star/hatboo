@@ -60,6 +60,19 @@ pub struct Settings {
     /// Tamaño del texto de las respuestas del chat: `sm` | `md` | `lg`.
     #[serde(default = "default_chat_font_size")]
     pub chat_font_size: String,
+    /// La barra lateral reducida a iconos.
+    #[serde(default)]
+    pub sidebar_compact: bool,
+    /// Paneles del modo trabajo. Se guardan juntos porque los dos se usan para
+    /// ganar ancho de chat y al cambiar de proyecto no se quiere perder el reparto.
+    #[serde(default = "default_true")]
+    pub files_panel_open: bool,
+    #[serde(default = "default_true")]
+    pub tasks_panel_open: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 fn default_chat_font_size() -> String {
@@ -99,6 +112,9 @@ impl Default for Settings {
             code_mode: false,
             web_search: false,
             chat_font_size: default_chat_font_size(),
+            sidebar_compact: false,
+            files_panel_open: true,
+            tasks_panel_open: true,
         }
     }
 }

@@ -7,8 +7,10 @@ import {
   X,
   FolderTree,
   GitBranch,
+  ListChecks,
 } from "lucide-react";
 import { useWorkStore, useActiveTab, type StepLine } from "../../store/workStore";
+import { useChatStore } from "../../store/chatStore";
 import MessageBubble from "../MessageBubble";
 import Mascot from "../mascot/Mascot";
 import FileTree from "./FileTree";
@@ -25,6 +27,15 @@ import type { Attachment, MascotState, Message, Task } from "../../types";
 const NO_MESSAGES: Message[] = [];
 const NO_TASKS: Task[] = [];
 const NO_STEPS: StepLine[] = [];
+
+/** El botón del panel abierto queda teñido: es la única pista de qué tapa cada
+ *  icono de la cabecera cuando el panel ya no se ve. */
+const panelToggle = (open: boolean) =>
+  `p-1.5 rounded-lg transition-colors ${
+    open
+      ? "text-accent-soft bg-accent/10 hover:bg-accent/20"
+      : "text-zinc-500 hover:bg-base-hover hover:text-zinc-200"
+  }`;
 
 export default function ProjectView() {
   const project = useWorkStore((s) =>
@@ -59,7 +70,9 @@ export default function ProjectView() {
   const input = activeProjectId ? (inputByProject[activeProjectId] ?? "") : "";
   const setInput = (value: string) =>
     setInputByProject((m) => ({ ...m, [activeProjectId ?? ""]: value }));
-  const [treeOpen, setTreeOpen] = useState(true);
+  const filesOpen = useChatStore((s) => s.settings?.filesPanelOpen ?? true);
+  const tasksOpen = useChatStore((s) => s.settings?.tasksPanelOpen ?? true);
+  const setLayout = useChatStore((s) => s.setLayout);
   const [newName, setNewName] = useState("");
   const [happy, setHappy] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -204,22 +217,27 @@ export default function ProjectView() {
     <div className="flex-1 flex flex-col min-h-0">
       {openProjectIds.length > 0 && TabBar}
       <div className="flex-1 flex min-h-0">
-      {treeOpen && (
-        <div className="w-60 shrink-0 border-r border-base-border bg-base-raised/40">
+      <div
+        className={`shrink-0 overflow-clip bg-base-raised/40 transition-[width] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] ${
+          filesOpen ? "w-60 border-r border-base-border" : "w-0"
+        }`}
+      >
+        <div className="w-60 h-full flex flex-col">
           <div className="flex items-center gap-2 px-3 py-2 border-b border-base-border text-xs font-medium text-zinc-400 uppercase tracking-wider">
             <FolderTree className="w-4 h-4 text-accent-soft" />
             Archivos
           </div>
           <FileTree projectId={project.id} version={treeVersion} />
         </div>
-      )}
+      </div>
 
       <div className="flex-1 min-w-0 flex flex-col">
         <header className="h-12 shrink-0 flex items-center gap-3 px-4 border-b border-base-border">
           <button
-            onClick={() => setTreeOpen((v) => !v)}
-            className="p-1.5 rounded-lg text-zinc-400 hover:bg-base-hover hover:text-zinc-200 transition-colors"
-            title="Mostrar/ocultar árbol de archivos"
+            onClick={() => setLayout("filesPanelOpen", !filesOpen)}
+            className={panelToggle(filesOpen)}
+            title={filesOpen ? "Ocultar los archivos" : "Mostrar los archivos"}
+            aria-pressed={filesOpen}
           >
             <FolderTree className="w-4 h-4" />
           </button>
@@ -243,6 +261,14 @@ export default function ProjectView() {
             </button>
           )}
           <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={() => setLayout("tasksPanelOpen", !tasksOpen)}
+              className={panelToggle(tasksOpen)}
+              title={tasksOpen ? "Ocultar las tareas" : "Mostrar las tareas"}
+              aria-pressed={tasksOpen}
+            >
+              <ListChecks className="w-4 h-4" />
+            </button>
             <ApprovalLevelPicker projectId={project.id} />
             <Mascot state={mascotState} size={32} />
           </div>
@@ -378,8 +404,14 @@ export default function ProjectView() {
         </div>
       </div>
 
-      <div className="w-72 shrink-0 border-l border-base-border bg-base-raised/40">
-        <TaskList tasks={tasks} stepLines={stepLines} running={busy} />
+      <div
+        className={`shrink-0 overflow-clip bg-base-raised/40 transition-[width] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] ${
+          tasksOpen ? "w-72 border-l border-base-border" : "w-0"
+        }`}
+      >
+        <div className="w-72 h-full">
+          <TaskList tasks={tasks} stepLines={stepLines} running={busy} />
+        </div>
       </div>
 
       <ToolApprovalModal />
