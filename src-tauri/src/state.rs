@@ -69,6 +69,27 @@ pub struct Settings {
     pub files_panel_open: bool,
     #[serde(default = "default_true")]
     pub tasks_panel_open: bool,
+    /// Anchos en píxeles, ajustables a arrastre.
+    #[serde(default = "default_files_width")]
+    pub files_panel_width: i64,
+    #[serde(default = "default_tasks_width")]
+    pub tasks_panel_width: i64,
+    /// Override de la vista de trabajo: oculta barra lateral y paneles sin
+    /// pisar los valores de arriba, que vuelven al salir.
+    #[serde(default)]
+    pub focus_mode: bool,
+    /// Aviso de escritorio cuando una sesión de trabajo termina, falla o pide
+    /// aprobación. Solo suena si la ventana no está en primer plano.
+    #[serde(default = "default_true")]
+    pub notify_on_finish: bool,
+}
+
+fn default_files_width() -> i64 {
+    240
+}
+
+fn default_tasks_width() -> i64 {
+    288
 }
 
 fn default_true() -> bool {
@@ -115,6 +136,10 @@ impl Default for Settings {
             sidebar_compact: false,
             files_panel_open: true,
             tasks_panel_open: true,
+            files_panel_width: default_files_width(),
+            tasks_panel_width: default_tasks_width(),
+            focus_mode: false,
+            notify_on_finish: true,
         }
     }
 }

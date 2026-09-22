@@ -28,12 +28,20 @@ interface ChatStore {
   skills: Skill[];
   /** Se incrementa con Ctrl/Cmd+F; el chat lo mira para abrir su buscador. */
   findNonce: number;
+  /** Ventana de búsqueda en TODOS los chats y sesiones (Ctrl/Cmd+K). */
+  searchOpen: boolean;
 
   setView: (view: View) => void;
   loadConversations: () => Promise<void>;
   newConversation: () => Promise<void>;
   selectConversation: (id: string) => Promise<void>;
   removeConversation: (id: string) => Promise<void>;
+  /** Fijar y archivar: se aplica al vuelo y luego se recarga, porque fijar
+   *  cambia el orden de la lista y eso lo decide el SQL. */
+  setConversationFlags: (
+    id: string,
+    flags: { pinned?: boolean; archived?: boolean },
+  ) => Promise<void>;
   sendMessage: (content: string, attachments?: Attachment[]) => Promise<void>;
   regenerate: () => Promise<void>;
   editMessage: (messageId: string, content: string) => Promise<void>;
@@ -42,18 +50,17 @@ interface ChatStore {
   clearMessages: () => Promise<void>;
   loadSettings: () => Promise<void>;
   saveSettings: (settings: Settings) => Promise<void>;
-  /** Plegar la barra lateral o uno de los paneles del modo trabajo. Optimista:
-   *  el ancho tiene que seguir al clic, no al viaje de ida y vuelta con SQLite. */
-  setLayout: (
-    key: "sidebarCompact" | "filesPanelOpen" | "tasksPanelOpen",
-    value: boolean,
-  ) => void;
+  /** Guarda un trozo de los ajustes sin esperar al formulario de Ajustes: los
+   *  toggles del reparto del espacio se aplican al pulsar. Optimista, porque el
+   *  ancho tiene que seguir al ratón y no al viaje de ida y vuelta con SQLite. */
+  patchSettings: (partial: Partial<Settings>) => void;
   loadSkills: () => Promise<void>;
   /** `id` vacío crea una plantilla nueva; devuelve la guardada. */
   saveSkill: (skill: { id: string; name: string; prompt: string; enabled: boolean }) => Promise<Skill>;
   setSkillEnabled: (id: string, enabled: boolean) => Promise<void>;
   removeSkill: (id: string) => Promise<void>;
   openFinder: () => void;
+  setSearchOpen: (open: boolean) => void;
   clearError: () => void;
 
   // Actualizaciones desde useStreaming
@@ -87,6 +94,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   settingsError: null,
   skills: [],
   findNonce: 0,
+  searchOpen: false,
 
   setView: (view) => set({ view }),
 
@@ -129,6 +137,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     if (get().activeId === id) {
       set({ activeId: null, messages: [], ...BLANK_STREAM, error: null, status: "idle" });
     }
+    await get().loadConversations();
+  },
+
+  setConversationFlags: async (id, flags) => {
+    set((s) => ({
+      conversations: s.conversations.map((c) => (c.id === id ? { ...c, ...flags } : c)),
+    }));
+    await invoke("set_conversation_flags", { conversationId: id, ...flags });
     await get().loadConversations();
   },
 
@@ -265,10 +281,10 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     set({ settings: saved });
   },
 
-  setLayout: (key, value) => {
+  patchSettings: (partial) => {
     const current = get().settings;
-    if (!current || current[key] === value) return;
-    const next: Settings = { ...current, [key]: value };
+    if (!current) return;
+    const next: Settings = { ...current, ...partial };
     set({ settings: next });
     void invoke<Settings>("update_settings", { settings: next })
       .then((saved) => set({ settings: saved }))
@@ -311,6 +327,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   openFinder: () => set((state) => ({ findNonce: state.findNonce + 1 })),
+
+  setSearchOpen: (open) => set({ searchOpen: open }),
 
   clearError: () => set({ error: null, status: "idle" }),
 

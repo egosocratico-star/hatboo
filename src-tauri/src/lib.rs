@@ -14,6 +14,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             let conn = db::connect(&data_dir.join("hatboo.db"))?;
@@ -27,6 +28,8 @@ pub fn run() {
             commands::list_conversations,
             commands::create_conversation,
             commands::delete_conversation,
+            commands::set_conversation_flags,
+            commands::search_chats,
             commands::list_messages,
             commands::send_message,
             commands::regenerate_response,
@@ -61,6 +64,8 @@ pub fn run() {
             commands::get_tasks,
             commands::start_work_task,
             commands::set_project_approval_level,
+            commands::project_rules,
+            commands::save_project_rules,
             commands::cancel_work_task,
             commands::respond_to_approval,
             commands::check_tool_support,

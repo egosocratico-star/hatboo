@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Settings,
   Trash2,
@@ -12,10 +12,18 @@ import {
   ChevronRight,
   PanelLeftClose,
   PanelLeftOpen,
+  Pin,
+  Archive,
+  ArchiveRestore,
+  ChevronsUpDown,
+  Search,
   Plus,
 } from "lucide-react";
 import { useChatStore } from "../store/chatStore";
 import { useWorkStore } from "../store/workStore";
+import ContextMenu, { type MenuItem } from "./ContextMenu";
+import Popover from "./Popover";
+import { THEMES } from "../theme";
 import type { Conversation } from "../types";
 
 const PROVIDER_LABEL: Record<string, string> = {
@@ -42,12 +50,14 @@ function SessionRow({
   agentStatus,
   onOpen,
   onDelete,
+  onMenu,
 }: {
   conv: Conversation;
   isActive: boolean;
   agentStatus: string;
   onOpen: () => void;
   onDelete: () => void;
+  onMenu: (e: React.MouseEvent) => void;
 }) {
   const dot = !isActive
     ? "bg-zinc-600"
@@ -61,15 +71,17 @@ function SessionRow({
   return (
     <div
       onClick={onOpen}
+      onContextMenu={onMenu}
       className={`group flex items-center gap-1.5 rounded-md px-2 py-1 cursor-pointer text-xs transition-colors ${
         isActive
           ? "bg-base-hover text-zinc-100"
           : "text-zinc-500 hover:bg-base-hover hover:text-zinc-300"
       }`}
-      title={`${conv.title} · ${fmtDate(conv.updatedAt)}`}
+      title={`${conv.title} · ${fmtDate(conv.updatedAt)} · clic derecho para más opciones`}
     >
       <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${dot}`} />
       <span className="flex-1 truncate">{conv.title}</span>
+      {conv.pinned && <Pin className="w-3 h-3 shrink-0 text-accent-soft/70" />}
       <span className="shrink-0 text-[10px] text-zinc-600 group-hover:hidden">
         {fmtDate(conv.updatedAt)}
       </span>
@@ -115,18 +127,66 @@ export default function Sidebar() {
   const selectSession = useWorkStore((s) => s.selectSession);
   const newWorkSession = useWorkStore((s) => s.newWorkSession);
   const removeProject = useWorkStore((s) => s.removeProject);
+  const focus = settings?.focusMode ?? false;
+  // El modo foco es un arreglo del workspace: en la vista de chat la barra
+  // lateral sigue con su propio estado, si no se quedaría sin forma de salir.
+  const hidden = focus && view === "work";
   const compact = settings?.sidebarCompact ?? false;
-  const setLayout = useChatStore((s) => s.setLayout);
+  const patchSettings = useChatStore((s) => s.patchSettings);
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const toggleExpanded = (id: string) =>
     setExpanded((e) => ({ ...e, [id]: !e[id] }));
+  const [showArchived, setShowArchived] = useState(false);
+  const [menu, setMenu] = useState<{ x: number; y: number; conv: Conversation } | null>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef<HTMLButtonElement>(null);
+  const setConversationFlags = useChatStore((s) => s.setConversationFlags);
 
-  const chatConversations = conversations.filter((c) => !c.projectId);
+  const openMenu = (conv: Conversation) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    setMenu({ x: e.clientX, y: e.clientY, conv });
+  };
+
+  const menuItems = (conv: Conversation): MenuItem[] => [
+    {
+      label: conv.pinned ? "Dejar de fijar" : "Fijar arriba",
+      icon: <Pin className="w-3.5 h-3.5" />,
+      onSelect: () => void setConversationFlags(conv.id, { pinned: !conv.pinned }),
+    },
+    conv.archived
+      ? {
+          label: "Restaurar",
+          icon: <ArchiveRestore className="w-3.5 h-3.5" />,
+          onSelect: () => void setConversationFlags(conv.id, { archived: false }),
+        }
+      : {
+          label: "Archivar",
+          icon: <Archive className="w-3.5 h-3.5" />,
+          onSelect: () => void setConversationFlags(conv.id, { archived: true }),
+        },
+    {
+      label: "Eliminar",
+      icon: <Trash2 className="w-3.5 h-3.5" />,
+      danger: true,
+      onSelect: () => void removeConversation(conv.id),
+    },
+  ];
+
+  /** Archivado = fuera de la lista, no borrado: se vuelve a enseñar con el
+   *  contador del pie de la sección. */
+  const visibles = (lista: Conversation[]) =>
+    showArchived ? lista : lista.filter((c) => !c.archived);
+
+  const byPinnedThenRecent = (a: Conversation, b: Conversation) =>
+    Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt;
+
+  const chatConversations = visibles(
+    conversations.filter((c) => !c.projectId),
+  ).sort(byPinnedThenRecent);
+  const archivedCount = conversations.filter((c) => !c.projectId && c.archived).length;
   const sessionsOf = (projectId: string) =>
-    conversations
-      .filter((c) => c.projectId === projectId)
-      .sort((a, b) => b.updatedAt - a.updatedAt);
+    visibles(conversations.filter((c) => c.projectId === projectId)).sort(byPinnedThenRecent);
 
   const openSession = (projectId: string, conversationId: string) => {
     setView("work");
@@ -147,11 +207,15 @@ export default function Sidebar() {
     })();
   };
 
+  if (hidden) {
+    return <aside className="w-0 shrink-0 overflow-clip transition-[width] duration-200 ease-[cubic-bezier(.2,.8,.2,1)]" />;
+  }
+
   if (compact) {
     return (
       <aside className="w-14 shrink-0 h-full flex flex-col gap-1 px-2.5 py-2 border-r border-base-border bg-base-raised transition-[width] duration-200 ease-[cubic-bezier(.2,.8,.2,1)]">
         <button
-          onClick={() => setLayout("sidebarCompact", false)}
+          onClick={() => patchSettings({ sidebarCompact: false })}
           className={`${RAIL_BTN} text-accent-soft hover:bg-base-hover`}
           title="Desplegar la barra lateral (Ctrl+B)"
         >
@@ -163,6 +227,13 @@ export default function Sidebar() {
           title="Nueva conversación (Ctrl+N)"
         >
           <Plus className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => useChatStore.getState().setSearchOpen(true)}
+          className={`${RAIL_BTN} text-zinc-400 hover:bg-base-hover hover:text-zinc-100`}
+          title="Buscar en todos los chats (Ctrl+K)"
+        >
+          <Search className="w-4 h-4" />
         </button>
         <button
           onClick={() => void openProjectPicker()}
@@ -204,6 +275,7 @@ export default function Sidebar() {
                 setView("chat");
                 void selectConversation(conv.id);
               }}
+              onContextMenu={openMenu(conv)}
               className={`${RAIL_BTN} w-full ${
                 conv.id === activeId && view === "chat"
                   ? "bg-base-hover text-zinc-100"
@@ -228,7 +300,7 @@ export default function Sidebar() {
           <Settings className="w-4 h-4" />
         </button>
         <button
-          onClick={() => setLayout("sidebarCompact", false)}
+          onClick={() => patchSettings({ sidebarCompact: false })}
           className={`${RAIL_BTN} w-full text-zinc-500 hover:bg-base-hover hover:text-zinc-100`}
           title="Desplegar la barra lateral (Ctrl+B)"
         >
@@ -244,7 +316,14 @@ export default function Sidebar() {
         <Ghost className="w-5 h-5 shrink-0 text-accent-soft" />
         <span className="flex-1 font-semibold tracking-tight truncate">Hatboo</span>
         <button
-          onClick={() => setLayout("sidebarCompact", true)}
+          onClick={() => useChatStore.getState().setSearchOpen(true)}
+          className="shrink-0 p-1.5 rounded-lg text-zinc-500 hover:bg-base-hover hover:text-zinc-100 transition-colors"
+          title="Buscar en todos los chats (Ctrl+K)"
+        >
+          <Search className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => patchSettings({ sidebarCompact: true })}
           className="shrink-0 p-1.5 rounded-lg text-zinc-500 hover:bg-base-hover hover:text-zinc-100 transition-colors"
           title="Plegar la barra lateral (Ctrl+B)"
         >
@@ -354,6 +433,7 @@ export default function Sidebar() {
                       agentStatus={tab?.agentStatus ?? "idle"}
                       onOpen={() => openSession(p.id, conv.id)}
                       onDelete={() => void removeConversation(conv.id)}
+                      onMenu={openMenu(conv)}
                     />
                   ))}
                   <button
@@ -382,18 +462,20 @@ export default function Sidebar() {
         {chatConversations.map((conv) => (
           <div
             key={conv.id}
+            onClick={() => {
+              setView("chat");
+              void selectConversation(conv.id);
+            }}
+            onContextMenu={openMenu(conv)}
             className={`group flex items-center gap-2 rounded-lg px-3 py-2 cursor-pointer text-sm transition-colors ${
               conv.id === activeId && view === "chat"
                 ? "bg-base-hover text-zinc-100"
                 : "text-zinc-400 hover:bg-base-hover hover:text-zinc-200"
             }`}
-            onClick={() => {
-              setView("chat");
-              void selectConversation(conv.id);
-            }}
           >
             <MessageSquare className="w-3.5 h-3.5 shrink-0 opacity-60" />
             <span className="flex-1 truncate">{conv.title}</span>
+            {conv.pinned && <Pin className="w-3.5 h-3.5 shrink-0 text-accent-soft/70" />}
             <button
               title="Eliminar"
               onClick={(ev) => {
@@ -406,33 +488,101 @@ export default function Sidebar() {
             </button>
           </div>
         ))}
+        {archivedCount > 0 && (
+          <button
+            onClick={() => setShowArchived((v) => !v)}
+            className="w-full flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
+            title="Las archivadas no se borran: solo salen de la lista"
+          >
+            <Archive className="w-3 h-3 shrink-0" />
+            {showArchived ? "Ocultar archivadas" : `Archivadas (${archivedCount})`}
+          </button>
+        )}
       </nav>
 
       <div className="p-2 border-t border-base-border">
-        <div className="flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-base-hover transition-colors">
+        <button
+          ref={profileRef}
+          onClick={() => setProfileOpen((v) => !v)}
+          className="w-full flex items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-base-hover transition-colors"
+          title="Menú rápido"
+        >
           <span className="grid place-items-center w-8 h-8 shrink-0 rounded-full bg-accent/15 border border-accent/30">
             <Ghost className="w-4 h-4 text-accent-soft" />
           </span>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm text-zinc-200">{assistantName}</p>
-            <p className="truncate text-[11px] text-zinc-500">
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm text-zinc-200">{assistantName}</span>
+            <span className="block truncate text-[11px] text-zinc-500">
               {PROVIDER_LABEL[provider]}
               {activeModel ? ` · ${activeModel}` : ""}
+            </span>
+          </span>
+          <ChevronsUpDown className="w-3.5 h-3.5 shrink-0 text-zinc-600" />
+        </button>
+
+        <Popover
+          open={profileOpen}
+          anchorRef={profileRef}
+          onClose={() => setProfileOpen(false)}
+          width={236}
+          align="start"
+          className="p-1.5 space-y-1.5"
+        >
+          <div>
+            <p className="px-1.5 pb-1 text-[10px] uppercase tracking-wider text-zinc-600">
+              Tema
             </p>
+            <div className="flex gap-1">
+              {THEMES.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => patchSettings({ theme: t.id })}
+                  className={`flex-1 rounded-md px-2 py-1.5 text-xs transition-colors ${
+                    (settings?.theme ?? "dark") === t.id
+                      ? "bg-accent/15 text-accent-soft"
+                      : "text-zinc-400 hover:bg-base-hover hover:text-zinc-200"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
           </div>
-          <button
-            onClick={() => setView(view === "settings" ? "chat" : "settings")}
-            className={`shrink-0 p-2 rounded-lg transition-colors ${
-              view === "settings"
-                ? "text-accent-soft bg-base-hover"
-                : "text-zinc-500 hover:text-zinc-100"
-            }`}
-            title="Ajustes (Ctrl+,)"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
-        </div>
+          <div className="pt-1 border-t border-base-border space-y-0.5">
+            <button
+              onClick={() => {
+                setView("settings");
+                setProfileOpen(false);
+              }}
+              className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-zinc-300 hover:bg-base-hover transition-colors"
+            >
+              <Settings className="w-3.5 h-3.5 shrink-0 text-zinc-500" />
+              Ajustes
+              <span className="ml-auto text-[10px] text-zinc-600">Ctrl+,</span>
+            </button>
+            <button
+              onClick={() => {
+                patchSettings({ sidebarCompact: true });
+                setProfileOpen(false);
+              }}
+              className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-zinc-300 hover:bg-base-hover transition-colors"
+            >
+              <PanelLeftClose className="w-3.5 h-3.5 shrink-0 text-zinc-500" />
+              Plegar la barra lateral
+              <span className="ml-auto text-[10px] text-zinc-600">Ctrl+B</span>
+            </button>
+          </div>
+        </Popover>
       </div>
+
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          items={menuItems(menu.conv)}
+          onClose={() => setMenu(null)}
+        />
+      )}
     </aside>
   );
 }

@@ -2,6 +2,8 @@ export interface Conversation {
   id: string;
   title: string;
   projectId: string | null;
+  pinned: boolean;
+  archived: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -60,7 +62,17 @@ export interface Settings {
   sidebarCompact: boolean;
   filesPanelOpen: boolean;
   tasksPanelOpen: boolean;
+  filesPanelWidth: number;
+  tasksPanelWidth: number;
+  focusMode: boolean;
+  notifyOnFinish: boolean;
 }
+
+/** Límites del arrastre de los paneles del modo trabajo. */
+export const PANEL_WIDTHS = {
+  files: { min: 180, max: 460, def: 240 },
+  tasks: { min: 200, max: 520, def: 288 },
+} as const;
 
 export type ChatFontSize = "sm" | "md" | "lg";
 

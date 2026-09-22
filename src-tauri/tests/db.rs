@@ -277,3 +277,72 @@ fn skills_crud_y_bloque_del_system_prompt() {
 
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn fijar_manda_sobre_la_recencia_y_archivar_solo_esconde() {
+    let dir = std::env::temp_dir().join(format!("hatboo-test-{}", uuid::Uuid::new_v4()));
+    let conn = db::connect(&dir.join("test.db")).expect("connect+migrate");
+
+    let vieja = db::create_conversation(&conn, "vieja", None).unwrap();
+    let nueva = db::create_conversation(&conn, "nueva", None).unwrap();
+    assert!(!vieja.pinned && !vieja.archived);
+
+    db::set_conversation_flags(&conn, &vieja.id, Some(true), None).unwrap();
+    let listado = db::list_conversations(&conn).unwrap();
+    assert_eq!(listado[0].id, vieja.id, "la fijada va primero");
+    assert_eq!(listado[0].updated_at, vieja.updated_at, "fijar no mueve la fecha");
+
+    db::set_conversation_flags(&conn, &nueva.id, None, Some(true)).unwrap();
+    let visible: Vec<_> = db::list_conversations(&conn)
+        .unwrap()
+        .into_iter()
+        .filter(|c| !c.archived)
+        .collect();
+    assert_eq!(visible.len(), 1);
+    assert_eq!(visible[0].id, vieja.id);
+    // Archivar es quitar de la lista, no borrar: sigue localizable con su marca.
+    assert!(db::get_conversation(&conn, &nueva.id).unwrap().archived);
+
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn la_busqueda_global_casa_titulo_y_contenido_y_respeta_el_archivo() {
+    let dir = std::env::temp_dir().join(format!("hatboo-test-{}", uuid::Uuid::new_v4()));
+    let conn = db::connect(&dir.join("test.db")).expect("connect+migrate");
+
+    let proyecto = db::create_project(&conn, "p", "/tmp/p", "approve_for_me").unwrap();
+    let charla = db::create_conversation(&conn, "recetas de invierno", None).unwrap();
+    db::add_message(&conn, &charla.id, "user", "cómo se hace un caldo de pollo", None).unwrap();
+    let trabajo = db::create_conversation(&conn, "Sesión de trabajo", Some(&proyecto.id)).unwrap();
+    db::add_message(&conn, &trabajo.id, "user", "pollo en salsa", None).unwrap();
+    let oculta = db::create_conversation(&conn, "archivada con pollo", None).unwrap();
+    db::set_conversation_flags(&conn, &oculta.id, None, Some(true)).unwrap();
+
+    let hits = db::search_chats(&conn, "pollo").unwrap();
+    assert_eq!(hits.len(), 2, "una fila por conversación y sin archivadas");
+    assert!(hits.iter().all(|h| {
+        h.snippet
+            .as_deref()
+            .map(|s| s.to_lowercase().contains("pollo"))
+            .unwrap_or(false)
+    }));
+    assert!(hits.iter().any(|h| h.project_id == Some(proyecto.id.clone())));
+
+    // Solo casa el título: sigue saliendo, sin fragmento de mensaje.
+    let por_titulo = db::search_chats(&conn, "invierno").unwrap();
+    assert_eq!(por_titulo.len(), 1);
+    assert_eq!(por_titulo[0].conversation_id, charla.id);
+    assert!(por_titulo[0].snippet.is_none());
+
+    assert!(db::search_chats(&conn, "p").unwrap().is_empty(), "una letra no es una búsqueda");
+    assert!(db::search_chats(&conn, "   ").unwrap().is_empty());
+    assert_eq!(
+        db::search_chats(&conn, "POLLO").unwrap().len(),
+        2,
+        "las mayúsculas casan igual"
+    );
+    assert!(db::search_chats(&conn, "PRIMavera").unwrap().is_empty());
+
+    let _ = std::fs::remove_dir_all(dir);
+}

@@ -29,6 +29,15 @@ const SUGGESTIONS = [
   "Ayúdame con código",
 ];
 
+/** Cuatro franjas; la madrugada tiene la suya porque esta app se usa a deshoras.
+ *  Va seguida de "Soy <nombre>", así que es un saludo al usuario, no a la app. */
+function saludo(hora: number): string {
+  if (hora < 6) return "Aún despiertos";
+  if (hora < 13) return "Buenos días";
+  if (hora < 20) return "Buenas tardes";
+  return "Buenas noches";
+}
+
 export default function ChatWindow() {
   const messages = useChatStore((s) => s.messages);
   const streamingText = useChatStore((s) => s.streamingText);
@@ -45,6 +54,7 @@ export default function ChatWindow() {
   });
   const activeId = useChatStore((s) => s.activeId);
   const chatFontSize = useChatStore((s) => s.settings?.chatFontSize ?? "md");
+  const assistantName = useChatStore((s) => s.settings?.assistantName?.trim() || "Hatboo");
   const findNonce = useChatStore((s) => s.findNonce);
   const sendMessage = useChatStore((s) => s.sendMessage);
   const regenerate = useChatStore((s) => s.regenerate);
@@ -327,7 +337,8 @@ export default function ChatWindow() {
           <div className="flex flex-col items-center gap-3">
             <Mascot state={mascotState} size={120} />
             <h1 className="text-2xl font-semibold tracking-tight">
-              Hola, soy <span className="text-accent-soft">Hatboo</span>
+              {saludo(new Date().getHours())}. Soy{" "}
+              <span className="text-accent-soft">{assistantName}</span>
             </h1>
           </div>
           <div className="w-full max-w-3xl space-y-3">

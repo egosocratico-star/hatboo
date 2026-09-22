@@ -8,19 +8,23 @@ import {
   FolderTree,
   GitBranch,
   ListChecks,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { useWorkStore, useActiveTab, type StepLine } from "../../store/workStore";
 import { useChatStore } from "../../store/chatStore";
 import MessageBubble from "../MessageBubble";
 import Mascot from "../mascot/Mascot";
 import FileTree from "./FileTree";
+import ResizeHandle from "./ResizeHandle";
 import TaskList from "./TaskList";
 import ToolApprovalModal from "./ToolApprovalModal";
 import ApprovalLevelPicker from "./ApprovalLevelPicker";
+import ProjectRules from "./ProjectRules";
 import WorkPlusMenu from "./WorkPlusMenu";
 import ModeToggles from "../ModeToggles";
 import ProviderModelPicker from "../ProviderModelPicker";
-import type { Attachment, MascotState, Message, Task } from "../../types";
+import { PANEL_WIDTHS, type Attachment, type MascotState, type Message, type Task } from "../../types";
 
 /** Constantes estables: si no hay pestaña, devolver un array nuevo en cada render
  *  re-renderizaría las listas hijas sin motivo. */
@@ -70,9 +74,22 @@ export default function ProjectView() {
   const input = activeProjectId ? (inputByProject[activeProjectId] ?? "") : "";
   const setInput = (value: string) =>
     setInputByProject((m) => ({ ...m, [activeProjectId ?? ""]: value }));
-  const filesOpen = useChatStore((s) => s.settings?.filesPanelOpen ?? true);
-  const tasksOpen = useChatStore((s) => s.settings?.tasksPanelOpen ?? true);
-  const setLayout = useChatStore((s) => s.setLayout);
+  const focus = useChatStore((s) => s.settings?.focusMode ?? false);
+  const storedFilesOpen = useChatStore((s) => s.settings?.filesPanelOpen ?? true);
+  const storedTasksOpen = useChatStore((s) => s.settings?.tasksPanelOpen ?? true);
+  const filesWidth = useChatStore((s) => s.settings?.filesPanelWidth ?? PANEL_WIDTHS.files.def);
+  const tasksWidth = useChatStore((s) => s.settings?.tasksPanelWidth ?? PANEL_WIDTHS.tasks.def);
+  const patchSettings = useChatStore((s) => s.patchSettings);
+  // El ancho se mueve en estado local durante el arrastre y se guarda al soltar:
+  // escribir en SQLite en cada pointermove saldría carísimo.
+  const [dragFiles, setDragFiles] = useState<number | null>(null);
+  const [dragTasks, setDragTasks] = useState<number | null>(null);
+  // El modo foco manda sobre los paneles, pero tocar cualquiera de sus botones
+  // lo apaga: si no, el control quedaría sin efecto visible.
+  const filesOpen = !focus && storedFilesOpen;
+  const tasksOpen = !focus && storedTasksOpen;
+  const filesPx = dragFiles ?? filesWidth;
+  const tasksPx = dragTasks ?? tasksWidth;
   const [newName, setNewName] = useState("");
   const [happy, setHappy] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -219,10 +236,11 @@ export default function ProjectView() {
       <div className="flex-1 flex min-h-0">
       <div
         className={`shrink-0 overflow-clip bg-base-raised/40 transition-[width] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] ${
-          filesOpen ? "w-60 border-r border-base-border" : "w-0"
+          filesOpen ? "border-r border-base-border" : "w-0"
         }`}
+        style={{ width: filesOpen ? filesPx : 0 }}
       >
-        <div className="w-60 h-full flex flex-col">
+        <div className="h-full flex flex-col" style={{ width: filesPx }}>
           <div className="flex items-center gap-2 px-3 py-2 border-b border-base-border text-xs font-medium text-zinc-400 uppercase tracking-wider">
             <FolderTree className="w-4 h-4 text-accent-soft" />
             Archivos
@@ -230,11 +248,25 @@ export default function ProjectView() {
           <FileTree projectId={project.id} version={treeVersion} />
         </div>
       </div>
+      {filesOpen && (
+        <ResizeHandle
+          width={filesPx}
+          min={PANEL_WIDTHS.files.min}
+          max={PANEL_WIDTHS.files.max}
+          def={PANEL_WIDTHS.files.def}
+          side="left"
+          onWidth={setDragFiles}
+          onCommit={(px) => {
+            setDragFiles(null);
+            patchSettings({ filesPanelWidth: px });
+          }}
+        />
+      )}
 
       <div className="flex-1 min-w-0 flex flex-col">
         <header className="h-12 shrink-0 flex items-center gap-3 px-4 border-b border-base-border">
           <button
-            onClick={() => setLayout("filesPanelOpen", !filesOpen)}
+            onClick={() => patchSettings({ focusMode: false, filesPanelOpen: !filesOpen })}
             className={panelToggle(filesOpen)}
             title={filesOpen ? "Ocultar los archivos" : "Mostrar los archivos"}
             aria-pressed={filesOpen}
@@ -262,13 +294,26 @@ export default function ProjectView() {
           )}
           <div className="ml-auto flex items-center gap-2">
             <button
-              onClick={() => setLayout("tasksPanelOpen", !tasksOpen)}
+              onClick={() => patchSettings({ focusMode: false, tasksPanelOpen: !tasksOpen })}
               className={panelToggle(tasksOpen)}
               title={tasksOpen ? "Ocultar las tareas" : "Mostrar las tareas"}
               aria-pressed={tasksOpen}
             >
               <ListChecks className="w-4 h-4" />
             </button>
+            <button
+              onClick={() => patchSettings({ focusMode: !focus })}
+              className={panelToggle(focus)}
+              title={
+                focus
+                  ? "Salir del modo foco (Ctrl+.)"
+                  : "Modo foco: solo el chat, sin barra lateral ni paneles (Ctrl+.)"
+              }
+              aria-pressed={focus}
+            >
+              {focus ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
+            <ProjectRules projectId={project.id} />
             <ApprovalLevelPicker projectId={project.id} />
             <Mascot state={mascotState} size={32} />
           </div>
@@ -290,7 +335,9 @@ export default function ProjectView() {
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto">
+        {/* `key` por proyecto: al cambiar de pestaña el contenido entra con el
+            fundido corto en vez de sustituirse de golpe, y la lista vuelve arriba. */}
+        <div key={project.id} className="flex-1 overflow-y-auto animate-rise-in">
           {messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center gap-2 px-6 text-center">
               <p className="text-sm text-zinc-500 max-w-sm">
@@ -404,12 +451,27 @@ export default function ProjectView() {
         </div>
       </div>
 
+      {tasksOpen && (
+        <ResizeHandle
+          width={tasksPx}
+          min={PANEL_WIDTHS.tasks.min}
+          max={PANEL_WIDTHS.tasks.max}
+          def={PANEL_WIDTHS.tasks.def}
+          side="right"
+          onWidth={setDragTasks}
+          onCommit={(px) => {
+            setDragTasks(null);
+            patchSettings({ tasksPanelWidth: px });
+          }}
+        />
+      )}
       <div
         className={`shrink-0 overflow-clip bg-base-raised/40 transition-[width] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] ${
-          tasksOpen ? "w-72 border-l border-base-border" : "w-0"
+          tasksOpen ? "border-l border-base-border" : "w-0"
         }`}
+        style={{ width: tasksOpen ? tasksPx : 0 }}
       >
-        <div className="w-72 h-full">
+        <div className="h-full" style={{ width: tasksPx }}>
           <TaskList tasks={tasks} stepLines={stepLines} running={busy} />
         </div>
       </div>

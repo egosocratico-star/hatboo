@@ -42,6 +42,10 @@ pub struct Conversation {
     pub created_at: i64,
     pub updated_at: i64,
     pub project_id: Option<String>,
+    /// Se mantiene arriba de la lista aunque llegue mensajería nueva.
+    pub pinned: bool,
+    /// Fuera de la lista principal, pero sin borrar nada.
+    pub archived: bool,
 }
 
 /// Fuente citada por la búsqueda web de una respuesta.
@@ -103,6 +107,14 @@ fn migrate(conn: &Connection) -> Result<(), String> {
         [],
     );
     let _ = conn.execute(
+        "ALTER TABLE conversations ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE conversations ADD COLUMN archived INTEGER NOT NULL DEFAULT 0",
+        [],
+    );
+    let _ = conn.execute(
         "ALTER TABLE projects ADD COLUMN approval_level TEXT NOT NULL DEFAULT 'approve_for_me'",
         [],
     );
@@ -149,6 +161,8 @@ pub fn create_conversation(
         created_at: now_ms(),
         updated_at: now_ms(),
         project_id: project_id.map(|s| s.to_string()),
+        pinned: false,
+        archived: false,
     };
     conn.execute(
         "INSERT INTO conversations (id, title, created_at, updated_at, project_id)
@@ -162,8 +176,8 @@ pub fn create_conversation(
 pub fn list_conversations(conn: &Connection) -> Result<Vec<Conversation>, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, title, created_at, updated_at, project_id
-             FROM conversations ORDER BY updated_at DESC",
+            "SELECT id, title, created_at, updated_at, project_id, pinned, archived
+             FROM conversations ORDER BY pinned DESC, updated_at DESC",
         )
         .map_err(|e| e.to_string())?;
     let rows = stmt
@@ -174,6 +188,8 @@ pub fn list_conversations(conn: &Connection) -> Result<Vec<Conversation>, String
                 created_at: row.get(2)?,
                 updated_at: row.get(3)?,
                 project_id: row.get(4)?,
+                pinned: row.get(5)?,
+                archived: row.get(6)?,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -182,7 +198,7 @@ pub fn list_conversations(conn: &Connection) -> Result<Vec<Conversation>, String
 
 pub fn get_conversation(conn: &Connection, id: &str) -> Result<Conversation, String> {
     conn.query_row(
-        "SELECT id, title, created_at, updated_at, project_id FROM conversations WHERE id = ?1",
+        "SELECT id, title, created_at, updated_at, project_id, pinned, archived FROM conversations WHERE id = ?1",
         params![id],
         |row| {
             Ok(Conversation {
@@ -191,10 +207,92 @@ pub fn get_conversation(conn: &Connection, id: &str) -> Result<Conversation, Str
                 created_at: row.get(2)?,
                 updated_at: row.get(3)?,
                 project_id: row.get(4)?,
+                pinned: row.get(5)?,
+                archived: row.get(6)?,
             })
         },
     )
     .map_err(|e| e.to_string())
+}
+
+/// Fijar es voluntad del usuario, así que no mueve `updated_at`: una conversación
+/// fijada debe quedarse arriba aunque lleve días sin mensajes.
+pub fn set_conversation_flags(
+    conn: &Connection,
+    id: &str,
+    pinned: Option<bool>,
+    archived: Option<bool>,
+) -> Result<(), String> {
+    if let Some(pinned) = pinned {
+        conn.execute(
+            "UPDATE conversations SET pinned = ?2 WHERE id = ?1",
+            params![id, pinned],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    if let Some(archived) = archived {
+        conn.execute(
+            "UPDATE conversations SET archived = ?2 WHERE id = ?1",
+            params![id, archived],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// Resultado de la búsqueda global: una fila por conversación, con un trozo del
+/// primer mensaje donde aparece la palabra.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchHit {
+    pub conversation_id: String,
+    pub title: String,
+    pub project_id: Option<String>,
+    pub updated_at: i64,
+    pub pinned: bool,
+    pub snippet: Option<String>,
+}
+
+/// Búsqueda por subcadena, sin FTS: `instr` sobre el título y el contenido.
+/// `lower()` de SQLite solo dobla ASCII, así que las vocales acentuadas siguen
+/// distinguiendo — suficiente para el historial de una app de escritorio.
+pub fn search_chats(conn: &Connection, query: &str) -> Result<Vec<SearchHit>, String> {
+    let q = query.trim();
+    if q.chars().count() < 2 {
+        return Ok(Vec::new());
+    }
+    let mut stmt = conn
+        .prepare(
+            "SELECT c.id, c.title, c.project_id, c.updated_at, c.pinned,
+                    (SELECT substr(m.content, max(1, instr(lower(m.content), lower(?1)) - 40), 160)
+                       FROM messages m
+                      WHERE m.conversation_id = c.id
+                        AND instr(lower(m.content), lower(?1)) > 0
+                      ORDER BY m.created_at
+                      LIMIT 1)
+             FROM conversations c
+            WHERE c.archived = 0
+              AND (instr(lower(c.title), lower(?1)) > 0
+                   OR EXISTS (SELECT 1 FROM messages m
+                               WHERE m.conversation_id = c.id
+                                 AND instr(lower(m.content), lower(?1)) > 0))
+            ORDER BY c.pinned DESC, c.updated_at DESC
+            LIMIT 40",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(params![q], |row| {
+            Ok(SearchHit {
+                conversation_id: row.get(0)?,
+                title: row.get(1)?,
+                project_id: row.get(2)?,
+                updated_at: row.get(3)?,
+                pinned: row.get(4)?,
+                snippet: row.get(5)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
 }
 
 pub fn delete_conversation(conn: &Connection, id: &str) -> Result<(), String> {

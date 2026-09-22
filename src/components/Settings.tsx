@@ -30,7 +30,7 @@ import {
 import { useChatStore } from "../store/chatStore";
 import { useWorkStore } from "../store/workStore";
 import SkillsSettings from "./SkillsSettings";
-import { applyTheme, type ThemeChoice } from "../theme";
+import { applyTheme, THEMES } from "../theme";
 import {
   REASONING_LEVELS,
   CHAT_FONT_SIZES,
@@ -47,12 +47,6 @@ const PROVIDERS = [
   { id: "openai", label: "OpenAI", needsKey: true },
   { id: "local", label: "Local (Ollama / llama.cpp)", needsKey: false },
 ] as const;
-
-const THEMES: Array<{ id: ThemeChoice; label: string }> = [
-  { id: "dark", label: "Oscuro" },
-  { id: "light", label: "Claro" },
-  { id: "system", label: "Sistema" },
-];
 
 type TestState =
   | { status: "idle" }
@@ -290,7 +284,7 @@ const CATEGORIES: Array<{
   icon: typeof Cpu;
   ready: boolean;
 }> = [
-  { id: "general", label: "General", icon: SlidersHorizontal, ready: false },
+  { id: "general", label: "General", icon: SlidersHorizontal, ready: true },
   { id: "appearance", label: "Apariencia", icon: Palette, ready: true },
   { id: "api", label: "API y modelos", icon: Cpu, ready: true },
   { id: "agent", label: "Agente", icon: Bot, ready: true },
@@ -310,7 +304,9 @@ const SHORTCUTS: Array<{ keys: string[]; desc: string }> = [
   { keys: [MOD, "N"], desc: "Nueva conversación" },
   { keys: [MOD, ","], desc: "Abrir Ajustes" },
   { keys: [MOD, "F"], desc: "Buscar en la conversación" },
+  { keys: [MOD, "K"], desc: "Buscar en todos los chats y sesiones" },
   { keys: [MOD, "B"], desc: "Plegar o desplegar la barra lateral" },
+  { keys: [MOD, "."], desc: "Modo foco en el modo trabajo (solo el chat)" },
   { keys: ["Esc"], desc: "Volver al chat desde Ajustes / cerrar un menú" },
 ];
 
@@ -491,7 +487,8 @@ export default function Settings() {
     }
   };
 
-  const editable = cat === "api" || cat === "agent" || cat === "profile";
+  const editable =
+    cat === "api" || cat === "agent" || cat === "profile" || cat === "general";
 
   const needle = query.trim().toLowerCase();
   const visible = CATEGORIES.filter((c) =>
@@ -709,6 +706,42 @@ export default function Settings() {
                     placeholder="http://localhost:11434"
                   />
                 </label>
+              </section>
+            </>
+          )}
+
+          {cat === "general" && (
+            <>
+              <SectionTitle
+                title="General"
+                subtitle="Avisos de la app mientras trabajas en otra ventana."
+              />
+              <section className="space-y-3">
+                <label className="flex items-start gap-3 rounded-lg border border-base-border bg-base px-3 py-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={draft.notifyOnFinish}
+                    onChange={(e) =>
+                      setDraft({ ...draft, notifyOnFinish: e.target.checked })
+                    }
+                    className="mt-0.5 accent-violet-500"
+                  />
+                  <span className="space-y-0.5">
+                    <span className="block text-sm text-zinc-200">
+                      Avisar cuando una sesión de trabajo pida algo
+                    </span>
+                    <span className="block text-xs text-zinc-500">
+                      Notificación del sistema al terminar la tarea, al fallar o
+                      cuando hace falta aprobar una acción. Solo se manda si la
+                      ventana de Hatboo no está en primer plano: si la tienes
+                      delante, ya lo estás viendo.
+                    </span>
+                  </span>
+                </label>
+                <p className="text-[11px] text-zinc-600">
+                  El idioma de la app está fijado en español; un selector real
+                  llega cuando se traduzca la interfaz entera.
+                </p>
               </section>
             </>
           )}

@@ -54,6 +54,10 @@ Abre una carpeta como proyecto y el agente planifica, ejecuta y reporta.
   riesgo de cada herramienta; **Acceso total no relaja el sandbox**.
 - `write_file` siempre muestra el diff antes de aplicarse, y el agente nunca
   propone un commit si no se lo pides.
+- **Reglas por proyecto**: un `HATBOO.md` en la raíz del proyecto se añade al prompt
+  del agente en cada sesión de trabajo de esa carpeta. Se edita desde la cabecera
+  de la vista (*Reglas*). Son contexto sobre el proyecto: no amplían el sandbox ni
+  saltan aprobaciones.
 - Sesiones anidadas por proyecto, árbol de archivos con buscador, lista de tareas en
   vivo y pestañas para varios proyectos a la vez.
 
@@ -87,6 +91,9 @@ CSS, así que cambiar de tema no toca ningún componente.
 | `Ctrl+N` | Nueva conversación |
 | `Ctrl+,` | Ajustes |
 | `Ctrl+F` | Buscar en la conversación |
+| `Ctrl+K` | Buscar en todos los chats y sesiones |
+| `Ctrl+B` | Plegar la barra lateral |
+| `Ctrl+.` | Modo foco en el modo trabajo (solo el chat) |
 | `Esc` | Volver al chat / cerrar menú |
 
 ## Compilar y ejecutar

@@ -1,5 +1,12 @@
 export type ThemeChoice = "dark" | "light" | "system";
 
+/** Lo consumen Ajustes → Apariencia y el menú rápido de la barra lateral. */
+export const THEMES: Array<{ id: ThemeChoice; label: string }> = [
+  { id: "dark", label: "Oscuro" },
+  { id: "light", label: "Claro" },
+  { id: "system", label: "Sistema" },
+];
+
 const STORED = "hatboo-theme";
 const LIGHT = "(prefers-color-scheme: light)";
 

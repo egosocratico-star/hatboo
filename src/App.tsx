@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import Sidebar from "./components/Sidebar";
 import ChatWindow from "./components/ChatWindow";
 import Settings from "./components/Settings";
+import SearchOverlay from "./components/SearchOverlay";
 import ProjectView from "./components/work/ProjectView";
 import { useChatStore } from "./store/chatStore";
 import { useWorkStore } from "./store/workStore";
@@ -58,13 +59,23 @@ export default function App() {
         if (view === "chat" && messages.length > 0) {
           useChatStore.getState().openFinder();
         }
+      } else if (key === "k") {
+        e.preventDefault();
+        const s = useChatStore.getState();
+        s.setSearchOpen(!s.searchOpen);
       } else if (key === "p") {
         // Idem con el diálogo de imprimir de Chromium: no es una app de páginas.
         e.preventDefault();
       } else if (key === "b") {
         e.preventDefault();
         const s = useChatStore.getState();
-        s.setLayout("sidebarCompact", !(s.settings?.sidebarCompact ?? false));
+        s.patchSettings({ sidebarCompact: !(s.settings?.sidebarCompact ?? false) });
+      } else if (e.key === ".") {
+        // Modo foco del workspace; solo tiene sentido con la vista de trabajo
+        // abierta, que es donde está el botón para salir.
+        e.preventDefault();
+        const s = useChatStore.getState();
+        if (s.view === "work") s.patchSettings({ focusMode: !(s.settings?.focusMode ?? false) });
       }
     };
     window.addEventListener("keydown", onKey);
@@ -78,6 +89,7 @@ export default function App() {
         {view === "work" ? <ProjectView /> : <ChatWindow />}
       </main>
       {view === "settings" && <Settings />}
+      <SearchOverlay />
     </div>
   );
 }

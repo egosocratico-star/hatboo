@@ -79,6 +79,28 @@ pub fn delete_conversation(app: State<AppState>, conversation_id: String) -> Res
     Ok(())
 }
 
+/// Fijar y archivar comparten comando porque salen del mismo menú y cada opción
+/// cambia una sola de las dos cosas.
+#[tauri::command]
+pub fn set_conversation_flags(
+    app: State<AppState>,
+    conversation_id: String,
+    pinned: Option<bool>,
+    archived: Option<bool>,
+) -> Result<(), String> {
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    db::set_conversation_flags(&conn, &conversation_id, pinned, archived)
+}
+
+#[tauri::command]
+pub fn search_chats(
+    app: State<AppState>,
+    query: String,
+) -> Result<Vec<db::SearchHit>, String> {
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    db::search_chats(&conn, &query)
+}
+
 #[tauri::command]
 pub fn list_messages(app: State<AppState>, conversation_id: String) -> Result<Vec<db::Message>, String> {
     let conn = app.db.lock().map_err(|e| e.to_string())?;
@@ -593,6 +615,72 @@ pub(crate) const CODE_MODE_PROMPT: &str = "Modo código activo: responde como in
  del archivo cuando sea relevante y señala las suposiciones que hagas. Si hay un error, explica \
  la causa raíz en una línea antes del arreglo. Prefiere la solución más simple y las dependencias \
  que ya existen en el proyecto antes de proponer nuevas.";
+
+/// Archivo de reglas del proyecto: instrucciones que el usuario escribe una vez
+/// y se pegan al system prompt del agente en cada sesión de ese proyecto.
+pub(crate) const RULES_FILE: &str = "HATBOO.md";
+/// Techo de lo que se inyecta en el prompt; más allá de esto ya es un libro y el
+/// modelo empieza a perder el hilo.
+const RULES_MAX_CHARS: usize = 6_000;
+/// Techo de lo que se deja guardar desde la app.
+const RULES_SAVE_MAX: usize = 20_000;
+
+/// Contenido de `HATBOO.md` para el system prompt. Cadena vacía si no existe:
+/// la mayoría de proyectos no lo tendrán y eso no debe cambiar el prompt.
+pub(crate) fn project_rules_for_prompt(root: &Path) -> String {
+    match std::fs::read_to_string(root.join(RULES_FILE)) {
+        Ok(texto) => texto.chars().take(RULES_MAX_CHARS).collect(),
+        Err(_) => String::new(),
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectRules {
+    pub exists: bool,
+    pub content: String,
+    pub path: String,
+}
+
+/// Ruta de `HATBOO.md` del proyecto. El nombre del archivo es fijo — lo único
+/// que viene de fuera es la raíz, que el usuario eligió al abrir el proyecto.
+fn rules_path(app: &State<AppState>, project_id: &str) -> Result<PathBuf, String> {
+    let root = {
+        let conn = app.db.lock().map_err(|e| e.to_string())?;
+        db::get_project(&conn, project_id)?.root_path
+    };
+    Ok(PathBuf::from(root).join(RULES_FILE))
+}
+
+#[tauri::command]
+pub fn project_rules(
+    app: State<AppState>,
+    project_id: String,
+) -> Result<ProjectRules, String> {
+    let ruta = rules_path(&app, &project_id)?;
+    Ok(ProjectRules {
+        exists: ruta.is_file(),
+        content: std::fs::read_to_string(&ruta).unwrap_or_default(),
+        path: ruta.display().to_string(),
+    })
+}
+
+#[tauri::command]
+pub fn save_project_rules(
+    app: State<AppState>,
+    project_id: String,
+    content: String,
+) -> Result<ProjectRules, String> {
+    let ruta = rules_path(&app, &project_id)?;
+    let recortado: String = content.chars().take(RULES_SAVE_MAX).collect();
+    std::fs::write(&ruta, recortado.as_bytes())
+        .map_err(|e| format!("No se pudo escribir {RULES_FILE}: {e}"))?;
+    Ok(ProjectRules {
+        exists: true,
+        content: recortado,
+        path: ruta.display().to_string(),
+    })
+}
 
 /// Lanza el streaming del proveedor para la conversación y emite chat:*.
 ///

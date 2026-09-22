@@ -196,6 +196,17 @@ body {
 .animate-pop-out {
   animation: pop-out 0.11s ease-in both;
 }
+
+/* Mientras se arrastra un tirador de ancho: el panel tiene que seguir al ratón
+   sin ir detrás de una transición, y ni una selección de texto de por medio. */
+html.hatboo-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+html.hatboo-resizing * {
+  transition: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

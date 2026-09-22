@@ -58,6 +58,10 @@ pub struct ConversationRow {
     pub updated_at: i64,
     #[serde(default)]
     pub project_id: Option<String>,
+    #[serde(default)]
+    pub pinned: bool,
+    #[serde(default)]
+    pub archived: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -148,6 +152,8 @@ pub fn build_snapshot(conn: &Connection, attachments_dir: &Path) -> Result<Snaps
             created_at: c.created_at,
             updated_at: c.updated_at,
             project_id: c.project_id,
+            pinned: c.pinned,
+            archived: c.archived,
         })
         .collect();
 
@@ -273,14 +279,16 @@ pub fn apply_snapshot(
     for conversation in &snapshot.conversations {
         let added = conn
             .execute(
-                "INSERT OR IGNORE INTO conversations (id, title, created_at, updated_at, project_id)
-                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                "INSERT OR IGNORE INTO conversations (id, title, created_at, updated_at, project_id, pinned, archived)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
                 params![
                     conversation.id,
                     conversation.title,
                     conversation.created_at,
                     conversation.updated_at,
-                    conversation.project_id
+                    conversation.project_id,
+                    conversation.pinned,
+                    conversation.archived
                 ],
             )
             .map_err(|e| e.to_string())?;

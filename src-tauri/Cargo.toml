@@ -29,6 +29,7 @@ walkdir = "2"
 regex = "1"
 base64 = "0.22"
 tauri-plugin-dialog = "2"
+tauri-plugin-notification = "2"
 
 # Backend nativo del llavero por plataforma (keyring v3 no trae ninguno por defecto)
 [target.'cfg(target_os = "windows")'.dependencies]
