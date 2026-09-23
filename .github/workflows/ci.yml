@@ -1,0 +1,41 @@
+name: CI
+
+# Windows es el sistema para el que existe Hatboo hoy, y el runner ya trae
+# WebView2 y el SDK: en Linux habría que montar WebKitGTK y compañía solo para
+# que `cargo test` pueda compilar tauri.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  comprobar:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      # `npm run build` es `tsc && vite build`. Hace doble trabajo: comprueba
+      # tipos y deja `dist/`, que tauri-build pide al compilar los tests.
+      - name: Frontend (tsc + vite)
+        run: npm run build
+
+      # A propósito fuera: agent_flow y local_provider hablan con un Ollama en
+      # marcha, y keyring usa el llavero real de la máquina. Son pruebas de
+      # integración locales por diseño, no de CI.
+      - name: Pruebas de Rust
+        run: >
+          cargo test --manifest-path src-tauri/Cargo.toml --no-fail-fast
+          --lib --test db --test backup --test git_tools --test tools

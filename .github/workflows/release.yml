@@ -1,0 +1,55 @@
+name: Release
+
+# Construye el instalador de Windows y lo cuelga de una GitHub release al empujar
+# una etiqueta tipo `v0.3.0`.
+#
+# AVISO: este flujo no se ha ejecutado nunca. Está escrito contra la acción
+# oficial de Tauri, pero la primera vez que se pruebe puede pedir ajustes (la
+# compilación de Tauri en runner es lenta y sensible al entorno). La versión debe
+# subir a la vez en package.json, src-tauri/Cargo.toml y src-tauri/tauri.conf.json.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  publicador:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            args: ""
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      # Sin las claves del llavero no se puede probar Anthropic/OpenAI, y el
+      # instalador no las necesita: solo se compila.
+      - name: Instalador
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Hatboo ${{ github.ref_name }}
+          releaseBody: Cambios en el registro de commits de esta etiqueta.
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}

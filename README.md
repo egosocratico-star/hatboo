@@ -1,5 +1,7 @@
 # Hatboo
 
+[![CI](https://github.com/egosocratico-star/hatboo/actions/workflows/ci.yml/badge.svg)](https://github.com/egosocratico-star/hatboo/actions/workflows/ci.yml)
+
 Chat de IA de escritorio con un modo agente que trabaja dentro de tus proyectos.
 Local-first: todo el histórico vive en tu máquina y las claves se guardan en el
 llavero del sistema operativo.
@@ -8,8 +10,9 @@ Escrito con **Tauri 2** (Rust) + **React 18** + **TypeScript** + **Tailwind** +
 **Zustand** + **SQLite** (`rusqlite`).
 
 > Estado: app personal en desarrollo, versión **0.2.0** para Windows. Funciona,
-> pero no hay autoactualización ni binarios publicados: se compila desde el
-> código.
+> no hay autoactualización y los binarios todavía no se han publicado: hay un
+> flujo de release por etiqueta, pero no se ha ejecutado nunca, así que por
+> ahora se compila desde el código.
 
 ---
 
@@ -118,10 +121,22 @@ npm run tauri build    # instaladores en src-tauri/target/release/bundle/
 Pruebas:
 
 ```bash
-npm run build          # tsc + vite
+npm run check          # tipos + los tests que no dependen de servicios
 npx tsc --noEmit       # solo tipos
 cd src-tauri && cargo test
 ```
+
+`cargo test` entero incluye tres pruebas de integración que **necesitan algo de
+la máquina**: `agent_flow` y `local_provider` hablan con un Ollama en marcha, y
+`keyring` usa el llavero real. Por eso el CI (`npm ci` + `npm run build` + los
+tests sin dependencias externas) corre solo ese subconjunto, marcado en
+`.github/workflows/ci.yml`.
+
+Al empujar una etiqueta `v*` se activa `.github/workflows/release.yml`, que
+compila el instalador de Windows y lo adjunta a una release. **Aún no se ha
+ejecutado nunca**: la primera vez puede requerir ajustes, y la versión hay que
+subirla a la vez en `package.json`, `src-tauri/Cargo.toml` y
+`src-tauri/tauri.conf.json`.
 
 ## Estructura
 
