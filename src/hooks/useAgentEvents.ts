@@ -1,19 +1,11 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { useWorkStore } from "../store/workStore";
+import { useWorkStore, type StepResult } from "../store/workStore";
 import type { PendingApproval, Task } from "../types";
 
 interface PlanEvent {
   conversationId: string;
   tasks: Task[];
-}
-
-interface StepResultEvent {
-  conversationId: string;
-  tasks: Task[];
-  toolName: string;
-  ok: boolean;
-  brief: string;
 }
 
 interface ApprovalEvent extends PendingApproval {}
@@ -39,16 +31,8 @@ export function useAgentEvents() {
         listen<PlanEvent>("agent:plan", ({ payload }) => {
           useWorkStore.getState().onPlan(payload.conversationId, payload.tasks);
         }),
-        listen<StepResultEvent>("agent:step_result", ({ payload }) => {
-          useWorkStore
-            .getState()
-            .onStepResult(
-              payload.conversationId,
-              payload.tasks,
-              payload.toolName,
-              payload.ok,
-              payload.brief,
-            );
+        listen<StepResult>("agent:step_result", ({ payload }) => {
+          useWorkStore.getState().onStepResult(payload);
         }),
         listen<ApprovalEvent>("agent:approval_needed", ({ payload }) => {
           useWorkStore.getState().onApprovalNeeded(payload);

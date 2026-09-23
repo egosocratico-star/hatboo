@@ -13,13 +13,34 @@ import type {
 
 export type AgentStatus = "idle" | "running" | "awaiting" | "error";
 
+/** Salida de `run_command`, ya con las claves tapadas si tocaba taparlas. */
+export interface CommandData {
+  command: string;
+  exitCode: number | null;
+  stdout: string;
+  stderr: string;
+}
+
 interface StepLine {
   toolName: string;
   ok: boolean;
   brief: string;
+  durationMs: number;
+  data?: CommandData | null;
 }
 
 export type { StepLine };
+
+/** Payload del evento `agent:step_result`. */
+export interface StepResult {
+  conversationId: string;
+  tasks: Task[];
+  toolName: string;
+  ok: boolean;
+  brief: string;
+  durationMs: number;
+  data?: Record<string, unknown> | null;
+}
 
 export interface GitInfo {
   isRepo: boolean;
@@ -81,13 +102,7 @@ interface WorkStore {
 
   // Handlers de eventos del agente (ruteados por sesión → pestaña)
   onPlan: (conversationId: string, tasks: Task[]) => void;
-  onStepResult: (
-    conversationId: string,
-    tasks: Task[],
-    toolName: string,
-    ok: boolean,
-    brief: string,
-  ) => void;
+  onStepResult: (result: StepResult) => void;
   onApprovalNeeded: (approval: PendingApproval) => void;
   onDone: (conversationId: string, summary: string) => void;
   onError: (conversationId: string, message: string) => void;
@@ -108,6 +123,19 @@ type StoreSnapshot = Pick<WorkStore, "tabs" | "activeProjectId">;
 
 function activeTab(s: StoreSnapshot): TabState | undefined {
   return s.activeProjectId ? s.tabs[s.activeProjectId] : undefined;
+}
+
+/** El payload trae las claves del `json!` de Rust (`exit_code`…), que no pasan
+ *  por el `camelCase` de serde al ser un Value suelto. Y solo `run_command`
+ *  manda data, así que lo demás vuelve null. */
+function comando(data?: Record<string, unknown> | null): CommandData | null {
+  if (!data || typeof data.command !== "string") return null;
+  return {
+    command: data.command,
+    exitCode: typeof data.exit_code === "number" ? data.exit_code : null,
+    stdout: typeof data.stdout === "string" ? data.stdout : "",
+    stderr: typeof data.stderr === "string" ? data.stderr : "",
+  };
 }
 
 export const useWorkStore = create<WorkStore>((set, get) => {
@@ -377,14 +405,17 @@ export const useWorkStore = create<WorkStore>((set, get) => {
       patchSession(conversationId, { tasks, stepLines: [], agentStatus: "running" });
     },
 
-    onStepResult: (conversationId, tasks, toolName, ok, brief) => {
+    onStepResult: ({ conversationId, tasks, toolName, ok, brief, durationMs, data }) => {
       const projectId = projectOfSession(get().tabs, conversationId);
       if (!projectId) return;
       const tab = get().tabs[projectId];
       if (!tab) return;
       patchTab(projectId, {
         tasks,
-        stepLines: [...tab.stepLines, { toolName, ok, brief }].slice(-30),
+        stepLines: [
+          ...tab.stepLines,
+          { toolName, ok, brief, durationMs, data: comando(data) },
+        ].slice(-30),
       });
       if (toolName === "write_file" && ok) {
         set((s) => ({ treeVersion: s.treeVersion + 1 }));

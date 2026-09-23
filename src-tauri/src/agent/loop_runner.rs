@@ -46,6 +46,11 @@ struct StepResultPayload {
     tool_name: String,
     ok: bool,
     brief: String,
+    duration_ms: i64,
+    /// Salida estructurada, solo para las herramientas que se muestran como
+    /// bloque propio (`run_command`). Va ya redactada: es el mismo texto que se
+    /// guardó y que recibió el modelo.
+    data: Option<Value>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -539,6 +544,8 @@ async fn handle_update_step(
             tool_name: "update_step".into(),
             ok: true,
             brief: format!("Paso {step_order} → {status}"),
+            duration_ms: 0,
+            data: None,
         },
     );
     Ok((json!({ "ok": true }).to_string(), true))
@@ -616,7 +623,16 @@ async fn handle_agent_tool(
             }
         }
         if !approved {
-            emit_step_result(app, conversation_id, &call.name, false, "Rechazada por el usuario").await;
+            emit_step_result(
+                app,
+                conversation_id,
+                &call.name,
+                false,
+                "Rechazada por el usuario",
+                0,
+                None,
+            )
+            .await;
             return Ok(
                 (
                     json!({ "error": "El usuario RECHAZÓ esta acción. No la repitas sin instrucciones nuevas." })
@@ -627,7 +643,9 @@ async fn handle_agent_tool(
         }
     }
 
+    let inicio = std::time::Instant::now();
     let result = tool.execute(call.input.clone(), project_root).await;
+    let duracion_ms = inicio.elapsed().as_millis() as i64;
     let (output_json, ok, mut brief) = match result {
         Ok(value) => {
             let brief = summarize_output(&value);
@@ -669,7 +687,14 @@ async fn handle_agent_tool(
             )?;
         }
     }
-    emit_step_result(app, conversation_id, &call.name, ok, &brief).await;
+    // El bloque del comando se pinta con lo que realmente se guardó y se envió
+    // (ya redactado), no con el valor previo a tapar.
+    let datos = if call.name == "run_command" {
+        serde_json::from_str::<Value>(&output_json).ok()
+    } else {
+        None
+    };
+    emit_step_result(app, conversation_id, &call.name, ok, &brief, duracion_ms, datos).await;
     Ok((output_json, ok))
 }
 
@@ -679,6 +704,8 @@ async fn emit_step_result(
     tool_name: &str,
     ok: bool,
     brief: &str,
+    duration_ms: i64,
+    data: Option<Value>,
 ) {
     let state = app.state::<AppState>();
     let tasks = state
@@ -695,6 +722,8 @@ async fn emit_step_result(
             tool_name: tool_name.to_string(),
             ok,
             brief: brief.to_string(),
+            duration_ms,
+            data,
         },
     );
 }

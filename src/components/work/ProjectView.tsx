@@ -16,6 +16,7 @@ import { useChatStore } from "../../store/chatStore";
 import MessageBubble from "../MessageBubble";
 import Mascot from "../mascot/Mascot";
 import FileTree from "./FileTree";
+import CommandBlock from "./CommandBlock";
 import ResizeHandle from "./ResizeHandle";
 import TaskList from "./TaskList";
 import ToolApprovalModal from "./ToolApprovalModal";
@@ -352,7 +353,9 @@ export default function ProjectView() {
                 .map((m) => (
                   <MessageBubble key={m.id} message={m} />
                 ))}
-              {agentStatus !== "idle" && <ActivityLine lines={stepLines} />}
+              {/* Se deja visible también al terminar: lo que hizo el agente y el
+                  output de sus comandos tiene que poder leerse y copiarse despues. */}
+              <ActivityLine lines={stepLines} />
               {agentStatus === "running" && (
                 <div className="flex justify-start">
                   <div className="rounded-2xl rounded-bl-md px-4 py-2.5 text-sm bg-base-raised border border-base-border text-zinc-400">
@@ -520,19 +523,26 @@ export default function ProjectView() {
   );
 }
 
-function ActivityLine({ lines }: { lines: Array<{ toolName: string; ok: boolean; brief: string }> }) {
+function ActivityLine({ lines }: { lines: StepLine[] }) {
   if (lines.length === 0) return null;
   return (
-    <div className="ml-1 space-y-0.5 border-l-2 border-base-border pl-3">
-      {lines.map((l, i) => (
-        <div key={i} className="text-[11px] text-zinc-500 font-mono">
-          <span className={l.ok ? "text-emerald-500/80" : "text-red-400/80"}>
-            {l.ok ? "✓" : "✗"}
-          </span>{" "}
-          {l.toolName}
-          {l.brief && <span className="text-zinc-600"> — {l.brief}</span>}
-        </div>
-      ))}
+    <div className="ml-1 space-y-1 border-l-2 border-base-border pl-3">
+      {lines.map((l, i) =>
+        l.data ? (
+          <CommandBlock key={i} data={l.data} ok={l.ok} durationMs={l.durationMs} />
+        ) : (
+          <div key={i} className="text-[11px] text-zinc-500 font-mono">
+            <span className={l.ok ? "text-emerald-500/80" : "text-red-400/80"}>
+              {l.ok ? "✓" : "✗"}
+            </span>{" "}
+            {l.toolName}
+            {l.brief && <span className="text-zinc-600"> — {l.brief}</span>}
+            {l.durationMs > 0 && (
+              <span className="text-zinc-700"> · {l.durationMs} ms</span>
+            )}
+          </div>
+        ),
+      )}
     </div>
   );
 }
