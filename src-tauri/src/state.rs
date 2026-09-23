@@ -82,6 +82,10 @@ pub struct Settings {
     /// aprobación. Solo suena si la ventana no está en primer plano.
     #[serde(default = "default_true")]
     pub notify_on_finish: bool,
+    /// Tapar claves y tokens que el agente lee del proyecto antes de que la
+    /// salida de una herramienta salga hacia un proveedor en la nube.
+    #[serde(default = "default_true")]
+    pub redact_secrets: bool,
 }
 
 fn default_files_width() -> i64 {
@@ -140,6 +144,7 @@ impl Default for Settings {
             tasks_panel_width: default_tasks_width(),
             focus_mode: false,
             notify_on_finish: true,
+            redact_secrets: true,
         }
     }
 }

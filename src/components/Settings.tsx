@@ -714,7 +714,7 @@ export default function Settings() {
             <>
               <SectionTitle
                 title="General"
-                subtitle="Avisos de la app mientras trabajas en otra ventana."
+                subtitle="Avisos mientras trabajas en otra ventana, y qué sale de la máquina."
               />
               <section className="space-y-3">
                 <label className="flex items-start gap-3 rounded-lg border border-base-border bg-base px-3 py-3 cursor-pointer">
@@ -735,6 +735,31 @@ export default function Settings() {
                       cuando hace falta aprobar una acción. Solo se manda si la
                       ventana de Hatboo no está en primer plano: si la tienes
                       delante, ya lo estás viendo.
+                    </span>
+                  </span>
+                </label>
+                <label className="flex items-start gap-3 rounded-lg border border-base-border bg-base px-3 py-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={draft.redactSecrets}
+                    onChange={(e) =>
+                      setDraft({ ...draft, redactSecrets: e.target.checked })
+                    }
+                    className="mt-0.5 accent-violet-500"
+                  />
+                  <span className="space-y-0.5">
+                    <span className="block text-sm text-zinc-200">
+                      Tapar claves antes de enviarlas a un proveedor en la nube
+                    </span>
+                    <span className="block text-xs text-zinc-500">
+                      Cuando el agente lee un archivo del proyecto, las formas
+                      habituales de secreto (API keys, tokens de GitHub/Slack/
+                      Stripe/AWS, JWT, contraseñas en `clave = valor`, bloques de
+                      clave privada) se sustituyen por
+                      <code className="mx-1 font-mono text-accent-soft">[REDACTED]</code>
+                      antes de salir hacia Anthropic u OpenAI, y también antes de
+                      guardarse en el historial. Con un modelo local no se toca
+                      nada. Es un filtro de patrones, no un detector perfecto.
                     </span>
                   </span>
                 </label>

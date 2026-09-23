@@ -66,6 +66,7 @@ export interface Settings {
   tasksPanelWidth: number;
   focusMode: boolean;
   notifyOnFinish: boolean;
+  redactSecrets: boolean;
 }
 
 /** Límites del arrastre de los paneles del modo trabajo. */

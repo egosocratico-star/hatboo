@@ -3,6 +3,7 @@ pub mod backup;
 pub mod commands;
 pub mod db;
 pub mod providers;
+pub mod redact;
 pub mod state;
 pub mod web;
 

@@ -392,6 +392,10 @@ async fn run_loop(
         .ok()
         .and_then(|conn| db::enabled_skills_prompt(&conn).ok())
         .unwrap_or_default();
+    // Tapar solo tiene sentido cuando lo leído va a salir de la máquina: con el
+    // proveedor local el contenido viaja a tu propio Ollama.
+    let redactar = settings.redact_secrets
+        && matches!(settings.active_provider.as_str(), "anthropic" | "openai");
     let mut definitions = meta_tool_definitions();
     definitions.extend(agent_tools.iter().map(|t| t.definition()));
 
@@ -455,6 +459,7 @@ async fn run_loop(
                             approval_level,
                             &agent_tools,
                             &call,
+                            redactar,
                         )
                         .await?
                     };
@@ -546,6 +551,7 @@ async fn handle_agent_tool(
     approval_level: &str,
     agent_tools: &[Box<dyn tools::AgentTool>],
     call: &ToolCallRequest,
+    redactar: bool,
 ) -> Result<(String, bool), String> {
     let state = app.state::<AppState>();
     let tool = match agent_tools.iter().find(|t| t.name() == call.name) {
@@ -622,7 +628,7 @@ async fn handle_agent_tool(
     }
 
     let result = tool.execute(call.input.clone(), project_root).await;
-    let (output_json, ok, brief) = match result {
+    let (output_json, ok, mut brief) = match result {
         Ok(value) => {
             let brief = summarize_output(&value);
             (value.to_string(), true, brief)
@@ -632,6 +638,18 @@ async fn handle_agent_tool(
             false,
             e.to_string(),
         ),
+    };
+    // Lo que sale hacia el proveedor en la nube —y lo que se guarda en SQLite,
+    // que viaja en las copias— sale sin claves. Con un modelo local no se toca
+    // nada: no hay nada que tapar si nada abandona la máquina.
+    let output_json = if redactar {
+        let (rojo, tapadas) = crate::redact::redactar(&output_json);
+        if tapadas > 0 {
+            brief = format!("{brief} · {} clave(s) tapada(s)", tapadas);
+        }
+        rojo
+    } else {
+        output_json
     };
     {
         let conn = state.db.lock().map_err(|e| e.to_string())?;

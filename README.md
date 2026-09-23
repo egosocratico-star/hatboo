@@ -72,6 +72,13 @@ Abre una carpeta como proyecto y el agente planifica, ejecuta y reporta.
 Nada sale de tu máquina salvo lo que recibe el proveedor que hayas elegido. La
 búsqueda web consulta DuckDuckGo directamente, sin intermediarios ni cuenta.
 
+Cuando el agente lee archivos del proyecto, las formas habituales de secreto
+(API keys, tokens de GitHub/Slack/Stripe/AWS, JWT, contraseñas en `clave = valor`,
+bloques de clave privada) se sustituyen por `[REDACTED:…]` antes de salir hacia un
+proveedor en la nube y antes de guardarse en el historial. Con un modelo local no
+se altera nada. Es un filtro de patrones —reduce el daño de un `read_file` sobre un
+`.env`, no sustituye a un gestor de secretos— y se desactiva en **Ajustes → General**.
+
 En **Ajustes → Datos** puedes exportar todo a un único JSON, importar una copia
 (idempotente: importar dos veces no duplica nada) y restablecer de fábrica, que
 borra la base de datos, los adjuntos y las claves del llavero — pidiéndote escribir
