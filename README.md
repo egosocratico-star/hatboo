@@ -194,9 +194,10 @@ tests sin dependencias externas) corre solo ese subconjunto, marcado en
 `.github/workflows/ci.yml`.
 
 Al empujar una etiqueta `v*` se activa `.github/workflows/release.yml`, que
-compila el instalador de Windows y lo adjunta a una release. **Ya probado**: la
-`v0.3.0` se construyó y publicó sola en 8m32s. La versión hay que subirla a la
-vez en `package.json`, `src-tauri/Cargo.toml` y `src-tauri/tauri.conf.json`.
+compila el instalador de Windows y lo adjunta a una release. **Ya probado dos
+veces**: la `v0.3.0` se construyó y publicó sola en 8m32s y la `v0.4.0` en 10m50s.
+La versión hay que subirla a la vez en `package.json`, `src-tauri/Cargo.toml` y
+`src-tauri/tauri.conf.json`.
 
 ## Estructura
 
@@ -214,9 +215,10 @@ src-tauri/src/
 
 ## Límites conocidos
 
-- El razonamiento extendido no se aplica en el modo agente: Anthropic exige
-  reenviar los bloques `thinking` en el historial cuando hay herramientas, y eso
-  todavía no está hecho.
+- El razonamiento en el agente **cuesta caro por diseño**: el modelo piensa en cada
+  vuelta del loop, no una sola vez, así que con `high` una tarea de 20 pasos multiplica
+  el tiempo y los tokens. Con `off` (el valor por defecto) el agente no manda ningún
+  campo de razonamiento, igual que antes.
 - Los avisos de Windows salen **atribuidos a PowerShell mientras se ejecuta con
   `tauri dev`**: el complemento de notificaciones solo declara el identificador
   de aplicación cuando el ejecutable no vive en `target/`. Instalado desde el MSI
