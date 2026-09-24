@@ -37,6 +37,12 @@ export function useAgentEvents() {
         listen<ApprovalEvent>("agent:approval_needed", ({ payload }) => {
           useWorkStore.getState().onApprovalNeeded(payload);
         }),
+        listen<{ conversationId: string; text: string }>(
+          "agent:reasoning",
+          ({ payload }) => {
+            useWorkStore.getState().onReasoning(payload.conversationId, payload.text);
+          },
+        ),
         listen<{ conversationId: string; planId: string; tasks: unknown[] }>(
           "agent:plan_review",
           ({ payload }) => {

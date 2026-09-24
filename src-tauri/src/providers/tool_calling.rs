@@ -8,12 +8,16 @@ use serde_json::{json, Value};
 
 /// Mensaje del loop de agente: admite texto, peticiones de tool del asistente
 /// y resultados de tools del usuario.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct AgentMessage {
     pub role: String, // "user" | "assistant" | "tool"
     pub content: String,
     pub tool_calls: Vec<ToolCallRequest>,
     pub tool_call_id: Option<String>,
+    /// Bloques de razonamiento que devolvió el modelo en este turno. Anthropic
+    /// exige que se reenvíen tal cual en cuanto hay tools de por medio; si se
+    /// quitan, responde 400. Ver [`AgentResponse::ToolCalls`].
+    pub thinking: Vec<Value>,
 }
 
 #[derive(Debug, Clone)]
@@ -26,7 +30,13 @@ pub struct ToolCallRequest {
 #[derive(Debug)]
 pub enum AgentResponse {
     Text(String),
-    ToolCalls { text: Option<String>, calls: Vec<ToolCallRequest> },
+    ToolCalls {
+        text: Option<String>,
+        calls: Vec<ToolCallRequest>,
+        /// Los bloques de pensamiento en bruto, para reenviarlos en el turno
+        /// siguiente. Vacío si el modelo no pensó o el proveedor no los devuelve.
+        thinking: Vec<Value>,
+    },
 }
 
 impl AgentResponse {
@@ -37,6 +47,19 @@ impl AgentResponse {
             AgentResponse::ToolCalls { text: None, .. } => "",
         }
     }
+}
+
+/// Texto plano de unos bloques de razonamiento, para enseñarlos en la actividad.
+pub fn thinking_text(blocks: &[Value]) -> String {
+    blocks
+        .iter()
+        .filter_map(|b| {
+            b.get("thinking")
+                .or_else(|| b.get("text"))
+                .and_then(|t| t.as_str())
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 #[async_trait]
@@ -51,6 +74,13 @@ pub trait ToolCallingProvider: AiProvider {
 fn parse_openai_response(value: Value) -> Result<AgentResponse, ProviderError> {
     let message = &value["choices"][0]["message"];
     let text = message["content"].as_str().unwrap_or("").to_string();
+    // Los servidores compatibles llaman al razonamiento de una forma distinta
+    // (`reasoning_content` en OpenAI y llama.cpp, `reasoning` en Ollama).
+    let thinking: Vec<Value> = ["reasoning_content", "reasoning"]
+        .iter()
+        .filter_map(|key| message[*key].as_str().filter(|s| !s.is_empty()))
+        .map(|t| json!({ "type": "thinking", "thinking": t }))
+        .collect();
     let mut calls = Vec::new();
     if let Some(tool_calls) = message["tool_calls"].as_array() {
         for tc in tool_calls {
@@ -70,6 +100,7 @@ fn parse_openai_response(value: Value) -> Result<AgentResponse, ProviderError> {
         Ok(AgentResponse::ToolCalls {
             text: (!text.is_empty()).then_some(text),
             calls,
+            thinking,
         })
     }
 }
@@ -118,11 +149,17 @@ impl ToolCallingProvider for OpenAiProvider {
                 })
             })
             .collect();
-        let body = json!({
+        let mut body = json!({
             "model": self.model(),
             "messages": chat,
             "tools": tool_values,
         });
+        // El razonamiento aquí solo se pide, no se reenvía: en chat/completions no
+        // hay un sitio canónico para el pensamiento de turnos anteriores, y mandarlo
+        // donde no va hace que varios servidores locales respondan 400.
+        if let Some(effort) = self.reasoning_effort() {
+            body["reasoning_effort"] = json!(effort);
+        }
         let response = self.post(body, self.name()).await?;
         let value: Value = response
             .json()
@@ -164,24 +201,10 @@ impl ToolCallingProvider for AnthropicProvider {
                 continue;
             }
             match m.role.as_str() {
-                "assistant" => {
-                    let mut blocks: Vec<Value> = Vec::new();
-                    if !m.content.is_empty() {
-                        blocks.push(json!({ "type": "text", "text": m.content }));
-                    }
-                    for tc in &m.tool_calls {
-                        blocks.push(json!({
-                            "type": "tool_use",
-                            "id": tc.id,
-                            "name": tc.name,
-                            "input": tc.input,
-                        }));
-                    }
-                    if blocks.is_empty() {
-                        blocks.push(json!({ "type": "text", "text": "" }));
-                    }
-                    chat.push(json!({ "role": "assistant", "content": blocks }));
-                }
+                "assistant" => chat.push(json!({
+                    "role": "assistant",
+                    "content": assistant_blocks(m),
+                })),
                 "tool" => {
                     // Anthropic agrupa los tool_result en un mensaje de usuario.
                     let result = json!({
@@ -230,6 +253,11 @@ impl ToolCallingProvider for AnthropicProvider {
             "messages": chat,
             "max_tokens": 4096,
         });
+        if let Some(budget) = self.thinking_budget() {
+            body["thinking"] = json!({ "type": "enabled", "budget_tokens": budget });
+            // La API exige `max_tokens` por encima del presupuesto de pensamiento.
+            body["max_tokens"] = json!(budget + 4096);
+        }
         if !system.is_empty() {
             body["system"] = json!(system);
         }
@@ -245,6 +273,7 @@ impl ToolCallingProvider for AnthropicProvider {
 
         let mut text = String::new();
         let mut calls = Vec::new();
+        let mut thinking = Vec::new();
         if let Some(blocks) = value["content"].as_array() {
             for block in blocks {
                 match block["type"].as_str() {
@@ -254,6 +283,9 @@ impl ToolCallingProvider for AnthropicProvider {
                         name: block["name"].as_str().unwrap_or("").to_string(),
                         input: block["input"].clone(),
                     }),
+                    // `thinking` y `redacted_thinking`: se guardan enteros, con la
+                    // firma, porque la API la verifica al reenviarlos.
+                    Some("thinking") | Some("redacted_thinking") => thinking.push(block.clone()),
                     _ => {}
                 }
             }
@@ -264,8 +296,116 @@ impl ToolCallingProvider for AnthropicProvider {
             Ok(AgentResponse::ToolCalls {
                 text: (!text.is_empty()).then_some(text),
                 calls,
+                thinking,
             })
         }
+    }
+}
+
+/// Bloques de un turno de asistente, en el orden que exige Anthropic:
+/// pensamiento → texto → uso de herramientas.
+fn assistant_blocks(m: &AgentMessage) -> Vec<Value> {
+    let mut blocks: Vec<Value> = m.thinking.clone();
+    if !m.content.is_empty() {
+        blocks.push(json!({ "type": "text", "text": m.content }));
+    }
+    for tc in &m.tool_calls {
+        blocks.push(json!({
+            "type": "tool_use",
+            "id": tc.id,
+            "name": tc.name,
+            "input": tc.input,
+        }));
+    }
+    if blocks.is_empty() {
+        blocks.push(json!({ "type": "text", "text": "" }));
+    }
+    blocks
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn msg(role: &str, content: &str) -> AgentMessage {
+        AgentMessage {
+            role: role.into(),
+            content: content.into(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn un_turno_de_asistente_va_en_orden_pensamiento_texto_herramienta() {
+        let m = AgentMessage {
+            role: "assistant".into(),
+            content: "voy a leer".into(),
+            tool_calls: vec![ToolCallRequest {
+                id: "tu_1".into(),
+                name: "read_file".into(),
+                input: json!({ "path": "a.txt" }),
+            }],
+            tool_call_id: None,
+            thinking: vec![json!({ "type": "thinking", "thinking": "piensa", "signature": "s" })],
+        };
+        let blocks = assistant_blocks(&m);
+        assert_eq!(blocks[0]["type"], json!("thinking"));
+        assert_eq!(blocks[0]["signature"], json!("s"));
+        assert_eq!(blocks[1]["type"], json!("text"));
+        assert_eq!(blocks[2]["type"], json!("tool_use"));
+    }
+
+    #[test]
+    fn un_turno_sin_nada_no_queda_en_bloques_vacios() {
+        let m = msg("assistant", "");
+        let blocks = assistant_blocks(&m);
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0]["text"], json!(""));
+    }
+
+    #[test]
+    fn el_texto_de_razonamiento_se_extrae_de_cualquier_bloque() {
+        let blocks = vec![
+            json!({ "type": "thinking", "thinking": "primero esto" }),
+            json!({ "type": "redacted_thinking", "data": "xyz" }),
+            json!({ "type": "reasoning", "text": "y esto" }),
+        ];
+        assert_eq!(thinking_text(&blocks), "primero esto\ny esto");
+        assert_eq!(thinking_text(&[]), "");
+    }
+
+    #[test]
+    fn openai_capturea_razonamiento_aunque_no_haya_texto_visible() {
+        let respuesta = json!({
+            "choices": [{
+                "message": {
+                    "content": null,
+                    "reasoning_content": "déjame mirar",
+                    "tool_calls": [{
+                        "id": "c1",
+                        "function": { "name": "list_dir", "arguments": "{}" }
+                    }]
+                }
+            }]
+        });
+        match parse_openai_response(respuesta).unwrap() {
+            AgentResponse::ToolCalls { text, calls, thinking } => {
+                assert!(text.is_none());
+                assert_eq!(calls.len(), 1);
+                assert_eq!(thinking_text(&thinking), "déjame mirar");
+            }
+            other => panic!("se esperaban tool calls, llegó {other:?}"),
+        }
+    }
+
+    /// El presupuesto de Anthropic se construye sobre el cuerpo del chat, que es
+    /// el mismo código que usa el loop (comparte `thinking_budget`).
+    #[test]
+    fn provider_sin_razonamiento_no_declara_presupuesto() {
+        let p = AnthropicProvider::new("k".into(), "claude-test".into());
+        assert_eq!(p.thinking_budget(), None);
+        let p = p.with_reasoning("medium");
+        assert_eq!(p.thinking_budget(), Some(6000));
     }
 }
 

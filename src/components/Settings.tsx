@@ -764,11 +764,13 @@ export default function Settings() {
                 <div className="flex items-center justify-between gap-4 rounded-lg border border-base-border bg-base px-3 py-3">
                   <div className="min-w-0">
                     <p className="text-sm text-zinc-300">
-                      Pensamiento extendido en el chat
+                      Pensamiento extendido
                     </p>
                     <p className="text-xs text-zinc-500 mt-0.5">
-                      Pide al modelo que razone antes de responder. Solo funciona
-                      con modelos que lo soportan y no afecta al modo trabajo.
+                      Pide al modelo que razone antes de responder, en el chat y
+                      también en el modo trabajo. Solo funciona con modelos que lo
+                      soportan. En el agente cuesta más caro: piensa en cada uno de
+                      sus vueltas, no una sola vez.
                     </p>
                   </div>
                   <div className="shrink-0 flex rounded-lg border border-base-border bg-base-raised p-0.5">

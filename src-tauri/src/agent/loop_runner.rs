@@ -90,6 +90,62 @@ struct ErrorPayload {
     message: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ReasoningPayload {
+    conversation_id: String,
+    text: String,
+}
+
+/// El razonamiento del turno, para la línea de actividad.
+fn reasoning_resumen(blocks: &[Value]) -> String {
+    let texto = crate::providers::tool_calling::thinking_text(blocks);
+    // El bloque completo, con `budget_tokens` altos, son miles de líneas; en la
+    // vista solo hace falta ver por dónde ha ido el modelo.
+    texto.trim().chars().take(600).collect()
+}
+
+fn emit_reasoning(app: &tauri::AppHandle, conversation_id: &str, blocks: &[Value]) {
+    let text = reasoning_resumen(blocks);
+    if text.is_empty() {
+        return;
+    }
+    let _ = app.emit(
+        "agent:reasoning",
+        ReasoningPayload {
+            conversation_id: conversation_id.to_string(),
+            text,
+        },
+    );
+}
+
+#[cfg(test)]
+mod pruebas_razonamiento {
+    use super::reasoning_resumen;
+    use serde_json::json;
+
+    #[test]
+    fn sin_texto_util_no_sale_nada() {
+        assert_eq!(reasoning_resumen(&[]), "");
+        assert_eq!(
+            reasoning_resumen(&[json!({ "type": "thinking", "thinking": "   " })]),
+            ""
+        );
+        // Un bloque redactado no trae texto legible que enseñar.
+        assert_eq!(
+            reasoning_resumen(&[json!({ "type": "redacted_thinking", "data": "xyz" })]),
+            ""
+        );
+    }
+
+    #[test]
+    fn se_recorta_a_seiscientos_caracteres() {
+        let largo = "a".repeat(900);
+        let resumen = reasoning_resumen(&[json!({ "type": "thinking", "thinking": largo })]);
+        assert_eq!(resumen.chars().count(), 600);
+    }
+}
+
 fn meta_tool_definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
@@ -428,14 +484,12 @@ async fn run_loop(
                 settings.code_mode,
                 &crate::commands::project_rules_for_prompt(project_root),
             ),
-            tool_calls: Vec::new(),
-            tool_call_id: None,
+            ..Default::default()
         },
         AgentMessage {
             role: "user".into(),
             content: user_request.to_string(),
-            tool_calls: Vec::new(),
-            tool_call_id: None,
+            ..Default::default()
         },
     ];
 
@@ -453,14 +507,24 @@ async fn run_loop(
                 finish_done(app, conversation_id, &text).await?;
                 return Ok(());
             }
-            AgentResponse::ToolCalls { text, calls } => {
+            AgentResponse::ToolCalls {
+                text,
+                calls,
+                thinking,
+            } => {
                 if iteration == MAX_ITERATIONS - 1 {
                     return Err("El agente alcanzó el máximo de iteraciones sin terminar.".into());
+                }
+                if !thinking.is_empty() {
+                    emit_reasoning(app, conversation_id, &thinking);
                 }
                 messages.push(AgentMessage {
                     role: "assistant".into(),
                     content: text.unwrap_or_default(),
                     tool_calls: calls.clone(),
+                    // Con razonamiento activado hay que devolverlos: Anthropic
+                    // rechaza el turno siguiente si faltan.
+                    thinking,
                     tool_call_id: None,
                 });
 
@@ -484,8 +548,8 @@ async fn run_loop(
                     messages.push(AgentMessage {
                         role: "tool".into(),
                         content: truncate_for_model(output_json),
-                        tool_calls: Vec::new(),
                         tool_call_id: Some(call.id.clone()),
+                        ..Default::default()
                     });
                     let _ = ok;
                 }

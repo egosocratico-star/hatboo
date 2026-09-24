@@ -59,14 +59,12 @@ async fn agent_tool_loop_with_real_model() {
                  del proyecto. Después responde con un resumen corto.",
                 dir.display()
             ),
-            tool_calls: Vec::new(),
-            tool_call_id: None,
+            ..Default::default()
         },
         AgentMessage {
             role: "user".into(),
             content: "Lista los archivos de la raíz del proyecto con list_dir.".into(),
-            tool_calls: Vec::new(),
-            tool_call_id: None,
+            ..Default::default()
         },
     ];
 
@@ -83,12 +81,17 @@ async fn agent_tool_loop_with_real_model() {
                 assert!(!text.trim().is_empty(), "respuesta final vacía");
                 break;
             }
-            AgentResponse::ToolCalls { text, calls } => {
+            AgentResponse::ToolCalls {
+                text,
+                calls,
+                thinking,
+            } => {
                 assert!(!calls.is_empty());
                 messages.push(AgentMessage {
                     role: "assistant".into(),
                     content: text.unwrap_or_default(),
                     tool_calls: calls.clone(),
+                    thinking,
                     tool_call_id: None,
                 });
                 for call in calls {
@@ -103,8 +106,8 @@ async fn agent_tool_loop_with_real_model() {
                     messages.push(AgentMessage {
                         role: "tool".into(),
                         content: output,
-                        tool_calls: Vec::new(),
                         tool_call_id: Some(call.id.clone()),
+                        ..Default::default()
                     });
                 }
             }

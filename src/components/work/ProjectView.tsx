@@ -25,6 +25,7 @@ import PlanReviewModal from "./PlanReviewModal";
 import ApprovalLevelPicker from "./ApprovalLevelPicker";
 import ProjectRules from "./ProjectRules";
 import SessionChanges from "./SessionChanges";
+import ThinkingBlock from "../ThinkingBlock";
 import HtmlPreview from "./HtmlPreview";
 import WorkPlusMenu from "./WorkPlusMenu";
 import ModeToggles from "../ModeToggles";
@@ -563,7 +564,9 @@ function ActivityLine({ lines }: { lines: StepLine[] }) {
   return (
     <div className="ml-1 space-y-1 border-l-2 border-base-border pl-3">
       {lines.map((l, i) =>
-        l.data ? (
+        l.reasoning ? (
+          <ThinkingBlock key={i} reasoning={l.reasoning} />
+        ) : l.data ? (
           <CommandBlock key={i} data={l.data} ok={l.ok} durationMs={l.durationMs} />
         ) : (
           <div key={i} className="text-[11px] text-zinc-500 font-mono">

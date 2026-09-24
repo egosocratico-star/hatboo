@@ -27,6 +27,8 @@ interface StepLine {
   brief: string;
   durationMs: number;
   data?: CommandData | null;
+  /** Razonamiento del turno del agente, cuando el modelo piensa de más. */
+  reasoning?: string;
 }
 
 export type { StepLine };
@@ -116,6 +118,7 @@ interface WorkStore {
   onPlan: (conversationId: string, tasks: Task[]) => void;
   onStepResult: (result: StepResult) => void;
   onApprovalNeeded: (approval: PendingApproval) => void;
+  onReasoning: (conversationId: string, text: string) => void;
   onPlanReview: (review: PlanReview) => void;
   confirmPlan: (pasos?: string[]) => Promise<void>;
   onDone: (conversationId: string, summary: string) => void;
@@ -479,6 +482,19 @@ export const useWorkStore = create<WorkStore>((set, get) => {
 
     onApprovalNeeded: (approval) => {
       patchSession(approval.conversationId, { approval, agentStatus: "awaiting" });
+    },
+
+    onReasoning: (conversationId, text) => {
+      const projectId = projectOfSession(get().tabs, conversationId);
+      if (!projectId) return;
+      const tab = get().tabs[projectId];
+      if (!tab) return;
+      patchTab(projectId, {
+        stepLines: [
+          ...tab.stepLines,
+          { toolName: "razonamiento", ok: true, brief: "", durationMs: 0, reasoning: text },
+        ].slice(-30),
+      });
     },
 
     onDone: (conversationId) => {

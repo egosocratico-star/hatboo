@@ -106,6 +106,10 @@ impl AnthropicProvider {
         &self.model
     }
 
+    pub(crate) fn thinking_budget(&self) -> Option<u32> {
+        self.thinking_budget
+    }
+
     pub(crate) async fn post(&self, body: serde_json::Value) -> Result<reqwest::Response, ProviderError> {
         let response = reqwest::Client::new()
             .post(ANTHROPIC_URL)

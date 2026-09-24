@@ -63,6 +63,10 @@ impl OpenAiProvider {
         &self.model
     }
 
+    pub(crate) fn reasoning_effort(&self) -> Option<&str> {
+        self.reasoning_effort.as_deref()
+    }
+
     pub(crate) fn client_body(&self, messages: &[ChatMessage], stream: bool) -> serde_json::Value {
         let chat: Vec<_> = messages
             .iter()
