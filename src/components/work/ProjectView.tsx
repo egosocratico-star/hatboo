@@ -349,17 +349,18 @@ export default function ProjectView() {
 
         {approvalLevel === "full_access" && (
           <div className="mx-4 mt-3 rounded-lg border border-red-500/50 bg-red-500/10 px-3 py-2 text-xs text-red-300">
-            <span className="font-semibold">{t("Acceso total activo:")}</span> el agente
-            ejecuta todas las acciones sin pedir aprobación, incluida escritura
-            de archivos y comandos. Las rutas siguen limitadas a la carpeta del
-            proyecto.
+            <span className="font-semibold">{t("Acceso total activo:")}</span>{" "}
+            {t(
+              "el agente ejecuta todas las acciones sin pedir aprobación, incluida escritura de archivos y comandos. Las rutas siguen limitadas a la carpeta del proyecto.",
+            )}
           </div>
         )}
 
         {toolSupport === false && (
           <div className="mx-4 mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
-            Este modelo no soporta tool calling — cambia de proveedor o modelo
-            en Ajustes para usar el modo trabajo.
+            {t(
+              "Este modelo no soporta tool calling — cambia de proveedor o modelo en Ajustes para usar el modo trabajo.",
+            )}
           </div>
         )}
 

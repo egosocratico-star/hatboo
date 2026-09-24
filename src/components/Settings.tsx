@@ -332,10 +332,10 @@ function ApiKeyField({ provider }: { provider: string }) {
     <div className="space-y-1.5">
       <div className="flex items-center gap-2 text-xs text-zinc-400">
         <KeyRound className="w-3.5 h-3.5" />
-        API key de {provider}
+        {t("API key de {p}", { p: provider })}
         {configured && (
           <span className="ml-1 inline-flex items-center gap-1 text-emerald-400">
-            <CheckCircle2 className="w-3 h-3" /> guardada en el llavero
+            <CheckCircle2 className="w-3 h-3" /> {t("guardada en el llavero")}
           </span>
         )}
       </div>
@@ -463,7 +463,15 @@ export default function Settings() {
     try {
       const r = await invoke<ExportSummary>("export_all_data", { path });
       setDataMsg(
-        `Copia creada con ${r.conversations} conversación(es), ${r.messages} mensaje(s) y ${r.images} imagen(es) · ${Math.max(1, Math.round(r.bytes / 1024))} KB`,
+        t(
+          "Copia creada con {c} conversación(es), {m} mensaje(s) y {i} imagen(es) · {kb} KB",
+          {
+            c: r.conversations,
+            m: r.messages,
+            i: r.images,
+            kb: Math.max(1, Math.round(r.bytes / 1024)),
+          },
+        ),
       );
     } catch (e) {
       setDataErr(String(e));
@@ -484,11 +492,22 @@ export default function Settings() {
     try {
       const r = await invoke<ImportReport>("import_all_data", { path });
       setDataMsg(
-        `Importación terminada: ${r.conversationsAdded} conversación(es) y ${r.messagesAdded} mensaje(s) nuevos` +
-          (r.skillsAdded > 0 ? `, ${r.skillsAdded} plantilla(s)` : "") +
-          (r.skippedExisting > 0 ? `, ${r.skippedExisting} elemento(s) ya estaban` : "") +
-          (r.imagesRestored > 0 ? `, ${r.imagesRestored} imagen(es) restaurada(s)` : "") +
-          (r.imagesMissing > 0 ? `, ${r.imagesMissing} imagen(es) no estaban en la copia` : ""),
+        t("Importación terminada: {c} conversación(es) y {m} mensaje(s) nuevos", {
+          c: r.conversationsAdded,
+          m: r.messagesAdded,
+        }) +
+          (r.skillsAdded > 0
+            ? t(", {n} plantilla(s)", { n: r.skillsAdded })
+            : "") +
+          (r.skippedExisting > 0
+            ? t(", {n} elemento(s) ya estaban", { n: r.skippedExisting })
+            : "") +
+          (r.imagesRestored > 0
+            ? t(", {n} imagen(es) restaurada(s)", { n: r.imagesRestored })
+            : "") +
+          (r.imagesMissing > 0
+            ? t(", {n} imagen(es) no estaban en la copia", { n: r.imagesMissing })
+            : ""),
       );
       reloadEverywhere();
     } catch (e) {
@@ -662,7 +681,7 @@ export default function Settings() {
             })}
             {visible.length === 0 && (
               <p className="px-2 py-3 text-xs text-zinc-600">
-                Sin coincidencias para «{query.trim()}».
+                {t("Sin coincidencias para «{q}».", { q: query.trim() })}
               </p>
             )}
           </div>
@@ -717,8 +736,9 @@ export default function Settings() {
                     {t("Credenciales")}
                   </h2>
                   <p className="text-xs text-zinc-500">
-                    Las keys se guardan en el llavero del sistema operativo,
-                    nunca en la base de datos.
+                    {t(
+                      "Las keys se guardan en el llavero del sistema operativo, nunca en la base de datos.",
+                    )}
                   </p>
                   <ApiKeyField provider={draft.activeProvider} />
                 </section>
@@ -907,7 +927,7 @@ export default function Settings() {
                   />
                   <span className="space-y-0.5">
                     <span className="block text-sm text-zinc-200">
-                      Habilitar{" "}
+                      {t("Habilitar")}{" "}
                       <code className="font-mono text-accent-soft">
                         run_command
                       </code>
@@ -1338,15 +1358,13 @@ export default function Settings() {
                         {t("Restablecer Hatboo")}
                       </p>
                       <p className="text-[11px] leading-snug text-zinc-400">
-                        Se borran de este PC todas las conversaciones, los
-                        proyectos, las tareas, las imágenes adjuntas y los
-                        ajustes, y también las claves de API del llavero. No se
-                        puede deshacer: exporta una copia antes si quieres
-                        conservar algo. Escribe{" "}
+                        {t(
+                          "Se borran de este PC todas las conversaciones, los proyectos, las tareas, las imágenes adjuntas y los ajustes, y también las claves de API del llavero. No se puede deshacer: exporta una copia antes si quieres conservar algo. Escribe",
+                        )}{" "}
                         <span className="font-medium text-zinc-100">
                           {RESET_TOKEN}
                         </span>{" "}
-                        para confirmar.
+                        {t("para confirmar.")}
                       </p>
                       <input
                         value={resetText}
@@ -1419,9 +1437,10 @@ export default function Settings() {
                 subtitle={t("Esta categoría está en desarrollo.")}
               />
               <p className="text-sm text-zinc-500">
-                Aquí irá el control de {CATEGORIES.find((c) => c.id === cat)?.label.toLowerCase()} de
-                Hatboo. Todavía no está construido; volveremos en una próxima
-                tanda.
+                {t(
+                  "Aquí irá el control de {c} de Hatboo. Todavía no está construido; volveremos en una próxima tanda.",
+                  { c: CATEGORIES.find((k) => k.id === cat)?.label.toLowerCase() ?? "" },
+                )}
               </p>
             </>
           )}

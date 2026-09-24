@@ -164,7 +164,7 @@ export default function ProviderModelPicker() {
           )}
 
           <div className="text-[10px] uppercase tracking-wider text-zinc-600 px-2 pt-2 pb-0.5">
-            Modelo ({PROVIDER_LABELS[settings.activeProvider]})
+            {t("Modelo ({p})", { p: PROVIDER_LABELS[settings.activeProvider] })}
           </div>
           {settings.activeProvider === "local" ? (
             <div className="px-1 pb-1 space-y-1 min-h-[96px]">
@@ -288,7 +288,7 @@ export default function ProviderModelPicker() {
             className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] text-zinc-500 hover:bg-base-hover/60 hover:text-zinc-200 transition-colors"
           >
             <Settings2 className="w-3 h-3" />
-            Ajustes (claves, endpoints, pruebas)
+            {t("Ajustes (claves, endpoints, pruebas)")}
             <ExternalLink className="w-3 h-3 ml-auto" />
           </button>
       </Popover>

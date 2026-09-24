@@ -92,9 +92,10 @@ export default function ProjectRules({ projectId }: { projectId: string }) {
             {t("Reglas de este proyecto")}
           </p>
           <p className="text-[11px] text-zinc-500 break-all">
-            {reglas?.path ?? "HATBOO.md"} — se añade al prompt del agente al
-            empezar cada sesión de trabajo de esta carpeta. No amplía el sandbox
-            ni quita aprobaciones.
+            {t(
+              "{p} — se añade al prompt del agente al empezar cada sesión de trabajo de esta carpeta. No amplía el sandbox ni quita aprobaciones.",
+              { p: reglas?.path ?? "HATBOO.md" },
+            )}
           </p>
         </div>
 

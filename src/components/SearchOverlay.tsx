@@ -157,7 +157,7 @@ export default function SearchOverlay() {
           )}
           {query.trim().length >= 2 && !buscando && hits.length === 0 && (
             <p className="px-4 py-6 text-center text-xs text-zinc-600">
-              Nada coincide con «{query.trim()}».
+              {t("Nada coincide con «{q}».", { q: query.trim() })}
             </p>
           )}
           {grupos.map((g) => (

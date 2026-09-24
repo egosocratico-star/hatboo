@@ -62,7 +62,7 @@ export default function PlanReviewModal() {
             onClick={() => setPasos((prev) => [...prev, ""])}
             className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs text-zinc-400 hover:text-layer hover:bg-base-hover transition-colors"
           >
-            <Plus className="w-3.5 h-3.5" /> Añadir un paso
+            <Plus className="w-3.5 h-3.5" /> {t("Añadir un paso")}
           </button>
         </div>
 

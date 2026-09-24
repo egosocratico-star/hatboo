@@ -469,4 +469,39 @@ export const en: Record<string, string> = {
   Argumentos: "Arguments",
   Rechazar: "Reject",
   Aprobar: "Approve",
+  // Frases que van pegadas a un elemento en línea o a una expresión `{...}` y
+  // que el primer barrido por líneas dejó fuera.
+  Soy: "I'm",
+  "Modelo ({p})": "Model ({p})",
+  "Ajustes (claves, endpoints, pruebas)": "Settings (keys, endpoints, tests)",
+  "Nada coincide con «{q}».": "Nothing matches “{q}”.",
+  Habilitar: "Enable",
+  "Se borran de este PC todas las conversaciones, los proyectos, las tareas, las imágenes adjuntas y los ajustes, y también las claves de API del llavero. No se puede deshacer: exporta una copia antes si quieres conservar algo. Escribe":
+    "Every conversation, project, task, attached image and setting is deleted from this PC, along with the API keys in the keychain. This can't be undone: export a copy first if you want to keep anything. Type",
+  "para confirmar.": "to confirm.",
+  "Aquí irá el control de {c} de Hatboo. Todavía no está construido; volveremos en una próxima tanda.":
+    "Hatboo's {c} controls will live here. It isn't built yet; we'll come back to it in a later round.",
+  "{n} fuente de la web": "{n} web source",
+  "{n} fuentes de la web": "{n} web sources",
+  "Añadir un paso": "Add a step",
+  "{p} — se añade al prompt del agente al empezar cada sesión de trabajo de esta carpeta. No amplía el sandbox ni quita aprobaciones.":
+    "{p} — added to the agent's prompt at the start of every work session in this folder. It doesn't widen the sandbox or remove approvals.",
+  "el agente ejecuta todas las acciones sin pedir aprobación, incluida escritura de archivos y comandos. Las rutas siguen limitadas a la carpeta del proyecto.":
+    "the agent runs every action without asking, including writing files and commands. Paths stay limited to the project folder.",
+  "Este modelo no soporta tool calling — cambia de proveedor o modelo en Ajustes para usar el modo trabajo.":
+    "This model doesn't support tool calling — change provider or model in Settings to use work mode.",
+  "El agente quiere ejecutar": "The agent wants to run",
+  "API key de {p}": "{p} API key",
+  "guardada en el llavero": "stored in the keychain",
+  "Copia creada con {c} conversación(es), {m} mensaje(s) y {i} imagen(es) · {kb} KB":
+    "Backup created with {c} conversation(s), {m} message(s) and {i} image(s) · {kb} KB",
+  "Importación terminada: {c} conversación(es) y {m} mensaje(s) nuevos":
+    "Import finished: {c} conversation(s) and {m} message(s) added",
+  ", {n} plantilla(s)": ", {n} template(s)",
+  ", {n} elemento(s) ya estaban": ", {n} item(s) were already there",
+  ", {n} imagen(es) restaurada(s)": ", {n} image(s) restored",
+  ", {n} imagen(es) no estaban en la copia": ", {n} image(s) weren't in the backup",
+  "Sin coincidencias para «{q}».": "Nothing matches “{q}”.",
+  "Las keys se guardan en el llavero del sistema operativo, nunca en la base de datos.":
+    "Keys are stored in the operating system's keychain, never in the database.",
 };

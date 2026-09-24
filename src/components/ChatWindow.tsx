@@ -375,7 +375,7 @@ export default function ChatWindow() {
           <div className="flex flex-col items-center gap-3">
             <Mascot state={mascotState} size={120} />
             <h1 className="text-2xl font-semibold tracking-tight">
-              {saludo(new Date().getHours())}. Soy{" "}
+              {saludo(new Date().getHours())}. {t("Soy")}{" "}
               <span className="text-accent-soft">{assistantName}</span>
             </h1>
           </div>

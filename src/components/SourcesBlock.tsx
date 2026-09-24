@@ -23,7 +23,9 @@ export default function SourcesBlock({ sources }: { sources: WebSource[] }) {
       >
         <Globe className="w-3.5 h-3.5" />
         <span>
-          {sources.length} {sources.length === 1 ? "fuente" : "fuentes"} de la web
+          {sources.length === 1
+            ? t("{n} fuente de la web", { n: sources.length })
+            : t("{n} fuentes de la web", { n: sources.length })}
         </span>
         <ChevronDown
           className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`}
