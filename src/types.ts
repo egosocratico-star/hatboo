@@ -63,6 +63,10 @@ export interface Settings {
   codeMode: boolean;
   webSearch: boolean;
   chatFontSize: ChatFontSize;
+  chatFontFamily: ChatFontFamily;
+  avatarStyle: AvatarStyle;
+  avatarColor: string;
+  avatarEmoji: string;
   sidebarCompact: boolean;
   filesPanelOpen: boolean;
   tasksPanelOpen: boolean;
@@ -90,6 +94,44 @@ export const CHAT_FONT_SIZES: { id: ChatFontSize; label: string; px: number }[] 
 ];
 
 export type ReasoningEffort = "off" | "low" | "medium" | "high";
+
+export type ChatFontFamily = "sans" | "serif" | "mono";
+
+export type AvatarStyle = "mascota" | "inicial" | "emoji";
+
+export const AVATAR_STYLES: { id: AvatarStyle; label: string }[] = [
+  { id: "mascota", label: "Mascota" },
+  { id: "inicial", label: "Inicial" },
+  { id: "emoji", label: "Emoji" },
+];
+
+/** Paleta fija en vez de un selector de color libre: así el texto de encima
+ *  siempre contrasta, que es el motivo por el que no se deja un `input[type=color]`. */
+export const AVATAR_COLORS: { id: string; label: string; bg: string; fg: string }[] = [
+  { id: "violeta", label: "Violeta", bg: "#7c5cff", fg: "#ffffff" },
+  { id: "cielo", label: "Cielo", bg: "#38bdf8", fg: "#0b1220" },
+  { id: "esmeralda", label: "Esmeralda", bg: "#34d399", fg: "#06281d" },
+  { id: "ambar", label: "Ámbar", bg: "#fbbf24", fg: "#3b2600" },
+  { id: "rosa", label: "Rosa", bg: "#f472b6", fg: "#3d0a24" },
+  { id: "pizarra", label: "Pizarra", bg: "#475569", fg: "#f1f5f9" },
+];
+
+/** Las tres familias se resuelven contra variables CSS en index.css, así que
+ *  cada una sigue usando las fuentes que el tema ya declara. */
+export const CHAT_FONTS: { id: ChatFontFamily; label: string }[] = [
+  { id: "sans", label: "Sans" },
+  { id: "serif", label: "Serif" },
+  { id: "mono", label: "Monoespaciada" },
+];
+
+/** Pilas literales en vez de tokens: se inyectan como `--chat-font` en la lista
+ *  de mensajes y todo lo de dentro hereda. El código de RichText sigue en mono
+ *  por su cuenta, así que elegir "serif" no vuelve ilegible un bloque de código. */
+export const CHAT_FONT_STACKS: Record<ChatFontFamily, string> = {
+  sans: '"Inter", "Segoe UI", system-ui, sans-serif',
+  serif: 'Georgia, "Times New Roman", serif',
+  mono: '"Cascadia Code", "Consolas", ui-monospace, monospace',
+};
 
 export type MotionChoice = "system" | "reduced";
 

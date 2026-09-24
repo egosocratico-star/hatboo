@@ -69,6 +69,19 @@ pub struct Settings {
     /// Tamaño del texto de las respuestas del chat: `sm` | `md` | `lg`.
     #[serde(default = "default_chat_font_size")]
     pub chat_font_size: String,
+    /// Familia del texto del chat: `sans` | `serif` | `mono`.
+    #[serde(default = "default_chat_font_family")]
+    pub chat_font_family: String,
+    /// Avatar de la tarjeta de perfil: `mascota` | `inicial` | `emoji`.
+    #[serde(default = "default_avatar_style")]
+    pub avatar_style: String,
+    /// Uno de los colores fijos de `AVATAR_COLORS`; se guarda el identificador,
+    /// no un color libre, para que el contraste con el texto esté garantizado.
+    #[serde(default = "default_avatar_color")]
+    pub avatar_color: String,
+    /// Carácter que se pinta cuando `avatar_style` es `emoji`.
+    #[serde(default = "default_avatar_emoji")]
+    pub avatar_emoji: String,
     /// La barra lateral reducida a iconos.
     #[serde(default)]
     pub sidebar_compact: bool,
@@ -113,6 +126,22 @@ fn default_chat_font_size() -> String {
     "md".to_string()
 }
 
+fn default_chat_font_family() -> String {
+    "sans".to_string()
+}
+
+fn default_avatar_style() -> String {
+    "mascota".to_string()
+}
+
+fn default_avatar_color() -> String {
+    "violeta".to_string()
+}
+
+fn default_avatar_emoji() -> String {
+    "🎩".to_string()
+}
+
 fn default_reasoning() -> String {
     "off".to_string()
 }
@@ -148,6 +177,10 @@ impl Default for Settings {
             code_mode: false,
             web_search: false,
             chat_font_size: default_chat_font_size(),
+            chat_font_family: default_chat_font_family(),
+            avatar_style: default_avatar_style(),
+            avatar_color: default_avatar_color(),
+            avatar_emoji: default_avatar_emoji(),
             sidebar_compact: false,
             files_panel_open: true,
             tasks_panel_open: true,

@@ -31,11 +31,17 @@ import { useChatStore } from "../store/chatStore";
 import { useWorkStore } from "../store/workStore";
 import SkillsSettings from "./SkillsSettings";
 import ThemePicker from "./ThemePicker";
+import Avatar from "./Avatar";
 import { applyMotion, applyTheme, applyVibrancy, type ThemeChoice } from "../theme";
 import {
   REASONING_LEVELS,
   CHAT_FONT_SIZES,
+  CHAT_FONTS,
+  CHAT_FONT_STACKS,
   MOTION_OPTIONS,
+  AVATAR_STYLES,
+  AVATAR_COLORS,
+  type AvatarStyle,
   type ReasoningEffort,
   type MotionChoice,
   type Settings as SettingsType,
@@ -924,6 +930,25 @@ export default function Settings() {
                       </button>
                     ))}
                   </div>
+                  <p className="mt-3 mb-1.5 text-xs text-zinc-500">Fuente</p>
+                  <div className="flex gap-1">
+                    {CHAT_FONTS.map((f) => (
+                      <button
+                        key={f.id}
+                        onClick={() =>
+                          void patchAppearance({ chatFontFamily: f.id })
+                        }
+                        className={`px-2.5 py-1 rounded-md text-xs transition-colors ${
+                          (draft.chatFontFamily || "sans") === f.id
+                            ? "bg-accent/20 text-accent-soft"
+                            : "text-zinc-500 hover:text-zinc-300"
+                        }`}
+                        style={{ fontFamily: CHAT_FONT_STACKS[f.id] }}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
                   <p
                     className="mt-2.5 text-zinc-300"
                     style={{
@@ -931,6 +956,8 @@ export default function Settings() {
                         CHAT_FONT_SIZES.find(
                           (f) => f.id === (draft.chatFontSize || "md"),
                         )?.px ?? 15,
+                      fontFamily:
+                        CHAT_FONT_STACKS[draft.chatFontFamily || "sans"],
                     }}
                   >
                     Ejemplo: así se vería una respuesta de Hatboo.
@@ -973,6 +1000,69 @@ export default function Settings() {
                     por ese nombre. Solo local.
                   </span>
                 </label>
+
+                <div className="rounded-lg border border-base-border bg-base px-3 py-3">
+                  <p className="text-sm text-zinc-200">Avatar</p>
+                  <p className="mt-0.5 mb-2.5 text-xs text-zinc-500">
+                    Sin subir un archivo: color de una paleta fija y qué se pinta
+                    encima. Se ve en la tarjeta de perfil del lateral.
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <Avatar
+                      style={(draft.avatarStyle || "mascota") as AvatarStyle}
+                      colorId={draft.avatarColor || "violeta"}
+                      emoji={draft.avatarEmoji || "🎩"}
+                      name={draft.assistantName?.trim() || "Hatboo"}
+                      size={44}
+                    />
+                    <div className="flex gap-1">
+                      {AVATAR_STYLES.map((a) => (
+                        <button
+                          key={a.id}
+                          onClick={() => setDraft({ ...draft, avatarStyle: a.id })}
+                          className={`px-2.5 py-1 rounded-md text-xs transition-colors ${
+                            (draft.avatarStyle || "mascota") === a.id
+                              ? "bg-accent/20 text-accent-soft"
+                              : "text-zinc-500 hover:text-zinc-300"
+                          }`}
+                        >
+                          {a.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-1.5 mt-3">
+                    {AVATAR_COLORS.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => setDraft({ ...draft, avatarColor: c.id })}
+                        title={c.label}
+                        aria-label={c.label}
+                        className={`w-6 h-6 rounded-full transition-shadow ${
+                          (draft.avatarColor || "violeta") === c.id
+                            ? "ring-2 ring-offset-2 ring-accent ring-offset-base"
+                            : "hover:scale-110"
+                        }`}
+                        style={{ background: c.bg }}
+                      />
+                    ))}
+                  </div>
+
+                  {draft.avatarStyle === "emoji" && (
+                    <label className="block space-y-1 mt-3">
+                      <span className="text-xs text-zinc-500">Emoji</span>
+                      <input
+                        value={draft.avatarEmoji ?? "🎩"}
+                        maxLength={4}
+                        onChange={(e) =>
+                          setDraft({ ...draft, avatarEmoji: e.target.value })
+                        }
+                        className={field + " w-24 text-center text-lg"}
+                      />
+                    </label>
+                  )}
+                </div>
               </section>
             </>
           )}

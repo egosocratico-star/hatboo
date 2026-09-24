@@ -24,8 +24,9 @@ import { useWorkStore } from "../store/workStore";
 import ContextMenu, { type MenuItem } from "./ContextMenu";
 import Popover from "./Popover";
 import ThemePicker from "./ThemePicker";
+import Avatar from "./Avatar";
 import { type ThemeChoice } from "../theme";
-import type { Conversation, Project } from "../types";
+import type { Conversation, Project, AvatarStyle } from "../types";
 
 const PROVIDER_LABEL: Record<string, string> = {
   anthropic: "Anthropic",
@@ -557,9 +558,12 @@ export default function Sidebar() {
           className="w-full flex items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-base-hover transition-colors"
           title="Menú rápido"
         >
-          <span className="grid place-items-center w-8 h-8 shrink-0 rounded-full bg-accent/15 border border-accent/30">
-            <Ghost className="w-4 h-4 text-accent-soft" />
-          </span>
+          <Avatar
+            style={(settings?.avatarStyle ?? "mascota") as AvatarStyle}
+            colorId={settings?.avatarColor ?? "violeta"}
+            emoji={settings?.avatarEmoji ?? "🎩"}
+            name={assistantName}
+          />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm text-zinc-200">{assistantName}</span>
             <span className="block truncate text-[11px] text-zinc-500">

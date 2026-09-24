@@ -21,7 +21,7 @@ import PermissionPicker from "./PermissionPicker";
 import ModeToggles from "./ModeToggles";
 import ThinkingBlock, { formatDuration } from "./ThinkingBlock";
 import type { Attachment, MascotState } from "../types";
-import { CHAT_FONT_SIZES } from "../types";
+import { CHAT_FONT_SIZES, CHAT_FONT_STACKS } from "../types";
 
 const SUGGESTIONS = [
   "Resúmeme un archivo",
@@ -55,6 +55,7 @@ export default function ChatWindow() {
   });
   const activeId = useChatStore((s) => s.activeId);
   const chatFontSize = useChatStore((s) => s.settings?.chatFontSize ?? "md");
+  const chatFontFamily = useChatStore((s) => s.settings?.chatFontFamily ?? "sans");
   const assistantName = useChatStore((s) => s.settings?.assistantName?.trim() || "Hatboo");
   const findNonce = useChatStore((s) => s.findNonce);
   const sendMessage = useChatStore((s) => s.sendMessage);
@@ -171,7 +172,10 @@ export default function ChatWindow() {
   const fontPx = CHAT_FONT_SIZES.find((f) => f.id === chatFontSize)?.px ?? 15;
   // La lista exporta el tamaño base; RichText y la burbuja del usuario derivan
   // el suyo con calc(), así escalar mueve todo el texto a la vez.
-  const fontVars = { "--chat-fs": `${fontPx}px` } as CSSProperties;
+  const fontVars = {
+    "--chat-fs": `${fontPx}px`,
+    "--chat-font": CHAT_FONT_STACKS[chatFontFamily],
+  } as CSSProperties;
 
   useEffect(() => {
     const el = listRef.current;
