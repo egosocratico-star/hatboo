@@ -171,6 +171,11 @@ src-tauri/src/
 - El razonamiento extendido no se aplica en el modo agente: Anthropic exige
   reenviar los bloques `thinking` en el historial cuando hay herramientas, y eso
   todavía no está hecho.
+- Los avisos de Windows salen **atribuidos a PowerShell mientras se ejecuta con
+  `tauri dev`**: el complemento de notificaciones solo declara el identificador
+  de aplicación cuando el ejecutable no vive en `target/`. Instalado desde el MSI
+  o el NSIS ya aparece como Hatboo. En **Ajustes → General** hay un *Probar aviso*
+  que lanza uno sin mirar si la ventana está delante.
 - Sin cuentas, sin sincronización entre dispositivos y sin autoactualización.
 - Los instaladores publicados en `bundle/` no se regeneran en cada cambio; la
   versión actual es la del manifiesto (`tauri.conf.json`).

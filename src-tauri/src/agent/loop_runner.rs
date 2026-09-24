@@ -28,7 +28,12 @@ fn notify(app: &tauri::AppHandle, title: &str, body: &str) {
     if en_frente {
         return;
     }
-    let _ = app.notification().builder().title(title).body(body).show();
+    // Un aviso que no sale no debe pasar desapercibido: en `tauri dev` el
+    // complemento no pone el AppUserModelID (lo salta cuando el ejecutable vive
+    // en target/), así que Windows atribuye el toast a PowerShell o lo descarta.
+    if let Err(e) = app.notification().builder().title(title).body(body).show() {
+        eprintln!("no se pudo mostrar el aviso: {e}");
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]

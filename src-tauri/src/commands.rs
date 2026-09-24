@@ -1422,10 +1422,23 @@ fn dir_size(path: &std::path::Path) -> (u64, usize) {
     (bytes, files)
 }
 
+/// Manda un aviso de prueba **sin mirar si la ventana está en primer plano**.
+/// Sin esto, comprobar el camino del toast exigía poner el ratón en otra ventana
+/// mientras una sesión de trabajo terminaba de verdad.
+#[tauri::command]
+pub fn test_notification(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri_plugin_notification::NotificationExt;
+    app.notification()
+        .builder()
+        .title("Hatboo")
+        .body("Si ves esto, los avisos de sesión llegan bien.")
+        .show()
+        .map_err(|e| format!("Windows no pudo mostrar el aviso: {e}"))
+}
+
 /// Dónde vive lo que Hatboo guarda en este PC y cuánto ocupa.
 #[tauri::command]
-pub fn get_storage_info(app: State<AppState>) -> Result<StorageInfo, String> {
-    let db_path = app.data_dir.join("hatboo.db");
+pub fn get_storage_info(app: State<AppState>) -> Result<StorageInfo, String> {    let db_path = app.data_dir.join("hatboo.db");
     let db_size_bytes = db_path
         .metadata()
         .map(|m| m.len())

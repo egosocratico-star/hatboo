@@ -321,6 +321,7 @@ export default function Settings() {
   const [draft, setDraft] = useState<SettingsType | null>(settings);
   const [savingMsg, setSavingMsg] = useState(false);
   const [saveErr, setSaveErr] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
   const [cat, setCat] = useState<CategoryId>("api");
   const [query, setQuery] = useState("");
   const setView = useChatStore((s) => s.setView);
@@ -745,6 +746,24 @@ export default function Settings() {
                     </span>
                   </span>
                 </label>
+                <div className="flex items-center gap-2 px-1">
+                  <button
+                    onClick={() => {
+                      setAviso(null);
+                      void invoke("test_notification").then(
+                        () => setAviso("Aviso enviado. Mira la esquina de Windows."),
+                        (e) => setAviso(String(e))
+                      );
+                    }}
+                    className="px-2.5 py-1 rounded-lg border border-base-border text-xs text-zinc-300 hover:border-accent/50 hover:text-zinc-100 transition-colors"
+                  >
+                    Probar aviso
+                  </button>
+                  <p className="text-xs text-zinc-500">
+                    {aviso ??
+                      "Este no comprueba si la ventana está delante: lo lanza igual."}
+                  </p>
+                </div>
                 <label className="flex items-start gap-3 rounded-lg border border-base-border bg-base px-3 py-3 cursor-pointer">
                   <input
                     type="checkbox"
