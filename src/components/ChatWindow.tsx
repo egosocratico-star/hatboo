@@ -177,10 +177,17 @@ export default function ChatWindow() {
     "--chat-font": CHAT_FONT_STACKS[chatFontFamily],
   } as CSSProperties;
 
+  // El salto del scroll es suave cuando LLEGA un mensaje y directo mientras se
+  // escribe: durante el streaming llegan fragmentos cada pocos milisegundos, y
+  // pedir "smooth" en cada uno hace que el navegador persiga un objetivo que ya
+  // cambió — que era justo el tirón que se quitó en la tanda 6.
+  const largoPrevio = useRef(messages.length);
   useEffect(() => {
     const el = listRef.current;
     if (!el || !pinnedRef.current) return;
-    el.scrollTop = el.scrollHeight;
+    const mensajeNuevo = messages.length !== largoPrevio.current;
+    largoPrevio.current = messages.length;
+    el.scrollTo({ top: el.scrollHeight, behavior: mensajeNuevo ? "smooth" : "auto" });
   }, [messages.length, streamingText, streamingReasoning]);
 
   // Cronómetro en vivo del pensamiento; `startedAt` lo fija el store al llegar

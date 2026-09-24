@@ -235,6 +235,13 @@ export default function ProjectView() {
     <div className="flex-1 flex flex-col min-h-0">
       {openProjectIds.length > 0 && TabBar}
       <div className="flex-1 flex min-h-0">
+      {/* Desviación deliberada de la guía de visual, que dice "anima translateX,
+       *  no width". Eso vale para un cajón que se superpone; aquí los paneles son
+       *  columnas de un flex y al plegarlas el chat TIENE que quedarse el hueco,
+       *  así que el layout cambia de todos modos en cada fotograma. Mover el panel
+       *  con transform dejaría el ancho saltando al final: peor. Lo que sí se hace
+       *  es recortar el coste: 200 ms justos, y `hatboo-resizing` mata la
+       *  transición mientras se arrastra el ancho a mano. */}
       <div
         className={`shrink-0 overflow-clip bg-base-raised/40 transition-[width] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] ${
           filesOpen ? "border-r border-base-border" : "w-0"
