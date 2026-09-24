@@ -215,6 +215,10 @@ src-tauri/src/
 
 ## Límites conocidos
 
+- No hay "memoria" entre conversaciones, ni selector Chat/Cowork en línea: se probaron y se
+  descartaron a propósito.
+- La interfaz está traducida al inglés, pero el texto que escribe el modelo sigue
+  en el idioma que se le pida.
 - El razonamiento en el agente **cuesta caro por diseño**: el modelo piensa en cada
   vuelta del loop, no una sola vez, así que con `high` una tarea de 20 pasos multiplica
   el tiempo y los tokens. Con `off` (el valor por defecto) el agente no manda ningún
