@@ -9,10 +9,10 @@ llavero del sistema operativo.
 Escrito con **Tauri 2** (Rust) + **React 18** + **TypeScript** + **Tailwind** +
 **Zustand** + **SQLite** (`rusqlite`).
 
-> Estado: app personal en desarrollo, versión **0.2.0** para Windows. Funciona,
-> no hay autoactualización y los binarios todavía no se han publicado: hay un
-> flujo de release por etiqueta, pero no se ha ejecutado nunca, así que por
-> ahora se compila desde el código.
+> Estado: app personal en desarrollo, versión **0.3.0** para Windows. Funciona,
+> no hay autoactualización. Los binarios se publican como release de GitHub al
+> empujar una etiqueta `v*` — el flujo ya está probado y funcionando, ver
+> [`v0.3.0`](https://github.com/egosocratico-star/hatboo/releases/tag/v0.3.0).
 
 ---
 
@@ -153,10 +153,9 @@ tests sin dependencias externas) corre solo ese subconjunto, marcado en
 `.github/workflows/ci.yml`.
 
 Al empujar una etiqueta `v*` se activa `.github/workflows/release.yml`, que
-compila el instalador de Windows y lo adjunta a una release. **Aún no se ha
-ejecutado nunca**: la primera vez puede requerir ajustes, y la versión hay que
-subirla a la vez en `package.json`, `src-tauri/Cargo.toml` y
-`src-tauri/tauri.conf.json`.
+compila el instalador de Windows y lo adjunta a una release. **Ya probado**: la
+`v0.3.0` se construyó y publicó sola en 8m32s. La versión hay que subirla a la
+vez en `package.json`, `src-tauri/Cargo.toml` y `src-tauri/tauri.conf.json`.
 
 ## Estructura
 

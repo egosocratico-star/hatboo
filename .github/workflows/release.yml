@@ -3,10 +3,10 @@ name: Release
 # Construye el instalador de Windows y lo cuelga de una GitHub release al empujar
 # una etiqueta tipo `v0.3.0`.
 #
-# AVISO: este flujo no se ha ejecutado nunca. Está escrito contra la acción
-# oficial de Tauri, pero la primera vez que se pruebe puede pedir ajustes (la
-# compilación de Tauri en runner es lenta y sensible al entorno). La versión debe
+# Probado con la v0.3.0: se construyó y publicó solo, en 8m32s. La versión debe
 # subir a la vez en package.json, src-tauri/Cargo.toml y src-tauri/tauri.conf.json.
+# El cuerpo de la release lo deja tauri-action con un texto por defecto; para un
+# changelog real hay que pasarle `releaseBody` o editarlo a mano.
 on:
   push:
     tags:
