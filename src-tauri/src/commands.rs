@@ -688,8 +688,24 @@ pub fn save_project_rules(
 /// construir el proveedor y leer el historial (que codifica las imágenes adjuntas
 /// en base64) se hace dentro de la tarea. Antes se hacían en el propio comando,
 /// y eso era el parón que se veía entre pulsar Enviar y ver el mensaje en pantalla.
-fn spawn_chat_stream(app: tauri::AppHandle, conversation_id: String) -> Result<(), String> {
-    let state = app.state::<AppState>();
+/// El *system prompt* del chat normal, sin efectos secundarios: lo arma
+/// `spawn_chat_stream` y lo mide `context_usage` para el indicador de contexto.
+/// Los bloques van en este orden fijo y las plantillas activas al final, de modo
+/// que si chocan con el modo código gane lo que el usuario escribió a mano.
+fn chat_system_prompt(settings: &state::Settings, skills: &str) -> String {
+    let mut system = String::new();
+    let name = settings.assistant_name.trim();
+    if !name.is_empty() {
+        system.push_str(&format!("El usuario prefiere que lo llames «{name}».\n"));
+    }
+    if settings.code_mode {
+        system.push_str(CODE_MODE_PROMPT);
+    }
+    system.push_str(skills);
+    system
+}
+
+fn spawn_chat_stream(app: tauri::AppHandle, conversation_id: String) -> Result<(), String> {    let state = app.state::<AppState>();
     let (tx, mut rx) = tokio::sync::mpsc::channel::<StreamDelta>(64);
     let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel::<()>();
     state
@@ -724,23 +740,13 @@ fn spawn_chat_stream(app: tauri::AppHandle, conversation_id: String) -> Result<(
         let provider_name = provider.name().to_string();
         let mut messages = prompt;
 
-        let mut system = String::new();
-        let name = settings.assistant_name.trim();
-        if !name.is_empty() {
-            system.push_str(&format!("El usuario prefiere que lo llames «{name}».\n"));
-        }
-        if settings.code_mode {
-            system.push_str(CODE_MODE_PROMPT);
-        }
-        // Las plantillas activas van al final: si algo choca con el modo código,
-        // gana lo que el usuario escribió a mano para esa plantilla.
         let skills = state
             .db
             .lock()
             .ok()
             .and_then(|conn| db::enabled_skills_prompt(&conn).ok())
             .unwrap_or_default();
-        system.push_str(&skills);
+        let system = chat_system_prompt(&settings, &skills);
         let system = system.trim();
         if !system.is_empty() {
             messages.insert(
@@ -1434,6 +1440,45 @@ pub fn test_notification(app: tauri::AppHandle) -> Result<(), String> {
         .body("Si ves esto, los avisos de sesión llegan bien.")
         .show()
         .map_err(|e| format!("Windows no pudo mostrar el aviso: {e}"))
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContextUsage {
+    /// Caracteres de texto que saldrían hacia el proveedor en el próximo turno.
+    pub chars: usize,
+    /// Estimación a ojo: ~4 caracteres por token. No es el contador del proveedor.
+    pub est_tokens: usize,
+    pub messages: usize,
+    /// Las imágenes viajan en base64 y dominan el costo real; se cuentan aparte
+    /// para que el número de texto no parezca mentira.
+    pub images: usize,
+}
+
+/// Lo que ocuparía el prompt del próximo turno de esta conversación. Cuenta el
+/// mismo `history()` que usa `spawn_chat_stream`, así que el adjunto ya va
+/// antepuesto como `[Archivo adjunto: …]` y el número no se desvía del real.
+#[tauri::command]
+pub fn context_usage(app: State<AppState>, conversation_id: String) -> Result<ContextUsage, String> {
+    let messages = history(&app, &conversation_id)?;
+    let settings = state::load_settings(&app);
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    let skills = db::enabled_skills_prompt(&conn)?;
+    drop(conn);
+    let system = chat_system_prompt(&settings, &skills);
+
+    let mut chars = system.trim().chars().count();
+    let mut images = 0usize;
+    for m in &messages {
+        chars += m.content.chars().count();
+        images += m.images.len();
+    }
+    Ok(ContextUsage {
+        chars,
+        est_tokens: chars / 4,
+        messages: messages.len(),
+        images,
+    })
 }
 
 /// Dónde vive lo que Hatboo guarda en este PC y cuánto ocupa.

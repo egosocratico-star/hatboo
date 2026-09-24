@@ -15,6 +15,7 @@ import RichText from "./RichText";
 import AttachmentImage from "./AttachmentThumb";
 import Mascot from "./mascot/Mascot";
 import ProviderModelPicker from "./ProviderModelPicker";
+import ContextMeter from "./ContextMeter";
 import ChatPlusMenu from "./ChatPlusMenu";
 import PermissionPicker from "./PermissionPicker";
 import ModeToggles from "./ModeToggles";
@@ -307,6 +308,7 @@ export default function ChatWindow() {
         <PermissionPicker open={permOpen} onOpenChange={setPermOpen} />
         <ModeToggles />
         <div className="flex-1 min-w-0" />
+        <ContextMeter conversationId={activeId} tick={messages.length} />
         <ProviderModelPicker />
         {busy ? (
           <button

@@ -36,6 +36,12 @@ Escrito con **Tauri 2** (Rust) + **React 18** + **TypeScript** + **Tailwind** +
   la burbuja queda limpia) o imágenes cuando el modelo tiene visión. Las imágenes
   viven en disco, no dentro de la base de datos.
 - **Buscar dentro de la conversación** con `Ctrl+F`.
+- **Indicador de contexto**: en la barra del compositor se ve cuánto ocuparía el
+  prompt del próximo turno (`Contexto ≈ 7,2 mil`). Lo calcula el backend con el
+  mismo historial que se envía, así que los archivos adjuntos cuentan; los tokens
+  son una estimación (~4 caracteres por token), no el contador del proveedor, y
+  las imágenes van aparte porque en base64 dominan el costo real. Se oculta en
+  conversaciones cortas.
 - **Plantillas (skills)**: fragmentos de instrucciones escritos por ti. Si una está
   activada, viaja en el *system prompt* de cada respuesta; si no, puedes insertarla
   en un mensaje concreto desde el menú `+`.

@@ -68,6 +68,7 @@ pub fn run() {
             commands::set_project_pinned,
             commands::set_window_transparency,
             commands::test_notification,
+            commands::context_usage,
             commands::project_rules,
             commands::save_project_rules,
             commands::cancel_work_task,
