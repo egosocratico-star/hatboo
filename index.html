@@ -12,6 +12,9 @@
         if (t === "light" || t === "dark") {
           document.documentElement.dataset.theme = t;
         }
+        if (localStorage.getItem("hatboo-motion") === "reduced") {
+          document.documentElement.dataset.motion = "reduced";
+        }
       } catch (e) {}
     </script>
   </head>

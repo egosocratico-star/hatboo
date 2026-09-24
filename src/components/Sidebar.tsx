@@ -23,8 +23,9 @@ import { useChatStore } from "../store/chatStore";
 import { useWorkStore } from "../store/workStore";
 import ContextMenu, { type MenuItem } from "./ContextMenu";
 import Popover from "./Popover";
-import { THEMES } from "../theme";
-import type { Conversation } from "../types";
+import ThemePicker from "./ThemePicker";
+import { type ThemeChoice } from "../theme";
+import type { Conversation, Project } from "../types";
 
 const PROVIDER_LABEL: Record<string, string> = {
   anthropic: "Anthropic",
@@ -43,6 +44,22 @@ const fmtDate = (ms: number) =>
     hour: "2-digit",
     minute: "2-digit",
   }).format(ms);
+
+/** "ahora" / "hace 12 min" / "ayer" en vez de la fecha exacta: lo que importa
+ *  es la cercanía. La fecha completa se queda en el `title`. */
+function haceRelativo(ms: number): string {
+  const minutos = Math.floor((Date.now() - ms) / 60_000);
+  if (minutos < 1) return "ahora";
+  if (minutos < 60) return `hace ${minutos} min`;
+  const horas = Math.floor(minutos / 60);
+  if (horas < 24) return `hace ${horas} h`;
+  const dias = Math.floor(horas / 24);
+  if (dias === 1) return "ayer";
+  if (dias < 7) return `hace ${dias} días`;
+  const semanas = Math.floor(dias / 7);
+  if (semanas < 5) return `hace ${semanas} sem`;
+  return fmtDate(ms);
+}
 
 function SessionRow({
   conv,
@@ -83,7 +100,7 @@ function SessionRow({
       <span className="flex-1 truncate">{conv.title}</span>
       {conv.pinned && <Pin className="w-3 h-3 shrink-0 text-accent-soft/70" />}
       <span className="shrink-0 text-[10px] text-zinc-600 group-hover:hidden">
-        {fmtDate(conv.updatedAt)}
+        {haceRelativo(conv.updatedAt)}
       </span>
       <button
         onClick={(ev) => {
@@ -127,6 +144,7 @@ export default function Sidebar() {
   const selectSession = useWorkStore((s) => s.selectSession);
   const newWorkSession = useWorkStore((s) => s.newWorkSession);
   const removeProject = useWorkStore((s) => s.removeProject);
+  const setProjectPinned = useWorkStore((s) => s.setProjectPinned);
   const focus = settings?.focusMode ?? false;
   // El modo foco es un arreglo del workspace: en la vista de chat la barra
   // lateral sigue con su propio estado, si no se quedaría sin forma de salir.
@@ -139,6 +157,11 @@ export default function Sidebar() {
     setExpanded((e) => ({ ...e, [id]: !e[id] }));
   const [showArchived, setShowArchived] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number; conv: Conversation } | null>(null);
+  const [projectMenu, setProjectMenu] = useState<{
+    x: number;
+    y: number;
+    project: Project;
+  } | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLButtonElement>(null);
   const setConversationFlags = useChatStore((s) => s.setConversationFlags);
@@ -147,6 +170,26 @@ export default function Sidebar() {
     e.preventDefault();
     setMenu({ x: e.clientX, y: e.clientY, conv });
   };
+
+  const openProjectMenu = (project: Project) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setProjectMenu({ x: e.clientX, y: e.clientY, project });
+  };
+
+  const projectMenuItems = (p: Project): MenuItem[] => [
+    {
+      label: p.pinned ? "Dejar de fijar" : "Fijar arriba",
+      icon: <Pin className="w-3.5 h-3.5" />,
+      onSelect: () => void setProjectPinned(p.id, !p.pinned),
+    },
+    {
+      label: "Quitar de la lista",
+      icon: <Trash2 className="w-3.5 h-3.5" />,
+      danger: true,
+      onSelect: () => void removeProject(p.id),
+    },
+  ];
 
   const menuItems = (conv: Conversation): MenuItem[] => [
     {
@@ -387,6 +430,7 @@ export default function Sidebar() {
                   void selectProject(p.id);
                   setExpanded((e) => ({ ...e, [p.id]: true }));
                 }}
+                onContextMenu={openProjectMenu(p)}
                 title={p.rootPath}
               >
                 <button
@@ -405,6 +449,12 @@ export default function Sidebar() {
                 </button>
                 <Briefcase className="w-3.5 h-3.5 shrink-0 text-accent-soft/70" />
                 <span className="flex-1 truncate">{p.name}</span>
+                {p.pinned && (
+                  <Pin
+                    className="w-3 h-3 shrink-0 text-accent-soft/70"
+                    aria-label="Proyecto fijado"
+                  />
+                )}
                 {tab && (
                   <span
                     className="shrink-0 w-1.5 h-1.5 rounded-full bg-accent-soft/80"
@@ -532,21 +582,11 @@ export default function Sidebar() {
             <p className="px-1.5 pb-1 text-[10px] uppercase tracking-wider text-zinc-600">
               Tema
             </p>
-            <div className="flex gap-1">
-              {THEMES.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => patchSettings({ theme: t.id })}
-                  className={`flex-1 rounded-md px-2 py-1.5 text-xs transition-colors ${
-                    (settings?.theme ?? "dark") === t.id
-                      ? "bg-accent/15 text-accent-soft"
-                      : "text-zinc-400 hover:bg-base-hover hover:text-zinc-200"
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
+            <ThemePicker
+              value={(settings?.theme ?? "dark") as ThemeChoice}
+              onChange={(id) => patchSettings({ theme: id })}
+              grow
+            />
           </div>
           <div className="pt-1 border-t border-base-border space-y-0.5">
             <button
@@ -581,6 +621,14 @@ export default function Sidebar() {
           y={menu.y}
           items={menuItems(menu.conv)}
           onClose={() => setMenu(null)}
+        />
+      )}
+      {projectMenu && (
+        <ContextMenu
+          x={projectMenu.x}
+          y={projectMenu.y}
+          items={projectMenuItems(projectMenu.project)}
+          onClose={() => setProjectMenu(null)}
         />
       )}
     </aside>

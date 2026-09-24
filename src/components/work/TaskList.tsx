@@ -25,6 +25,13 @@ interface Props {
   running: boolean;
 }
 
+/** El modelo ya suele numerar sus propios pasos («1. Lista los archivos…»), así
+ *  que el número que nosotros pintamos salía doble. Se quita el suyo y mandamos
+ *  el nuestro, que es el único que coincide con `stepOrder`. */
+function sinNumero(texto: string): string {
+  return texto.replace(/^\s*\d+[.)]\s*/, "");
+}
+
 export default function TaskList({ tasks, stepLines, running }: Props) {
   return (
     <div className="h-full flex flex-col">
@@ -48,7 +55,7 @@ export default function TaskList({ tasks, stepLines, running }: Props) {
             <span className="shrink-0 mt-0.5">{ICONS[t.status]}</span>
             <span>
               <span className="text-zinc-500 mr-1">{t.stepOrder}.</span>
-              {t.description}
+              {sinNumero(t.description)}
             </span>
           </div>
         ))}

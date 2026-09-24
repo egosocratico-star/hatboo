@@ -30,11 +30,14 @@ import {
 import { useChatStore } from "../store/chatStore";
 import { useWorkStore } from "../store/workStore";
 import SkillsSettings from "./SkillsSettings";
-import { applyTheme, THEMES } from "../theme";
+import ThemePicker from "./ThemePicker";
+import { applyMotion, applyTheme, applyVibrancy, type ThemeChoice } from "../theme";
 import {
   REASONING_LEVELS,
   CHAT_FONT_SIZES,
+  MOTION_OPTIONS,
   type ReasoningEffort,
+  type MotionChoice,
   type Settings as SettingsType,
   type StorageInfo,
   type ExportSummary,
@@ -479,6 +482,10 @@ export default function Settings() {
     const next = { ...draft, ...part };
     setDraft(next);
     if (part.theme) applyTheme(part.theme);
+    if (part.motion) applyMotion(part.motion);
+    // Al cambiar de tema con Mica puesto hay que volver a pedir el tinte nuevo.
+    if (part.theme && next.windowTransparency) applyVibrancy(true);
+    if (part.windowTransparency !== undefined) applyVibrancy(part.windowTransparency);
     setSaveErr(null);
     try {
       await saveSettings(next);
@@ -824,22 +831,57 @@ export default function Settings() {
                     «Sistema» sigue el claro/oscuro de Windows mientras la app
                     esté abierta.
                   </p>
+                  <ThemePicker
+                    value={(draft.theme || "dark") as ThemeChoice}
+                    onChange={(id) => void patchAppearance({ theme: id })}
+                  />
+                </div>
+
+                <div className="rounded-lg border border-base-border bg-base px-3 py-3">
+                  <p className="text-sm text-zinc-200">Movimiento</p>
+                  <p className="mt-0.5 mb-2.5 text-xs text-zinc-500">
+                    «Reducido» quita animaciones y transiciones solo dentro de
+                    Hatboo, sin tocar el ajuste de Windows.
+                  </p>
                   <div className="flex gap-1">
-                    {THEMES.map((t) => (
+                    {MOTION_OPTIONS.map((m) => (
                       <button
-                        key={t.id}
-                        onClick={() => void patchAppearance({ theme: t.id })}
+                        key={m.id}
+                        onClick={() =>
+                          void patchAppearance({ motion: m.id as MotionChoice })
+                        }
                         className={`px-2.5 py-1 rounded-md text-xs transition-colors ${
-                          (draft.theme || "dark") === t.id
+                          (draft.motion || "system") === m.id
                             ? "bg-accent/20 text-accent-soft"
                             : "text-zinc-500 hover:text-zinc-300"
                         }`}
                       >
-                        {t.label}
+                        {m.label}
                       </button>
                     ))}
                   </div>
                 </div>
+
+                <label className="flex items-start gap-3 rounded-lg border border-base-border bg-base px-3 py-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!draft.windowTransparency}
+                    onChange={(e) =>
+                      void patchAppearance({ windowTransparency: e.target.checked })
+                    }
+                    className="mt-0.5 accent-violet-500"
+                  />
+                  <span className="space-y-0.5">
+                    <span className="block text-sm text-zinc-200">
+                      Fondo translúcido de la ventana
+                    </span>
+                    <span className="block text-xs text-zinc-500">
+                      Mica, compuesto por Windows detrás de la app, no por nosotros.
+                      Solo en Windows 11. Puede ir fino al arrastrar o redimensionar
+                      la ventana; si te molesta, desactívalo.
+                    </span>
+                  </span>
+                </label>
 
                 <div className="rounded-lg border border-base-border bg-base px-3 py-3">
                   <p className="text-sm text-zinc-200">Tamaño del texto del chat</p>

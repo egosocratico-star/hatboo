@@ -52,6 +52,10 @@ export interface Settings {
   openaiModel: string;
   localModel: string;
   theme: string;
+  /** `system` obedece a `prefers-reduced-motion` del SO; `reduced` lo fuerza. */
+  motion: MotionChoice;
+  /** Fondo Mica de Windows detrás del webview. Solo Windows, apagado por defecto. */
+  windowTransparency: boolean;
   runCommandEnabled: boolean;
   assistantName: string;
   reasoningEffort: ReasoningEffort;
@@ -86,6 +90,15 @@ export const CHAT_FONT_SIZES: { id: ChatFontSize; label: string; px: number }[] 
 ];
 
 export type ReasoningEffort = "off" | "low" | "medium" | "high";
+
+export type MotionChoice = "system" | "reduced";
+
+/** `system` deja decidir a `prefers-reduced-motion`; `reduced` lo impone dentro
+ *  de Hatboo para quien no quiere tocar la configuración del SO. */
+export const MOTION_OPTIONS: { id: MotionChoice; label: string }[] = [
+  { id: "system", label: "Sistema" },
+  { id: "reduced", label: "Reducido" },
+];
 
 export interface StorageInfo {
   dbPath: string;
@@ -186,6 +199,7 @@ export interface Project {
   createdAt: number;
   lastOpenedAt: number;
   approvalLevel: ApprovalLevel;
+  pinned: boolean;
 }
 
 export interface Task {

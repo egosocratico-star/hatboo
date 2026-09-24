@@ -40,6 +40,10 @@ Escrito con **Tauri 2** (Rust) + **React 18** + **TypeScript** + **Tailwind** +
   activada, viaja en el *system prompt* de cada respuesta; si no, puedes insertarla
   en un mensaje concreto desde el menú `+`.
 - **Exportar** la conversación a Markdown o JSON (incluye razonamiento y fuentes).
+- **Barra lateral**: clic derecho para fijar arriba, archivar o borrar. Lo fijado
+  manda sobre la recencia y lo archivado se esconde sin borrarse; las horas se
+  enseñan relativas («ahora», «hace 12 min», «ayer») y la fecha exacta queda en el
+  aviso al pasar por encima. Se puede reducir a un riel de iconos con `Ctrl+B`.
 
 ## Modo trabajo (agente)
 
@@ -62,7 +66,8 @@ Abre una carpeta como proyecto y el agente planifica, ejecuta y reporta.
   de la vista (*Reglas*). Son contexto sobre el proyecto: no amplían el sandbox ni
   saltan aprobaciones.
 - Sesiones anidadas por proyecto, árbol de archivos con buscador, lista de tareas en
-  vivo y pestañas para varios proyectos a la vez.
+  vivo y pestañas para varios proyectos a la vez. Los proyectos también se fijan con
+  clic derecho, y abrir dos veces la misma carpeta no crea un segundo proyecto.
 
 ## Privacidad y dónde están los datos
 
@@ -92,6 +97,15 @@ borra la base de datos, los adjuntos y las claves del llavero — pidiéndote es
 Tema **oscuro**, **claro** o **Sistema** (sigue el de Windows mientras la app está
 abierta), y tamaño del texto del chat. Los colores están tokenizados en variables
 CSS, así que cambiar de tema no toca ningún componente.
+
+**Movimiento**: con **Reducido** se quitan animaciones y transiciones solo dentro
+de Hatboo, sin tocar el ajuste del sistema operativo. Con **Sistema** manda
+`prefers-reduced-motion`.
+
+**Fondo translúcido** (solo Windows 11, apagado por defecto): pide a Windows que
+componga Mica detrás de la ventana en vez de pintar un fondo opaco. Está detrás
+de un interruptor a propósito —el propio crate avisa de que va fino al arrastrar
+o redimensionar la ventana—, así que pruébalo antes de dejarlo fijo.
 
 ## Atajos
 

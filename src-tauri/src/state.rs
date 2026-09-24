@@ -32,7 +32,11 @@ impl AppState {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
+// `default` a nivel de contenedor: un campo nuevo sin `#[serde(default)]` propio
+// se rellena desde `Settings::default()` en vez de hacer fallar el parseo del
+// blob guardado. Sin esto, `load_settings` se cae a `.ok().unwrap_or_default()` y
+// unos ajustes de versión antigua se reiniciaban enteros en silencio.
+#[serde(rename_all = "camelCase", default)]
 pub struct Settings {
     pub active_provider: String,
     pub local_endpoint: String,
@@ -40,6 +44,11 @@ pub struct Settings {
     pub openai_model: String,
     pub local_model: String,
     pub theme: String,
+    /// `system` (respeta `prefers-reduced-motion` del SO) | `reduced`.
+    pub motion: String,
+    /// Fondo Mica compuesto por Windows detrás del webview. Apagado por defecto:
+    /// la documentación del crate avisa de que va fino al redimensionar.
+    pub window_transparency: bool,
     #[serde(default)]
     pub run_command_enabled: bool,
     #[serde(default)]
@@ -130,6 +139,8 @@ impl Default for Settings {
             openai_model: "gpt-4o-mini".to_string(),
             local_model: "llama3.2".to_string(),
             theme: "dark".to_string(),
+            motion: "system".to_string(),
+            window_transparency: false,
             run_command_enabled: false,
             assistant_name: String::new(),
             reasoning_effort: "off".to_string(),

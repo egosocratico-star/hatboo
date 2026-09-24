@@ -389,8 +389,8 @@ pub fn read_attachment(path: String) -> Result<db::Attachment, String> {
         .unwrap_or_default();
     if ATTACHMENT_IMAGE_EXTS.contains(&ext.as_str()) {
         return Err(format!(
-            "«{name}» es una imagen. Adjuntar imágenes llegará en una próxima \
-             versión; por ahora puedes adjuntar solo archivos de texto."
+            "«{name}» es una imagen y esta ruta solo lee texto. Para adjuntar una \
+             imagen usa la opción «Imagen» del menú, que va por otro camino."
         ));
     }
     let bytes = std::fs::read(&canonical).map_err(|e| format!("No se pudo leer: {e}"))?;
@@ -1057,8 +1057,14 @@ fn register_project(app: &AppState, path: &str) -> Result<db::Project, String> {
         &state::load_settings(app).default_approval_level,
     );
     let conn = app.db.lock().map_err(|e| e.to_string())?;
-    let project =
-        db::create_project(&conn, &name, &root.display().to_string(), &level)?;
+    let ruta = root.display().to_string();
+    // La carpeta ya está registrada: se reutiliza la fila y solo se mueve al
+    // frente del orden. Insertar otra dejaría dos entradas iguales en la barra.
+    if let Some(existing) = db::find_project_by_root(&conn, &ruta)? {
+        db::touch_project(&conn, &existing.id)?;
+        return db::get_project(&conn, &existing.id);
+    }
+    let project = db::create_project(&conn, &name, &ruta, &level)?;
     db::touch_project(&conn, &project.id)?;
     Ok(project)
 }
@@ -1254,6 +1260,44 @@ pub fn set_project_approval_level(
     }
     let conn = app.db.lock().map_err(|e| e.to_string())?;
     db::set_project_approval_level(&conn, &project_id, &level)
+}
+
+/// Fija o suelta un proyecto en la barra lateral.
+#[tauri::command]
+pub fn set_project_pinned(app: State<AppState>, project_id: String, pinned: bool) -> Result<(), String> {
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    db::set_project_pinned(&conn, &project_id, pinned)
+}
+
+/// Fondo translúcido compuesto por el sistema, no por el webview: Mica en la
+/// ventana principal, que es lo que Microsoft recomienda para superficies de
+/// larga duración (el blur/Acrylic se deja para menús y modales).
+///
+/// Apagado por defecto y a propósito: la propia documentación de
+/// `window-vibrancy` avisa de que va mal al redimensionar o arrastrar la ventana
+/// en Windows 11 build 22621+, así que lo decide el usuario viéndolo.
+#[tauri::command]
+pub fn set_window_transparency(
+    window: tauri::Window,
+    enabled: bool,
+    dark: Option<bool>,
+) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        if enabled {
+            // `dark` es el tinte de Mica. Se pasa desde la app porque Hatboo puede
+            // estar en claro con Windows en oscuro, y al revés.
+            window_vibrancy::apply_mica(&window, dark)
+        } else {
+            window_vibrancy::clear_mica(&window)
+        }
+        .map_err(|e| format!("Windows no pudo aplicar el fondo translúcido: {e}"))
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = (window, enabled, dark);
+        Err("El fondo translúcido solo está hecho para Windows por ahora.".into())
+    }
 }
 
 /// Pide cancelar una tarea del agente en curso.

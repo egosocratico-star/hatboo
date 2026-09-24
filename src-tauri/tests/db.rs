@@ -346,3 +346,53 @@ fn la_busqueda_global_casa_titulo_y_contenido_y_respeta_el_archivo() {
 
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn una_carpeta_no_produce_dos_proyectos() {
+    let dir = std::env::temp_dir().join(format!("hatboo-test-{}", uuid::Uuid::new_v4()));
+    let conn = db::connect(&dir.join("test.db")).expect("connect+migrate");
+
+    let creado = db::create_project(&conn, "Proy", r"C:\tmp\Proy", "approve_for_me").unwrap();
+    // Las cinco formas de nombrar la misma carpeta tienen que devolver la misma fila.
+    for variante in [
+        r"C:\tmp\Proy",
+        r"c:\tmp\proy",
+        r"C:\tmp\Proy\",
+        r"C:/tmp/Proy",
+        r"\\?\C:\tmp\Proy",
+    ] {
+        let encontrado = db::find_project_by_root(&conn, variante)
+            .unwrap()
+            .unwrap_or_else(|| panic!("no se encontró la variante {variante}"));
+        assert_eq!(encontrado.id, creado.id, "variante {variante}");
+    }
+
+    assert!(db::find_project_by_root(&conn, r"C:\tmp\Otra").unwrap().is_none());
+    assert_eq!(db::list_projects(&conn).unwrap().len(), 1);
+
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn un_proyecto_fijado_manda_sobre_la_apertura_reciente() {
+    let dir = std::env::temp_dir().join(format!("hatboo-test-{}", uuid::Uuid::new_v4()));
+    let conn = db::connect(&dir.join("test.db")).expect("connect+migrate");
+
+    let viejo = db::create_project(&conn, "Viejo", "/tmp/viejo", "approve_for_me").unwrap();
+    let nuevo = db::create_project(&conn, "Nuevo", "/tmp/nuevo", "approve_for_me").unwrap();
+    assert!(!nuevo.pinned, "un proyecto nace sin fijar");
+    assert_eq!(db::list_projects(&conn).unwrap()[0].id, nuevo.id);
+
+    db::set_project_pinned(&conn, &viejo.id, true).unwrap();
+    let lista = db::list_projects(&conn).unwrap();
+    assert_eq!(lista[0].id, viejo.id, "el fijado pasa delante aunque se abrió antes");
+    assert!(lista[0].pinned);
+
+    // Soltarlo devuelve el orden por apertura reciente, y el `pinned` se escribe
+    // sin tocar last_opened_at: fijar no es abrir.
+    db::set_project_pinned(&conn, &viejo.id, false).unwrap();
+    let tras_suelta = db::list_projects(&conn).unwrap();
+    assert_eq!(tras_suelta[0].id, nuevo.id);
+
+    let _ = std::fs::remove_dir_all(dir);
+}

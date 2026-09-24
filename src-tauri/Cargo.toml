@@ -1,6 +1,6 @@
 [package]
 name = "hatboo"
-version = "0.2.0"
+version = "0.3.0"
 description = "Hatboo — chat de IA de escritorio"
 edition = "2021"
 
@@ -34,6 +34,9 @@ tauri-plugin-notification = "2"
 # Backend nativo del llavero por plataforma (keyring v3 no trae ninguno por defecto)
 [target.'cfg(target_os = "windows")'.dependencies]
 keyring = { version = "3", features = ["windows-native"] }
+# Fondo translúcido compuesto por Windows, no por el webview (Ajustes → Apariencia).
+# Solo Windows por ahora: en macOS/Linux queda para su propio pase.
+window-vibrancy = "0.6"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 keyring = { version = "3", features = ["apple-native"] }

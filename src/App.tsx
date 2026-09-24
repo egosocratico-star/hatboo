@@ -8,11 +8,13 @@ import { useChatStore } from "./store/chatStore";
 import { useWorkStore } from "./store/workStore";
 import { useStreaming } from "./hooks/useStreaming";
 import { useAgentEvents } from "./hooks/useAgentEvents";
-import { applyTheme, watchSystemTheme } from "./theme";
+import { applyMotion, applyTheme, applyVibrancy, watchSystemTheme } from "./theme";
 
 export default function App() {
   const view = useChatStore((s) => s.view);
   const theme = useChatStore((s) => s.settings?.theme ?? "dark");
+  const motion = useChatStore((s) => s.settings?.motion ?? "system");
+  const transparency = useChatStore((s) => s.settings?.windowTransparency ?? false);
   const loadConversations = useChatStore((s) => s.loadConversations);
   const loadSettings = useChatStore((s) => s.loadSettings);
   const loadSkills = useChatStore((s) => s.loadSkills);
@@ -25,6 +27,16 @@ export default function App() {
     applyTheme(theme);
     return watchSystemTheme(theme);
   }, [theme]);
+
+  useEffect(() => {
+    applyMotion(motion);
+  }, [motion]);
+
+  // Después del de `theme`: necesita el `data-theme` ya resuelto para elegir el
+  // tinte de Mica, y se vuelve a llamar al cambiar de tema con la ventana translúcida.
+  useEffect(() => {
+    applyVibrancy(transparency);
+  }, [transparency, theme]);
 
   useEffect(() => {
     void loadConversations();

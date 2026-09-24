@@ -91,6 +91,7 @@ interface WorkStore {
   closeTab: (id: string) => void;
   refreshGit: (projectId: string) => Promise<void>;
   removeProject: (id: string) => Promise<void>;
+  setProjectPinned: (id: string, pinned: boolean) => Promise<void>;
   newWorkSession: (projectId: string) => Promise<string>;
   selectSession: (conversationId: string) => Promise<void>;
   startTask: (request: string) => Promise<void>;
@@ -261,6 +262,25 @@ export const useWorkStore = create<WorkStore>((set, get) => {
       await get().loadProjects();
       // Las sesiones con historial sobreviven al proyecto como conversación.
       void useChatStore.getState().loadConversations();
+    },
+
+    setProjectPinned: async (id, pinned) => {
+      // Se pinta al instante y se reordena en local; si el invoke falla, la
+      // recarga devuelve la lista verdadera.
+      const previa = get().projects;
+      const tocados = previa.map((p) => (p.id === id ? { ...p, pinned } : p));
+      set({
+        projects: tocados.sort(
+          (a, b) =>
+            Number(b.pinned) - Number(a.pinned) || b.lastOpenedAt - a.lastOpenedAt,
+        ),
+      });
+      try {
+        await invoke("set_project_pinned", { projectId: id, pinned });
+        await get().loadProjects();
+      } catch {
+        set({ projects: previa });
+      }
     },
 
     newWorkSession: async (projectId) => {

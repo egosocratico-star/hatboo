@@ -118,6 +118,16 @@ html {
   background: rgb(var(--surface));
 }
 
+/* Con el fondo translúcido activado, Mica lo compone Windows DETRÁS del webview,
+ * así que para que se vea hay que dejar de pintar un fondo opaco. 0.72 deja
+ * asomar el tinte del escritorio sin que el texto pierda contraste. */
+html[data-vibrancy="on"] {
+  background: transparent;
+}
+html[data-vibrancy="on"] body {
+  background: rgb(var(--surface) / 0.72);
+}
+
 /* Los scroll propios de cada panel contienen el deslizamiento: al llegar al
    final no arrastran al contenedor de al lado. */
 #root [class*="overflow-"] {
@@ -214,4 +224,13 @@ html.hatboo-resizing * {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* El mismo recorte, pedido dentro de la app (Ajustes → Apariencia → Movimiento)
+ * para quien no quiere tocar la preferencia del sistema operativo. */
+html[data-motion="reduced"] *,
+html[data-motion="reduced"] *::before,
+html[data-motion="reduced"] *::after {
+  animation-duration: 0.01ms !important;
+  transition-duration: 0.01ms !important;
 }

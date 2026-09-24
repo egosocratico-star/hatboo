@@ -31,7 +31,8 @@ CREATE TABLE IF NOT EXISTS projects (
     name TEXT NOT NULL,
     root_path TEXT NOT NULL,
     created_at INTEGER NOT NULL,
-    last_opened_at INTEGER NOT NULL
+    last_opened_at INTEGER NOT NULL,
+    pinned INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS tasks (

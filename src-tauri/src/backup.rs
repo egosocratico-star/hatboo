@@ -73,6 +73,9 @@ pub struct ProjectRow {
     pub created_at: i64,
     pub last_opened_at: i64,
     pub approval_level: String,
+    /// `#[serde(default)]`: las copias hechas antes de este campo se leen igual.
+    #[serde(default)]
+    pub pinned: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -141,6 +144,7 @@ pub fn build_snapshot(conn: &Connection, attachments_dir: &Path) -> Result<Snaps
             created_at: p.created_at,
             last_opened_at: p.last_opened_at,
             approval_level: p.approval_level,
+            pinned: p.pinned,
         })
         .collect();
 
@@ -257,15 +261,16 @@ pub fn apply_snapshot(
     for project in &snapshot.projects {
         let added = conn
             .execute(
-                "INSERT OR IGNORE INTO projects (id, name, root_path, created_at, last_opened_at, approval_level)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                "INSERT OR IGNORE INTO projects (id, name, root_path, created_at, last_opened_at, approval_level, pinned)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
                 params![
                     project.id,
                     project.name,
                     project.root_path,
                     project.created_at,
                     project.last_opened_at,
-                    project.approval_level
+                    project.approval_level,
+                    project.pinned as i64
                 ],
             )
             .map_err(|e| e.to_string())?;

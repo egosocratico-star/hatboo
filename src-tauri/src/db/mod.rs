@@ -119,6 +119,10 @@ fn migrate(conn: &Connection) -> Result<(), String> {
         [],
     );
     let _ = conn.execute(
+        "ALTER TABLE projects ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0",
+        [],
+    );
+    let _ = conn.execute(
         "ALTER TABLE messages ADD COLUMN attachments TEXT",
         [],
     );
@@ -677,6 +681,23 @@ pub struct Project {
     pub last_opened_at: i64,
     /// 'ask_always' | 'approve_for_me' | 'auto_sandbox' | 'full_access'
     pub approval_level: String,
+    pub pinned: bool,
+}
+
+/// Las tres consultas de proyectos leen las mismas columnas en el mismo orden.
+const PROJECT_COLS: &str =
+    "id, name, root_path, created_at, last_opened_at, approval_level, pinned";
+
+fn project_from_row(row: &rusqlite::Row) -> rusqlite::Result<Project> {
+    Ok(Project {
+        id: row.get(0)?,
+        name: row.get(1)?,
+        root_path: row.get(2)?,
+        created_at: row.get(3)?,
+        last_opened_at: row.get(4)?,
+        approval_level: row.get(5)?,
+        pinned: row.get::<_, i64>(6)? != 0,
+    })
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -725,54 +746,66 @@ pub fn create_project(
         created_at: now_ms(),
         last_opened_at: now_ms(),
         approval_level: approval_level.to_string(),
+        pinned: false,
     };
     conn.execute(
-        "INSERT INTO projects (id, name, root_path, created_at, last_opened_at, approval_level)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        "INSERT INTO projects (id, name, root_path, created_at, last_opened_at, approval_level, pinned)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0)",
         params![project.id, project.name, project.root_path, project.created_at, project.last_opened_at, project.approval_level],
     )
     .map_err(|e| e.to_string())?;
     Ok(project)
 }
 
-pub fn list_projects(conn: &Connection) -> Result<Vec<Project>, String> {
-    let mut stmt = conn
-        .prepare(
-            "SELECT id, name, root_path, created_at, last_opened_at, approval_level
-             FROM projects ORDER BY last_opened_at DESC",
-        )
+/// Proyecto ya registrado para esa carpeta, tolerando mayúsculas, el separador
+/// final y barras mixtas — en Windows `C:\Proy` y `c:\proy\` son lo mismo.
+/// `register_project` lo consulta antes de insertar: reabrir una carpeta tiene
+/// que devolver el proyecto que ya está en la barra lateral, no una fila nueva.
+pub fn find_project_by_root(conn: &Connection, root_path: &str) -> Result<Option<Project>, String> {
+    let limpio = clean_root_path(root_path);
+    let sql = format!(
+        r"SELECT {PROJECT_COLS}
+          FROM projects
+          WHERE lower(replace(rtrim(root_path, '\'), '/', '\')) = lower(replace(rtrim(?1, '\'), '/', '\'))
+          LIMIT 1"
+    );
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+    let mut rows = stmt
+        .query_map(params![limpio], project_from_row)
         .map_err(|e| e.to_string())?;
+    match rows.next() {
+        Some(r) => r.map(Some).map_err(|e| e.to_string()),
+        None => Ok(None),
+    }
+}
+
+/// Los fijados van primero; dentro de cada grupo, por apertura reciente.
+pub fn list_projects(conn: &Connection) -> Result<Vec<Project>, String> {
+    let sql = format!(
+        "SELECT {PROJECT_COLS} FROM projects ORDER BY pinned DESC, last_opened_at DESC"
+    );
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
     let rows = stmt
-        .query_map([], |row| {
-            Ok(Project {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                root_path: row.get(2)?,
-                created_at: row.get(3)?,
-                last_opened_at: row.get(4)?,
-                approval_level: row.get(5)?,
-            })
-        })
+        .query_map([], project_from_row)
         .map_err(|e| e.to_string())?;
     rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
 }
 
 pub fn get_project(conn: &Connection, id: &str) -> Result<Project, String> {
-    conn.query_row(
-        "SELECT id, name, root_path, created_at, last_opened_at, approval_level FROM projects WHERE id = ?1",
-        params![id],
-        |row| {
-            Ok(Project {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                root_path: row.get(2)?,
-                created_at: row.get(3)?,
-                last_opened_at: row.get(4)?,
-                approval_level: row.get(5)?,
-            })
-        },
+    let sql = format!("SELECT {PROJECT_COLS} FROM projects WHERE id = ?1");
+    conn.query_row(&sql, params![id], project_from_row)
+        .map_err(|e| e.to_string())
+}
+
+/// Fijar NO mueve `last_opened_at`: un proyecto fijado no se pone al principio
+/// por el simple hecho de tocarlo, se pone porque el usuario lo pidió.
+pub fn set_project_pinned(conn: &Connection, id: &str, pinned: bool) -> Result<(), String> {
+    conn.execute(
+        "UPDATE projects SET pinned = ?2 WHERE id = ?1",
+        params![id, pinned as i64],
     )
-    .map_err(|e| e.to_string())
+    .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 pub fn set_project_approval_level(conn: &Connection, id: &str, level: &str) -> Result<(), String> {
