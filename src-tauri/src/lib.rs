@@ -70,6 +70,8 @@ pub fn run() {
             commands::test_notification,
             commands::context_usage,
             commands::branch_conversation,
+            commands::fetch_github,
+            commands::capture_screen,
             commands::project_rules,
             commands::save_project_rules,
             commands::cancel_work_task,

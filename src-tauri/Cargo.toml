@@ -37,6 +37,10 @@ keyring = { version = "3", features = ["windows-native"] }
 # Fondo translúcido compuesto por Windows, no por el webview (Ajustes → Apariencia).
 # Solo Windows por ahora: en macOS/Linux queda para su propio pase.
 window-vibrancy = "0.6"
+# Captura de pantalla para «Tomar captura» del menú + del chat.
+xcap = { version = "0.9", features = ["image"] }
+# Solo para codificar a PNG lo que devuelve xcap; sin decodificadores.
+image = { version = "0.25", default-features = false, features = ["png"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 keyring = { version = "3", features = ["apple-native"] }

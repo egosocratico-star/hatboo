@@ -39,6 +39,12 @@ Escrito con **Tauri 2** (Rust) + **React 18** + **TypeScript** + **Tailwind** +
 - **Imágenes y archivos**: adjunta texto (se antepone al contenido para el modelo,
   la burbuja queda limpia) o imágenes cuando el modelo tiene visión. Las imágenes
   viven en disco, no dentro de la base de datos.
+- **Desde GitHub**: pega la URL de un archivo (`…/blob/main/ruta`) o la raíz de un
+  repo y entra como contexto de lectura, sin clonar nada. Solo se aceptan
+  `github.com`, `raw.githubusercontent.com` y `gist.githubusercontent.com`, y no se
+  siguen redirecciones — sin eso sería un `fetch` arbitrario desde tu máquina.
+- **Tomar captura**: fotografía la pantalla entera y la adjunta, para enseñar un
+  error sin guardarlo antes. Pide un modelo con visión; sin él sale apagado.
 - **Buscar dentro de la conversación** con `Ctrl+F`.
 - **Indicador de contexto**: en la barra del compositor se ve cuánto ocuparía el
   prompt del próximo turno (`Contexto ≈ 7,2 mil`). Lo calcula el backend con el

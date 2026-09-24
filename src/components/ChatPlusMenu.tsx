@@ -7,6 +7,8 @@ import {
   Download,
   FileText,
   FolderKanban,
+  Github,
+  Camera,
   Globe,
   Image as ImageIcon,
   Plus,
@@ -46,6 +48,8 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
   const [open_, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [urlGitHub, setUrlGitHub] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const settings = useChatStore((s) => s.settings);
   const skills = useChatStore((s) => s.skills);
@@ -90,6 +94,41 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
     } finally {
       setBusy(false);
       close();
+    }
+  };
+
+  /** Pedir un archivo a GitHub y meterlo por la misma ruta que un adjunto del disco. */
+  const traerDeGitHub = async () => {
+    const url = (urlGitHub || "").trim();
+    if (!url) return;
+    setNotice(null);
+    setOcupado(true);
+    try {
+      const adjunto = await invoke<Attachment>("fetch_github", { url });
+      onPickFiles([adjunto]);
+      setUrlGitHub(null);
+      close();
+    } catch (e) {
+      setNotice(String(e));
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  /** Captura la pantalla entera y la adjunta. El nombre lo pone aquí, que es
+   *  donde hay hora local; el backend solo lo sanea. */
+  const capturarPantalla = async () => {
+    setNotice(null);
+    setOcupado(true);
+    try {
+      const ahora = new Date().toISOString().slice(0, 16).replace("T", "_").replace(/:/g, "-");
+      const adjunto = await invoke<Attachment>("capture_screen", { nombre: `captura-${ahora}` });
+      onPickFiles([adjunto]);
+      close();
+    } catch (e) {
+      setNotice(String(e));
+    } finally {
+      setOcupado(false);
     }
   };
 
@@ -205,6 +244,55 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
             <FileText className="w-4 h-4 text-accent-soft shrink-0" />
             <span className="flex-1">{busy ? "Leyendo…" : "Archivo de texto"}</span>
           </button>
+          <button
+            onClick={() => setUrlGitHub((v) => (v === null ? "" : null))}
+            className={item}
+          >
+            <Github className="w-4 h-4 text-accent-soft shrink-0" />
+            <span className="flex-1">Desde GitHub</span>
+            <span className="text-[10px] text-zinc-600">sin clonar</span>
+          </button>
+          {urlGitHub !== null && (
+            <div className="px-1 pb-1.5">
+              <input
+                autoFocus
+                value={urlGitHub}
+                onChange={(e) => setUrlGitHub(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void traerDeGitHub();
+                  if (e.key === "Escape") {
+                    e.stopPropagation();
+                    setUrlGitHub(null);
+                  }
+                }}
+                placeholder="https://github.com/autor/repo/blob/main/archivo.rs"
+                className="w-full rounded-lg border border-base-border bg-base px-2 py-1.5 text-xs outline-none placeholder:text-zinc-600 focus:border-accent/70"
+              />
+              <button
+                onClick={() => void traerDeGitHub()}
+                disabled={!urlGitHub.trim() || ocupado}
+                className="mt-1 w-full rounded-lg bg-accent px-2 py-1.5 text-xs text-white hover:bg-accent-dim disabled:opacity-40 transition-colors"
+              >
+                {ocupado ? "Descargando…" : "Añadir como contexto"}
+              </button>
+            </div>
+          )}
+          {visionOk ? (
+            <button onClick={() => void capturarPantalla()} className={item} disabled={busy}>
+              <Camera className="w-4 h-4 text-accent-soft shrink-0" />
+              <span className="flex-1">Tomar captura</span>
+              <span className="text-[10px] text-zinc-600">pantalla entera</span>
+            </button>
+          ) : (
+            <div
+              className={item + " opacity-45 cursor-not-allowed"}
+              title="Hace falta un modelo con visión para que Hatboo lea una captura."
+            >
+              <Camera className="w-4 h-4 text-zinc-500 shrink-0" />
+              <span className="flex-1">Tomar captura</span>
+              <span className="text-[10px] text-zinc-500">sin visión</span>
+            </div>
+          )}
           {visionOk ? (
             <button onClick={() => void pickImages()} className={item} disabled={busy}>
               <ImageIcon className="w-4 h-4 text-accent-soft shrink-0" />

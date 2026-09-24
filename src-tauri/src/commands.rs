@@ -454,9 +454,125 @@ pub fn read_attachment(path: String) -> Result<db::Attachment, String> {
     Ok(db::Attachment::text(name, text))
 }
 
+/// Hosts de los que se puede leer. Lista cerrada a propósito: la URL la pega el
+/// usuario y sin esto esto sería un `fetch` arbitrario desde la máquina, con
+/// `http://localhost:11434` o el endpoint de metadatos de la nube incluidos.
+const GITHUB_HOSTS: [&str; 3] = [
+    "github.com",
+    "raw.githubusercontent.com",
+    "gist.githubusercontent.com",
+];
+
+/// Divide una URL en (host, resto) sin crate `url`, como en `web.rs`.
+fn partir_url(url: &str) -> Option<(&str, &str)> {
+    let resto = url.strip_prefix("https://").or_else(|| url.strip_prefix("http://"))?;
+    let (host, camino) = resto.split_once('/')?;
+    Some((host.split(':').next()?, camino))
+}
+
+fn sin_query(s: &str) -> &str {
+    s.split('?').next().unwrap_or(s)
+}
+
+/// Convierte la URL que pega el usuario en la URL cruda que hay que pedir y el
+/// nombre con el que se etiqueta el adjunto. `None` si no es una forma que
+/// reconocemos.
+fn github_a_cruda(url: &str) -> Option<(String, String)> {
+    let (host, camino) = partir_url(url)?;
+    if !GITHUB_HOSTS.contains(&host) {
+        return None;
+    }
+    // El query se quita aquí, una vez: si no, `?plain=1` de una URL de GitHub se
+    // colaría en la ruta de raw y el archivo no aparecería.
+    let camino = sin_query(camino);
+    let tramos: Vec<&str> = camino.split('/').collect();
+    match host {
+        "github.com" => {
+            // github.com/<owner>/<repo>/blob/<ref>/<path...>
+            if tramos.len() >= 5 && tramos[2] == "blob" {
+                let (owner, repo, _ref, ruta) = (tramos[0], tramos[1], tramos[3], &tramos[4..]);
+                let ruta = ruta.join("/");
+                let nombre = ruta.split('/').next_back()?.to_string();
+                Some((
+                    format!("https://raw.githubusercontent.com/{owner}/{repo}/{_ref}/{ruta}"),
+                    nombre,
+                ))
+            } else if tramos.len() == 2 {
+                // Raíz del repo: se pide su README por la API.
+                Some((
+                    format!("https://api.github.com/repos/{}/{}/readme", tramos[0], tramos[1]),
+                    "README.md".to_string(),
+                ))
+            } else {
+                None
+            }
+        }
+        // raw.githubusercontent.com/<owner>/<repo>/<ref>/<path...>
+        // gist.githubusercontent.com/<id>/<raw>/<archivo>
+        _ => {
+            let ruta = camino.rsplit('/').next().filter(|s| !s.is_empty())?;
+            Some((format!("https://{host}/{camino}"), ruta.to_string()))
+        }
+    }
+}
+
+/// Lee un archivo de GitHub como contexto de texto, sin clonar el repo.
+/// Es solo lectura y solo hacia github.com; lo que se obtiene entra por la misma
+/// ruta que un archivo adjunto del disco.
+#[tauri::command]
+pub async fn fetch_github(url: String) -> Result<db::Attachment, String> {
+    let (destino, nombre) = github_a_cruda(url.trim())
+        .ok_or("Esa URL no es de GitHub. Pega la de un archivo (…/blob/main/…) o la raíz de un repo.")?;
+
+    let cliente = reqwest::Client::builder()
+        // Sin esto una URL de github.com válida podría redirigir a cualquier
+        // host y convertir la lista de arriba en decorado.
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(std::time::Duration::from_secs(20))
+        .user_agent("hatboo")
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let peticion = cliente.get(&destino);
+    // La API de README devuelve JSON salvo que se pida el crudo explícitamente.
+    let peticion = if destino.starts_with("https://api.github.com/") {
+        peticion.header(reqwest::header::ACCEPT, "application/vnd.github.raw")
+    } else {
+        peticion
+    };
+
+    let respuesta = peticion
+        .send()
+        .await
+        .map_err(|e| format!("No se pudo alcanzar GitHub: {e}"))?;
+    let estado = respuesta.status();
+    if estado == reqwest::StatusCode::NOT_FOUND {
+        return Err("Ese archivo no existe en esa rama, o el repo es privado.".into());
+    }
+    if estado.as_u16() == 403 {
+        return Err("GitHub está limitando las peticiones anónimas (403). Inténtalo en un rato o abre el archivo tú mismo y adjúntalo desde el disco.".into());
+    }
+    if !estado.is_success() {
+        return Err(format!("GitHub respondió {estado}."));
+    }
+
+    let bytes = respuesta
+        .bytes()
+        .await
+        .map_err(|e| format!("La descarga se cortó: {e}"))?;
+    if bytes.contains(&0) {
+        return Err(format!("«{nombre}» parece binario y no se puede adjuntar como texto."));
+    }
+    let corte = bytes.len().min(ATTACHMENT_MAX_BYTES);
+    let mut texto = String::from_utf8_lossy(&bytes[..corte]).into_owned();
+    if bytes.len() > corte {
+        texto.push_str("\n\n[... el archivo se truncó por tamaño ...]");
+    }
+    Ok(db::Attachment::text(nombre, texto))
+}
+
 /// Máximo de bytes de una imagen adjunta (M3), antes de copiarla a disco.
 const IMAGE_MAX_BYTES: usize = 4 * 1024 * 1024;
-
 /// Guarda una imagen elegida por el usuario en `data_dir/attachments` y devuelve
 /// la referencia (no el binario) para adjuntarla al mensaje. Solo formatos de
 /// visión comunes y tamaño acotado; el base64 se genera al construir el payload.
@@ -507,6 +623,71 @@ pub fn save_image_attachment(
         image_media_type: Some(media_type.to_string()),
         image_file: Some(dest.display().to_string()),
     })
+}
+
+/// Captura la pantalla principal y la guarda como imagen adjunta, para enseñar
+/// un error o una maqueta sin tener que guardar el archivo antes. Sale por el
+/// mismo camino que una imagen elegida del disco: `data_dir/attachments` y
+/// referencia en el mensaje, nunca el binario en SQLite.
+#[tauri::command]
+pub fn capture_screen(app: State<AppState>, nombre: String) -> Result<db::Attachment, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use image::ImageEncoder;
+        let monitor = xcap::Monitor::all()
+            .map_err(|e| format!("No se pudieron listar las pantallas: {e}"))?
+            .into_iter()
+            .find(|m| m.is_primary().unwrap_or(false))
+            .or_else(|| xcap::Monitor::all().ok().and_then(|v| v.into_iter().next()))
+            .ok_or("No se encontró ninguna pantalla que capturar.")?;
+        let imagen = monitor
+            .capture_image()
+            .map_err(|e| format!("La captura falló: {e}"))?;
+
+        let mut png: Vec<u8> = Vec::new();
+        let codificador = image::codecs::png::PngEncoder::new(&mut png);
+        codificador
+            .write_image(
+                imagen.as_raw(),
+                imagen.width(),
+                imagen.height(),
+                image::ExtendedColorType::Rgba8,
+            )
+            .map_err(|e| format!("No se pudo codificar el PNG: {e}"))?;
+        if png.len() > IMAGE_MAX_BYTES {
+            return Err(format!(
+                "La captura pesa {} MB; el máximo es 4 MB.",
+                (png.len() as f64 / 1_048_576.0 * 10.0).round() / 10.0
+            ));
+        }
+
+        // El nombre lo pone el frente (ahí sí hay hora local), pero llega por el
+        // wire: sin separadores y con .png siempre, que es lo que acabamos de codificar.
+        let nombre = {
+            let limpio = nombre
+                .chars()
+                .filter(|c| !matches!(c, '/' | '\\' | ':' | '\0'))
+                .collect::<String>();
+            let base = limpio.trim_end_matches(".png");
+            format!("{}.png", if base.is_empty() { "captura" } else { base })
+        };
+        let dir = app.data_dir.join("attachments");
+        std::fs::create_dir_all(&dir)
+            .map_err(|e| format!("No se pudo crear la carpeta: {e}"))?;
+        let destino = dir.join(format!("{}.png", uuid::Uuid::new_v4()));
+        std::fs::write(&destino, &png).map_err(|e| format!("No se pudo guardar: {e}"))?;
+        Ok(db::Attachment {
+            name: nombre,
+            text: String::new(),
+            image_media_type: Some("image/png".to_string()),
+            image_file: Some(destino.display().to_string()),
+        })
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = (app, nombre);
+        Err("La captura de pantalla está hecha solo para Windows por ahora.".into())
+    }
 }
 
 /// Devuelve una imagen adjunta como data URI para poder pintarla en la burbuja.
@@ -1554,6 +1735,51 @@ pub fn get_storage_info(app: State<AppState>) -> Result<StorageInfo, String> {  
 mod tests {
     use super::*;
     use std::io::Write;
+
+    #[test]
+    fn urls_de_github_que_se_aceptan() {
+        let (cruda, nombre) =
+            github_a_cruda("https://github.com/egosocratico-star/hatboo/blob/main/README.md")
+                .unwrap();
+        assert_eq!(
+            cruda,
+            "https://raw.githubusercontent.com/egosocratico-star/hatboo/main/README.md"
+        );
+        assert_eq!(nombre, "README.md");
+
+        // Ruta con carpetas dentro y query que hay que quitar.
+        let (cruda, _) =
+            github_a_cruda("https://github.com/a/b/blob/v1.2/src-tauri/src/main.rs?x=1").unwrap();
+        assert_eq!(cruda, "https://raw.githubusercontent.com/a/b/v1.2/src-tauri/src/main.rs");
+
+        // Cruda directa.
+        let (cruda, nombre) =
+            github_a_cruda("https://raw.githubusercontent.com/a/b/main/Cargo.toml").unwrap();
+        assert_eq!(cruda, "https://raw.githubusercontent.com/a/b/main/Cargo.toml");
+        assert_eq!(nombre, "Cargo.toml");
+
+        // Raíz del repo → README por la API.
+        let (cruda, nombre) = github_a_cruda("https://github.com/a/b").unwrap();
+        assert_eq!(cruda, "https://api.github.com/repos/a/b/readme");
+        assert_eq!(nombre, "README.md");
+    }
+
+    #[test]
+    fn cualquier_otro_host_se_rechaza() {
+        // El control no es cosmético: sin la lista esto sería un fetch arbitrario
+        // desde la máquina del usuario.
+        for mala in [
+            "http://localhost:11434/api/tags",
+            "https://169.254.169.254/latest/meta-data/",
+            "https://evil.com/a/b/blob/main/x.rs",
+            "https://github.com.evil.com/a/b",
+            "file:///c:/windows/win.ini",
+            "https://github.com/",
+            "no soy una url",
+        ] {
+            assert!(github_a_cruda(mala).is_none(), "se aceptó {mala}");
+        }
+    }
 
     /// Carpeta de adjuntos desechable con un PNG minúsculo dentro.
     fn dir_con_imagen() -> PathBuf {
