@@ -36,6 +36,8 @@ interface ChatStore {
   newConversation: () => Promise<void>;
   selectConversation: (id: string) => Promise<void>;
   removeConversation: (id: string) => Promise<void>;
+  /** Bifurca: copia los mensajes hasta uno concreto en una conversación nueva. */
+  branchConversation: (messageId: string) => Promise<void>;
   /** Fijar y archivar: se aplica al vuelo y luego se recarga, porque fijar
    *  cambia el orden de la lista y eso lo decide el SQL. */
   setConversationFlags: (
@@ -138,6 +140,19 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       set({ activeId: null, messages: [], ...BLANK_STREAM, error: null, status: "idle" });
     }
     await get().loadConversations();
+  },
+
+  branchConversation: async (messageId) => {
+    const { activeId } = get();
+    // Sin conversación guardada no hay nada que bifurcar: el borrador del chat
+    // todavía no existe en SQLite.
+    if (!activeId) return;
+    const rama = await invoke<Conversation>("branch_conversation", {
+      conversationId: activeId,
+      upToMessageId: messageId,
+    });
+    await get().loadConversations();
+    await get().selectConversation(rama.id);
   },
 
   setConversationFlags: async (id, flags) => {

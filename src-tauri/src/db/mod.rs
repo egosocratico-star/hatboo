@@ -1,5 +1,6 @@
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 const SCHEMA: &str = include_str!("schema.sql");
 
@@ -323,6 +324,62 @@ pub fn touch_conversation(conn: &Connection, id: &str) -> Result<(), String> {
     )
     .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// Copia de las conversaciones de chat para bifurcarlas (ver `branch_conversation`).
+/// Las imágenes se reescriben con `renombre` porque los archivos se copian aparte:
+/// si la rama apuntara al mismo archivo que el original, borrar uno de los dos se
+/// llevaría las imágenes del otro.
+pub fn branch_conversation(
+    conn: &Connection,
+    conversation_id: &str,
+    up_to_message_id: &str,
+    renombre: &HashMap<String, String>,
+) -> Result<Conversation, String> {
+    let original = get_conversation(conn, conversation_id)?;
+    let todos = list_messages(conn, conversation_id)?;
+    let hasta = todos
+        .iter()
+        .position(|m| m.id == up_to_message_id)
+        .ok_or("Ese mensaje no es de esta conversación.")?;
+    let mensajes = &todos[..=hasta];
+
+    let titulo = format!("{} (rama)", original.title);
+    let nuevo = create_conversation(conn, &titulo, original.project_id.as_deref())?;
+
+    for m in mensajes {
+        let attachments: Vec<Attachment> = m
+            .attachments
+            .iter()
+            .map(|a| Attachment {
+                image_file: a.image_file.as_ref().and_then(|f| renombre.get(f).cloned()),
+                ..a.clone()
+            })
+            .collect();
+        conn.execute(
+            "INSERT INTO messages (id, conversation_id, role, content, provider, created_at,
+                                   attachments, reasoning, thinking_ms, web_sources, feedback)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
+            params![
+                new_id(),
+                nuevo.id,
+                m.role,
+                m.content,
+                m.provider,
+                m.created_at,
+                serde_json::to_string(&attachments).unwrap_or_else(|_| "[]".into()),
+                m.reasoning,
+                m.thinking_ms,
+                serde_json::to_string(&m.web_sources).unwrap_or_else(|_| "[]".into()),
+                m.feedback,
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    // La rama aparece arriba del todo: su cronología interna es la del original,
+    // pero a efectos de la barra lateral nació ahora.
+    touch_conversation(conn, &nuevo.id)?;
+    Ok(nuevo)
 }
 
 pub fn add_message(

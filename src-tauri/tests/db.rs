@@ -1,4 +1,5 @@
 use hatboo_lib::db;
+use std::collections::HashMap;
 
 #[test]
 fn crud_roundtrip() {
@@ -393,6 +394,50 @@ fn un_proyecto_fijado_manda_sobre_la_apertura_reciente() {
     db::set_project_pinned(&conn, &viejo.id, false).unwrap();
     let tras_suelta = db::list_projects(&conn).unwrap();
     assert_eq!(tras_suelta[0].id, nuevo.id);
+
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn ramificar_copia_hasta_el_mensaje_elegido_y_no_toca_el_original() {
+    let dir = std::env::temp_dir().join(format!("hatboo-test-{}", uuid::Uuid::new_v4()));
+    let conn = db::connect(&dir.join("test.db")).expect("connect+migrate");
+
+    let original = db::create_conversation(&conn, "Plan de viaje", None).unwrap();
+    let mut ids = Vec::new();
+    for (rol, texto) in [
+        ("user", "primero"),
+        ("assistant", "segundo"),
+        ("user", "tercero"),
+        ("assistant", "cuarto"),
+    ] {
+        ids.push(db::add_message(&conn, &original.id, rol, texto, None).unwrap());
+    }
+
+    let hasta = ids[1].id.clone();
+    let rama = db::branch_conversation(&conn, &original.id, &hasta, &HashMap::new()).unwrap();
+    assert_ne!(rama.id, original.id);
+    assert_eq!(rama.title, "Plan de viaje (rama)");
+
+    let copiados = db::list_messages(&conn, &rama.id).unwrap();
+    assert_eq!(copiados.len(), 2, "la rama para donde se bifurco");
+    assert_eq!(
+        copiados.iter().map(|m| m.content.as_str()).collect::<Vec<_>>(),
+        vec!["primero", "segundo"],
+        "se conserva el orden y el rol"
+    );
+    assert_eq!(copiados[1].role, "assistant");
+    assert_ne!(copiados[0].id, ids[0].id, "los mensajes de la rama son copias, no las mismas filas");
+
+    // El original sigue entero, y las dos conversaciones conviven.
+    assert_eq!(db::list_messages(&conn, &original.id).unwrap().len(), 4);
+    assert_eq!(db::list_conversations(&conn).unwrap().len(), 2);
+    assert_eq!(db::list_conversations(&conn).unwrap()[0].id, rama.id, "la rama nace ahora y va arriba");
+
+    // Un mensaje de otra conversacion no vale como punto de corte.
+    let ajeno = db::create_conversation(&conn, "Otra", None).unwrap();
+    let de_otra = db::add_message(&conn, &ajeno.id, "user", "x", None).unwrap();
+    assert!(db::branch_conversation(&conn, &original.id, &de_otra.id, &HashMap::new()).is_err());
 
     let _ = std::fs::remove_dir_all(dir);
 }

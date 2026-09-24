@@ -60,6 +60,7 @@ export default function ChatWindow() {
   const sendMessage = useChatStore((s) => s.sendMessage);
   const regenerate = useChatStore((s) => s.regenerate);
   const editMessage = useChatStore((s) => s.editMessage);
+  const branchConversation = useChatStore((s) => s.branchConversation);
   const stopStreaming = useChatStore((s) => s.stopStreaming);
   const clearError = useChatStore((s) => s.clearError);
 
@@ -236,6 +237,10 @@ export default function ChatWindow() {
   const handleEdit = useCallback(
     (messageId: string, content: string) => void editMessage(messageId, content),
     [editMessage],
+  );
+  const handleBranch = useCallback(
+    (messageId: string) => void branchConversation(messageId),
+    [branchConversation],
   );
 
   const busy = status === "streaming";
@@ -460,6 +465,7 @@ export default function ChatWindow() {
                   busy={busy}
                   onRegenerate={isLastAssistant ? handleRegenerate : undefined}
                   onEdit={m.role === "user" && !busy ? handleEdit : undefined}
+                  onBranch={activeId && !busy ? handleBranch : undefined}
                 />
               </div>
             );

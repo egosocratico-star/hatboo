@@ -32,6 +32,10 @@ Escrito con **Tauri 2** (Rust) + **React 18** + **TypeScript** + **Tailwind** +
 - **Modo código** (`<>`): cambia el prompt de sistema a uno orientado a programar.
 - **Editar un mensaje enviado** trunca todo lo posterior y vuelve a responder, como
   en ChatGPT. También copiar, regenerar y valorar con 👍 / 👎.
+- **Ramificar**: el icono de rama en una respuesta crea una conversación nueva con
+  todo el hilo hasta ese punto y deja la original intacta, para probar otro camino
+  sin perder este. Las imágenes adjuntas se copian a archivos nuevos, así que borrar
+  una de las dos no deja ciega a la otra.
 - **Imágenes y archivos**: adjunta texto (se antepone al contenido para el modelo,
   la burbuja queda limpia) o imágenes cuando el modelo tiene visión. Las imágenes
   viven en disco, no dentro de la base de datos.

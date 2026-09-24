@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { Check, Copy, Paperclip, Pencil, RotateCcw, ThumbsDown, ThumbsUp, X } from "lucide-react";
+import { Check, Copy, GitBranch, Paperclip, Pencil, RotateCcw, ThumbsDown, ThumbsUp, X } from "lucide-react";
 import RichText from "./RichText";
 import ThinkingBlock from "./ThinkingBlock";
 import SourcesBlock from "./SourcesBlock";
@@ -12,6 +12,9 @@ interface Props {
   onRegenerate?: () => void;
   /** Editar un mensaje propio: sin esta prop el lápiz no aparece. */
   onEdit?: (messageId: string, content: string) => void;
+  /** Bifurcar la conversación hasta este mensaje. Estable entre renders para no
+   *  invalidar el `memo` de todas las burbujas durante el streaming. */
+  onBranch?: (messageId: string) => void;
   /** Bloquea editar mientras hay una respuesta en curso. */
   busy?: boolean;
 }
@@ -45,6 +48,7 @@ function MessageBubble({
   message,
   onRegenerate,
   onEdit,
+  onBranch,
   busy = false,
 }: Props) {
   const isUser = message.role === "user";
@@ -228,6 +232,14 @@ function MessageBubble({
         {onRegenerate && (
           <ActionButton title="Regenerar respuesta" onClick={onRegenerate}>
             <RotateCcw className="w-3.5 h-3.5" />
+          </ActionButton>
+        )}
+        {onBranch && (
+          <ActionButton
+            title="Crear una rama desde aquí"
+            onClick={() => onBranch(message.id)}
+          >
+            <GitBranch className="w-3.5 h-3.5" />
           </ActionButton>
         )}
       </div>

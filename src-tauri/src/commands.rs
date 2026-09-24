@@ -349,6 +349,52 @@ pub fn set_message_feedback(
     db::set_message_feedback(&conn, &message_id, feedback.as_deref())
 }
 
+/// Copia las imágenes que entran en la rama a archivos nuevos. Si la rama
+/// apuntara a los mismos ficheros, borrar una de las dos conversaciones se
+/// llevaría las imágenes de la otra (`delete_conversation` limpia disco).
+#[tauri::command]
+pub fn branch_conversation(
+    app: State<AppState>,
+    conversation_id: String,
+    up_to_message_id: String,
+) -> Result<db::Conversation, String> {
+    let imagenes = {
+        let conn = app.db.lock().map_err(|e| e.to_string())?;
+        let todos = db::list_messages(&conn, &conversation_id)?;
+        let hasta = todos
+            .iter()
+            .position(|m| m.id == up_to_message_id)
+            .ok_or("Ese mensaje no es de esta conversación.")?;
+        todos[..=hasta]
+            .iter()
+            .flat_map(|m| m.attachments.iter())
+            .filter_map(|a| a.image_file.clone())
+            .collect::<Vec<_>>()
+    };
+
+    let dir = app.data_dir.join("attachments");
+    let mut renombre = std::collections::HashMap::new();
+    for viejo in &imagenes {
+        if renombre.contains_key(viejo) {
+            continue;
+        }
+        let destino = format!(
+            "{}{}",
+            uuid::Uuid::new_v4(),
+            std::path::Path::new(viejo)
+                .extension()
+                .map(|e| format!(".{}", e.to_string_lossy()))
+                .unwrap_or_default()
+        );
+        std::fs::copy(dir.join(viejo), dir.join(&destino))
+            .map_err(|e| format!("No se pudo copiar una imagen de la rama: {e}"))?;
+        renombre.insert(viejo.clone(), destino);
+    }
+
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    db::branch_conversation(&conn, &conversation_id, &up_to_message_id, &renombre)
+}
+
 /// Borra todos los mensajes de una conversación (More → Limpiar conversación),
 /// conservando la conversación misma.
 #[tauri::command]
