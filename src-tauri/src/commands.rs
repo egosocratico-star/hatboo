@@ -1574,6 +1574,56 @@ pub async fn start_work_task(
     Ok(())
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CambioSesion {
+    pub ruta: String,
+    /// El diff de la última vez que se escribió: si el agente reescribió el
+    /// archivo tres veces, lo que importa es el estado final.
+    pub diff: String,
+    pub creado: bool,
+    pub escrituras: u32,
+}
+
+/// Resumen de lo que el agente cambió en esta sesión de trabajo.
+#[tauri::command]
+pub fn session_changes(
+    app: State<AppState>,
+    conversation_id: String,
+) -> Result<Vec<CambioSesion>, String> {
+    let registros = {
+        let conn = app.db.lock().map_err(|e| e.to_string())?;
+        db::session_writes(&conn, &conversation_id)?
+    };
+    // Se agregan por ruta conservando el orden de la primera aparición.
+    let mut orden: Vec<String> = Vec::new();
+    let mut acumulado: std::collections::HashMap<String, CambioSesion> =
+        std::collections::HashMap::new();
+    for r in registros {
+        let Some(salida) = r.output else { continue };
+        let Ok(valor) = serde_json::from_str::<serde_json::Value>(&salida) else {
+            continue;
+        };
+        let Some(ruta) = valor["path"].as_str() else { continue };
+        let entrada = acumulado.entry(ruta.to_string()).or_insert_with(|| {
+            orden.push(ruta.to_string());
+            CambioSesion {
+                ruta: ruta.to_string(),
+                diff: String::new(),
+                creado: false,
+                escrituras: 0,
+            }
+        });
+        entrada.diff = valor["diff"].as_str().unwrap_or_default().to_string();
+        entrada.creado = valor["created"].as_bool().unwrap_or(false);
+        entrada.escrituras += 1;
+    }
+    Ok(orden
+        .into_iter()
+        .filter_map(|r| acumulado.remove(&r))
+        .collect())
+}
+
 /// Cambia el nivel de aprobación de un proyecto (config por proyecto).
 #[tauri::command]
 pub fn set_project_approval_level(

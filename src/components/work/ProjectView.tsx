@@ -23,6 +23,7 @@ import ToolApprovalModal from "./ToolApprovalModal";
 import PlanReviewModal from "./PlanReviewModal";
 import ApprovalLevelPicker from "./ApprovalLevelPicker";
 import ProjectRules from "./ProjectRules";
+import SessionChanges from "./SessionChanges";
 import WorkPlusMenu from "./WorkPlusMenu";
 import ModeToggles from "../ModeToggles";
 import ProviderModelPicker from "../ProviderModelPicker";
@@ -323,6 +324,7 @@ export default function ProjectView() {
               {focus ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
             <ProjectRules projectId={project.id} />
+            <SessionChanges conversationId={tab?.sessionId ?? null} recargarCon={stepLines.length} />
             <ApprovalLevelPicker projectId={project.id} />
             <Mascot state={mascotState} size={32} />
           </div>

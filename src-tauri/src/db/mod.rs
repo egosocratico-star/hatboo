@@ -1026,8 +1026,35 @@ pub fn pending_tool_call_ids(conn: &Connection, conversation_id: &str) -> Result
     rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
 }
 
-pub fn get_tool_call(conn: &Connection, id: &str) -> Result<ToolCall, String> {
-    conn.query_row(
+/// Los `write_file` que se aplicaron en esta sesión, con el diff que se guardó
+/// al hacerlo. Es el acumulado de la sesión para proyectos que no son repo de
+/// git; si lo son, `git diff` da además lo que el usuario tocó por su cuenta.
+pub fn session_writes(conn: &Connection, conversation_id: &str) -> Result<Vec<ToolCall>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, conversation_id, tool_name, input, output, status, created_at
+             FROM tool_calls
+             WHERE conversation_id = ?1 AND tool_name = 'write_file' AND status = 'completed'
+             ORDER BY created_at ASC",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(params![conversation_id], |row| {
+            Ok(ToolCall {
+                id: row.get(0)?,
+                conversation_id: row.get(1)?,
+                tool_name: row.get(2)?,
+                input: row.get(3)?,
+                output: row.get(4)?,
+                status: row.get(5)?,
+                created_at: row.get(6)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+}
+
+pub fn get_tool_call(conn: &Connection, id: &str) -> Result<ToolCall, String> {    conn.query_row(
         "SELECT id, conversation_id, tool_name, input, output, status, created_at
          FROM tool_calls WHERE id = ?1",
         params![id],
