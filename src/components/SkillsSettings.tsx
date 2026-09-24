@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { Pencil, Plus, Sparkles, Trash2, X } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { Download, Pencil, Plus, Sparkles, Trash2, Upload, X } from "lucide-react";
 import { useChatStore } from "../store/chatStore";
 import type { Skill } from "../types";
 
@@ -74,6 +76,42 @@ export default function SkillsSettings() {
     }
   };
 
+  /** Instalar desde archivo o desde la carpeta que la trae (SKILL.md dentro). */
+  const instalar = async (carpeta: boolean) => {
+    setError(null);
+    const ruta = await open({
+      directory: carpeta,
+      multiple: false,
+      title: carpeta ? "Elige la carpeta de la plantilla" : "Elige el archivo de la plantilla",
+      filters: carpeta ? undefined : [{ name: "Markdown", extensions: ["md", "markdown", "txt"] }],
+    });
+    if (!ruta) return;
+    try {
+      const skill = await invoke<Skill>("install_skill", { path: ruta });
+      await useChatStore.getState().loadSkills();
+      // Se abre el editor con lo que ha salido: una plantilla ajena casi siempre
+      // quiere un retoque (el nombre suele venir en inglés y el texto, recortado).
+      setDraft({ id: skill.id, name: skill.name, prompt: skill.prompt, enabled: skill.enabled });
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  const exportar = async (skill: Skill) => {
+    setError(null);
+    const ruta = await save({
+      title: "Guardar la plantilla como archivo",
+      defaultPath: `${skill.name.toLowerCase().replace(/[^a-z0-9]+/gi, "-")}.md`,
+      filters: [{ name: "Markdown", extensions: ["md"] }],
+    });
+    if (!ruta) return;
+    try {
+      await invoke("export_skill", { id: skill.id, path: ruta });
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
   const field =
     "w-full rounded-lg border border-base-border bg-base px-3 py-2 text-sm outline-none focus:border-accent/70";
 
@@ -119,6 +157,13 @@ export default function SkillsSettings() {
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-0.5">
+                <button
+                  onClick={() => void exportar(s)}
+                  title="Guardar como archivo .md"
+                  className="rounded-md p-1.5 text-zinc-500 hover:bg-layer/8 hover:text-zinc-100 transition-colors"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                </button>
                 <button
                   onClick={() => {
                     setError(null);
@@ -222,16 +267,34 @@ export default function SkillsSettings() {
           </div>
         </div>
       ) : (
-        <button
-          onClick={() => {
-            setError(null);
-            setDraft({ ...BLANK });
-          }}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-base-border px-3 py-1.5 text-xs text-zinc-300 hover:border-accent/50 hover:text-layer transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Nueva plantilla
-        </button>
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            onClick={() => {
+              setError(null);
+              setDraft({ ...BLANK });
+            }}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-base-border px-3 py-1.5 text-xs text-zinc-300 hover:border-accent/50 hover:text-layer transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Nueva plantilla
+          </button>
+          <button
+            onClick={() => void instalar(false)}
+            title="Un archivo .md con cabecera «name:» y «description:», o el cuerpo a pelo"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-base-border px-3 py-1.5 text-xs text-zinc-300 hover:border-accent/50 hover:text-layer transition-colors"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            Instalar desde archivo
+          </button>
+          <button
+            onClick={() => void instalar(true)}
+            title="Una carpeta que traiga su SKILL.md o README.md"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-base-border px-3 py-1.5 text-xs text-zinc-300 hover:border-accent/50 hover:text-layer transition-colors"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            Desde carpeta
+          </button>
+        </div>
       )}
 
       {error && <p className="text-xs text-red-400">{error}</p>}

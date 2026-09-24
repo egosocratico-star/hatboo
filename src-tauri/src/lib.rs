@@ -57,6 +57,8 @@ pub fn run() {
             commands::save_skill,
             commands::set_skill_enabled,
             commands::delete_skill,
+            commands::install_skill,
+            commands::export_skill,
             commands::open_project,
             commands::create_project,
             commands::list_projects,
