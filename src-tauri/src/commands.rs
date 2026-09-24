@@ -1624,6 +1624,28 @@ pub fn session_changes(
         .collect())
 }
 
+/// Lee un archivo del proyecto como texto, para el preview de HTML. Pasa por el
+/// mismo `resolve_in_project` que las herramientas del agente, así que una ruta
+/// que intente salirse de la carpeta se rechaza igual.
+#[tauri::command]
+pub fn read_project_file(
+    app: State<AppState>,
+    project_id: String,
+    path: String,
+) -> Result<String, String> {
+    use crate::agent::tools::resolve_in_project;
+    let root = {
+        let conn = app.db.lock().map_err(|e| e.to_string())?;
+        PathBuf::from(db::get_project(&conn, &project_id)?.root_path)
+    };
+    let dentro = resolve_in_project(&root, &path).map_err(|e| e.to_string())?;
+    let bytes = std::fs::read(&dentro).map_err(|e| format!("No se pudo leer: {e}"))?;
+    if bytes.len() > ATTACHMENT_MAX_BYTES {
+        return Err("El archivo es demasiado grande para previsualizarlo.".into());
+    }
+    Ok(String::from_utf8_lossy(&bytes).into_owned())
+}
+
 /// Cambia el nivel de aprobación de un proyecto (config por proyecto).
 #[tauri::command]
 pub fn set_project_approval_level(

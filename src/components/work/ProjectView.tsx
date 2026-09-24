@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
   ArrowUp,
+  Eye,
   Paperclip,
   Square,
   X,
@@ -24,6 +25,7 @@ import PlanReviewModal from "./PlanReviewModal";
 import ApprovalLevelPicker from "./ApprovalLevelPicker";
 import ProjectRules from "./ProjectRules";
 import SessionChanges from "./SessionChanges";
+import HtmlPreview from "./HtmlPreview";
 import WorkPlusMenu from "./WorkPlusMenu";
 import ModeToggles from "../ModeToggles";
 import ProviderModelPicker from "../ProviderModelPicker";
@@ -96,6 +98,7 @@ export default function ProjectView() {
   const [newName, setNewName] = useState("");
   const [happy, setHappy] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [preview, setPreview] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const taskRef = useRef<HTMLTextAreaElement>(null);
   const prevStatus = useRef(agentStatus);
@@ -325,6 +328,19 @@ export default function ProjectView() {
             </button>
             <ProjectRules projectId={project.id} />
             <SessionChanges conversationId={tab?.sessionId ?? null} recargarCon={stepLines.length} />
+            <button
+              onClick={() => {
+                setPreview((v) => !v);
+                // Como con los otros paneles: en modo foco el botón tiene que
+                // poder verse y hacer algo, no quedar apagado.
+                if (focus) patchSettings({ focusMode: false });
+              }}
+              className={panelToggle(preview && !focus)}
+              title={preview ? "Ocultar la vista previa" : "Vista previa del HTML del proyecto"}
+              aria-pressed={preview}
+            >
+              <Eye className="w-4 h-4" />
+            </button>
             <ApprovalLevelPicker projectId={project.id} />
             <Mascot state={mascotState} size={32} />
           </div>
@@ -488,6 +504,14 @@ export default function ProjectView() {
           <TaskList tasks={tasks} stepLines={stepLines} running={busy} />
         </div>
       </div>
+
+      {preview && !focus && (
+        <HtmlPreview
+          projectId={project.id}
+          raiz={project.rootPath}
+          onCerrar={() => setPreview(false)}
+        />
+      )}
 
       <ToolApprovalModal />
       <PlanReviewModal />

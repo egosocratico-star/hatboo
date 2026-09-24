@@ -79,6 +79,16 @@ Abre una carpeta como proyecto y el agente planifica, ejecuta y reporta.
   riesgo de cada herramienta; **Acceso total no relaja el sandbox**.
 - `write_file` siempre muestra el diff antes de aplicarse, y el agente nunca
   propone un commit si no se lo pides.
+- **Plan editable**: con *Revisar el plan antes de ejecutar* (Ajustes → Agente)
+  activado, al terminar de planificar se abre una ventana con los pasos: puedes
+  reescribirlos, quitar los que sobren y añadir los que falten, y el agente
+  ejecuta esa lista, no la suya.
+- **Chip «Cambios»** en la cabecera: lista los archivos que escribió esta sesión,
+  si eran nuevos o ya existían, y el último diff de cada uno.
+- **Vista previa**: el icono del ojo abre un panel con los `.html` del proyecto,
+  pintados en un iframe sin permisos (`sandbox=""`, o sea sin JavaScript ni
+  formularios). Lo que necesite scripts se abre en el navegador real desde el
+  propio panel. No es un navegador embebido: una web de fuera no se puede cargar.
 - **Reglas por proyecto**: un `HATBOO.md` en la raíz del proyecto se añade al prompt
   del agente en cada sesión de trabajo de esa carpeta. Se edita desde la cabecera
   de la vista (*Reglas*). Son contexto sobre el proyecto: no amplían el sandbox ni
