@@ -2,3 +2,6 @@ node_modules
 dist
 src-tauri/target
 src-tauri/gen/schemas
+
+# Artefacto generado por scripts/i18n-claves.mjs
+scripts/claves.json
