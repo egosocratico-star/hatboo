@@ -518,6 +518,167 @@ pub async fn regenerate_response(
     spawn_chat_stream(app, conversation_id)
 }
 
+/// Un modelo dentro de una comparación. El `id` lo inventa el frontend y es la
+/// clave con la que luego llegan los deltas de ese modelo.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompareTarget {
+    pub id: String,
+    pub provider: String,
+    pub model: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ComparePayload {
+    id: String,
+    delta: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CompareEndPayload {
+    id: String,
+    message: Option<String>,
+}
+
+/// Manda la misma pregunta a 2-3 modelos a la vez y va contando cada respuesta
+/// por su cuenta. No se guarda nada en la conversación: una comparación es un
+/// borrón y cuenta nueva, y mezclarla con el historial contaminaría las
+/// respuestas siguientes.
+#[tauri::command]
+pub async fn start_comparison(
+    app: tauri::AppHandle,
+    conversation_id: String,
+    prompt: String,
+    targets: Vec<CompareTarget>,
+) -> Result<(), String> {
+    let prompt = prompt.trim().to_string();
+    if prompt.is_empty() {
+        return Err("Escribe primero la pregunta que quieres comparar.".into());
+    }
+    if targets.is_empty() || targets.len() > 3 {
+        return Err("Se comparan entre 1 y 3 modelos.".into());
+    }
+    let state = app.state::<AppState>();
+    let mut base = history(&state, &conversation_id)?;
+    base.push(ChatMessage {
+        role: "user".into(),
+        content: prompt,
+        images: Vec::new(),
+    });
+    let settings = state::load_settings(&state);
+    let skills = state
+        .db
+        .lock()
+        .ok()
+        .and_then(|conn| db::enabled_skills_prompt(&conn).ok())
+        .unwrap_or_default();
+    let system = chat_system_prompt(&settings, &skills);
+    let system = system.trim();
+    if !system.is_empty() {
+        base.insert(
+            0,
+            ChatMessage {
+                role: "system".into(),
+                content: system.to_string(),
+                images: Vec::new(),
+            },
+        );
+    }
+
+    let mut cancelantes = Vec::new();
+    for target in targets {
+        let app_task = app.clone();
+        let messages = base.clone();
+        let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel::<()>();
+        cancelantes.push(cancel_tx);
+        tauri::async_runtime::spawn(async move {
+            let id = target.id.clone();
+            let state = app_task.state::<AppState>();
+            let proveedor = match state::provider_for(&state, &target.provider, &target.model) {
+                Ok(p) => p,
+                Err(e) => {
+                    let _ = app_task.emit(
+                        "compare:error",
+                        CompareEndPayload { id, message: Some(e) },
+                    );
+                    return;
+                }
+            };
+            let etiqueta = proveedor.name().to_string();
+            let (tx, mut rx) = tokio::sync::mpsc::channel::<StreamDelta>(64);
+            let stream = tauri::async_runtime::spawn(async move {
+                proveedor.stream_response(messages, tx).await
+            });
+            let mut cancel_rx = cancel_rx;
+            let mut cortado = false;
+            loop {
+                tokio::select! {
+                    next = rx.recv() => match next {
+                        Some(StreamDelta::Text(delta)) => {
+                            let _ = app_task.emit("compare:chunk", ComparePayload { id: id.clone(), delta });
+                        }
+                        Some(StreamDelta::Reasoning(delta)) => {
+                            let _ = app_task.emit("compare:reasoning", ComparePayload { id: id.clone(), delta });
+                        }
+                        None => break,
+                    },
+                    Ok(()) = &mut cancel_rx => {
+                        cortado = true;
+                        break;
+                    }
+                }
+            }
+            // Soltar el receptor es lo que corta la generación en el servidor.
+            drop(rx);
+            let resultado: Result<(), String> = if cortado {
+                Ok(())
+            } else {
+                match stream.await {
+                    Ok(Ok(())) => Ok(()),
+                    Ok(Err(e)) => Err(e.to_string()),
+                    Err(e) => Err(format!("la tarea de streaming se cayó: {e}")),
+                }
+            };
+            match resultado {
+                Ok(()) => {
+                    let _ = app_task.emit("compare:done", CompareEndPayload { id, message: None });
+                }
+                Err(e) => {
+                    let _ = app_task.emit(
+                        "compare:error",
+                        CompareEndPayload {
+                            id,
+                            message: Some(format!("{etiqueta}: {e}")),
+                        },
+                    );
+                }
+            }
+        });
+    }
+    state
+        .compare_runs
+        .lock()
+        .map_err(|e| e.to_string())?
+        .insert(conversation_id, cancelantes);
+    Ok(())
+}
+
+/// Detiene las comparaciones en curso de esa conversación.
+#[tauri::command]
+pub fn cancel_comparison(app: State<AppState>, conversation_id: String) -> Result<(), String> {
+    let canales: Vec<tokio::sync::oneshot::Sender<()>> = app
+        .compare_runs
+        .lock()
+        .map_err(|e| e.to_string())?
+        .remove(&conversation_id)
+        .unwrap_or_default();
+    for c in canales {
+        let _ = c.send(());
+    }
+    Ok(())
+}
 /// Edita un mensaje ya enviado por el usuario: se corta todo lo posterior y se
 /// vuelve a generar la respuesta desde ahí (como en ChatGPT).
 #[tauri::command]

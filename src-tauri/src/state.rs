@@ -17,6 +17,8 @@ pub struct AppState {
     pub work_runs: Mutex<HashMap<String, oneshot::Sender<()>>>,
     /// Streamings de chat en curso: conversation_id -> canal de cancelación.
     pub chat_runs: Mutex<HashMap<String, oneshot::Sender<()>>>,
+    /// Comparaciones en curso: id de la comparación -> un canal por modelo.
+    pub compare_runs: Mutex<HashMap<String, Vec<oneshot::Sender<()>>>>,
     /// Directorio de datos de la app; las imágenes adjuntas (M3) se guardan en
     /// `data_dir/attachments`.
     pub data_dir: PathBuf,
@@ -30,6 +32,7 @@ impl AppState {
             plan_reviews: Mutex::new(HashMap::new()),
             work_runs: Mutex::new(HashMap::new()),
             chat_runs: Mutex::new(HashMap::new()),
+            compare_runs: Mutex::new(HashMap::new()),
             data_dir,
         }
     }
@@ -214,31 +217,48 @@ pub fn save_settings(state: &AppState, settings: &Settings) -> Result<(), String
     crate::db::set_setting(&conn, "settings", &serde_json::to_string(settings).unwrap())
 }
 
-/// Construye el proveedor activo según settings + keychain.
-pub fn build_provider(state: &AppState) -> Result<Box<dyn AiProvider>, String> {
+/// Proveedor concreto, eligiendo proveedor y modelo a pelo en vez de los
+/// ajustados. Es lo que necesita la comparación de modelos.
+pub fn provider_for(
+    state: &AppState,
+    provider: &str,
+    model: &str,
+) -> Result<Box<dyn AiProvider>, String> {
     let settings = load_settings(state);
     let effort = settings.reasoning_effort.as_str();
-    match settings.active_provider.as_str() {
+    match provider {
         "anthropic" => {
-            let key = crate::providers::get_api_key("anthropic")
-                .ok_or_else(|| crate::providers::ProviderError::MissingKey("Anthropic".into()).to_string())?;
+            let key = crate::providers::get_api_key("anthropic").ok_or_else(|| {
+                crate::providers::ProviderError::MissingKey("Anthropic".into()).to_string()
+            })?;
             Ok(Box::new(
-                AnthropicProvider::new(key, settings.anthropic_model).with_reasoning(effort),
+                AnthropicProvider::new(key, model.to_string()).with_reasoning(effort),
             ))
         }
         "openai" => {
-            let key = crate::providers::get_api_key("openai")
-                .ok_or_else(|| crate::providers::ProviderError::MissingKey("OpenAI".into()).to_string())?;
+            let key = crate::providers::get_api_key("openai").ok_or_else(|| {
+                crate::providers::ProviderError::MissingKey("OpenAI".into()).to_string()
+            })?;
             Ok(Box::new(
-                OpenAiProvider::new(key, settings.openai_model).with_reasoning(effort),
+                OpenAiProvider::new(key, model.to_string()).with_reasoning(effort),
             ))
         }
         "local" => Ok(Box::new(
-            LocalProvider::new(&settings.local_endpoint, &settings.local_model)
-                .with_reasoning(effort),
+            LocalProvider::new(&settings.local_endpoint, model).with_reasoning(effort),
         )),
         other => Err(format!("Proveedor desconocido: {other}")),
     }
+}
+
+/// Construye el proveedor activo según settings + keychain.
+pub fn build_provider(state: &AppState) -> Result<Box<dyn AiProvider>, String> {
+    let settings = load_settings(state);
+    let modelo = match settings.active_provider.as_str() {
+        "anthropic" => settings.anthropic_model.clone(),
+        "openai" => settings.openai_model.clone(),
+        _ => settings.local_model.clone(),
+    };
+    provider_for(state, &settings.active_provider, &modelo)
 }
 
 /// Igual que `build_provider` pero devolviendo la capacidad de tool calling.

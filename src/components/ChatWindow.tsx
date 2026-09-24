@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronUp,
   Paperclip,
+  Scale,
   Search,
   Square,
   X,
@@ -19,6 +20,7 @@ import ContextMeter from "./ContextMeter";
 import ChatPlusMenu from "./ChatPlusMenu";
 import PermissionPicker from "./PermissionPicker";
 import ModeToggles from "./ModeToggles";
+import ComparePanel from "./ComparePanel";
 import ThinkingBlock, { formatDuration } from "./ThinkingBlock";
 import type { Attachment, MascotState } from "../types";
 import { CHAT_FONT_SIZES, CHAT_FONT_STACKS } from "../types";
@@ -69,6 +71,7 @@ export default function ChatWindow() {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [happy, setHappy] = useState(false);
   const [permOpen, setPermOpen] = useState(false);
+  const [comparar, setComparar] = useState(false);
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [hitIdx, setHitIdx] = useState(0);
@@ -270,6 +273,7 @@ export default function ChatWindow() {
   );
 
   const composer = (
+    <>
     <div className="rounded-2xl border border-base-border bg-base-raised/70 shadow-xl shadow-shade/30 px-3 pt-3 pb-2.5 transition-colors focus-within:border-accent/50">
       {attachments.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 pb-2 pl-0.5">
@@ -323,6 +327,15 @@ export default function ChatWindow() {
         />
         <PermissionPicker open={permOpen} onOpenChange={setPermOpen} />
         <ModeToggles />
+        <button
+          onClick={() => setComparar(true)}
+          disabled={busy}
+          title="Comparar la misma pregunta en 2-3 modelos a la vez"
+          className="flex items-center gap-1.5 rounded-full border border-base-border px-2.5 py-1.5 text-xs text-zinc-400 transition-colors hover:border-accent/50 hover:text-zinc-100 disabled:opacity-40"
+        >
+          <Scale className="w-3.5 h-3.5 shrink-0" />
+          <span className="hidden sm:inline">Comparar</span>
+        </button>
         <div className="flex-1 min-w-0" />
         <ContextMeter conversationId={activeId} tick={messages.length} />
         <ProviderModelPicker />
@@ -346,6 +359,10 @@ export default function ChatWindow() {
         )}
       </div>
     </div>
+      {comparar && (
+        <ComparePanel conversationId={activeId} onCerrar={() => setComparar(false)} />
+      )}
+    </>
   );
 
   if (empty) {

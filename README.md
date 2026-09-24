@@ -28,6 +28,9 @@ Escrito con **Tauri 2** (Rust) + **React 18** + **TypeScript** + **Tailwind** +
 - **Razonamiento extendido** (`off` / `low` / `medium` / `high`) por proveedor:
   Anthropic usa `thinking`, OpenAI y Ollama `reasoning_effort`. El tiempo que el
   modelo pasó pensando queda guardado y se puede desplegar bajo la respuesta.
+  Vale para el chat **y para el agente**: en el modo trabajo lo que piensa cada
+  vuelta sale en la línea de actividad, y con Anthropic los bloques de pensamiento
+  se reenvían en el historial, que es lo que él exige cuando hay herramientas.
 - **Búsqueda web sin API key**: con el chip 🌐 activo, antes de responder se
   consulta DuckDuckGo (scrapeo directo, sin cuenta ni clave) y las fuentes citadas
   se guardan con el mensaje.
@@ -56,7 +59,16 @@ Escrito con **Tauri 2** (Rust) + **React 18** + **TypeScript** + **Tailwind** +
   conversaciones cortas.
 - **Plantillas (skills)**: fragmentos de instrucciones escritos por ti. Si una está
   activada, viaja en el *system prompt* de cada respuesta; si no, puedes insertarla
-  en un mensaje concreto desde el menú `+`.
+  en un mensaje concreto desde el menú `+`. Se pueden **instalar desde un `.md`**
+  (o desde la carpeta que lo trae, con su `SKILL.md`) y **exportar** de vuelta a
+  markdown para compartirla o versionarla. La cabecera admite `name:` y
+  `description:`; si ya existe una plantilla con ese nombre, instalarla la
+  actualiza en vez de duplicarla.
+- **Comparar modelos**: el chip ⚖ del compositor abre un panel con la misma
+  pregunta en 2-3 modelos a la vez, en columnas que se van escribiendo juntas.
+  Envía el historial del chat + la pregunta, así que la comparación se hace en las
+  mismas condiciones que una respuesta normal. Lo que responden **no se guarda** en
+  la conversación: es una prueba, no un turno del hilo.
 - **Exportar** la conversación a Markdown o JSON (incluye razonamiento y fuentes).
 - **Barra lateral**: clic derecho para fijar arriba, archivar o borrar. Lo fijado
   manda sobre la recencia y lo archivado se esconde sin borrarse; las horas se
