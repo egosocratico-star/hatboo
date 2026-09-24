@@ -10,6 +10,9 @@ pub struct AppState {
     pub db: Mutex<Connection>,
     /// Aprobaciones pendientes: tool_call_id -> canal que resuelve el loop del agente.
     pub approvals: Mutex<HashMap<String, oneshot::Sender<bool>>>,
+    /// Planes esperando revisión: plan_id -> canal que devuelve los pasos ya
+    /// editados. Vacío si el usuario no pidió revisar el plan.
+    pub plan_reviews: Mutex<HashMap<String, oneshot::Sender<Vec<String>>>>,
     /// Tareas de trabajo en curso: conversation_id -> canal de cancelación.
     pub work_runs: Mutex<HashMap<String, oneshot::Sender<()>>>,
     /// Streamings de chat en curso: conversation_id -> canal de cancelación.
@@ -24,6 +27,7 @@ impl AppState {
         Self {
             db: Mutex::new(db),
             approvals: Mutex::new(HashMap::new()),
+            plan_reviews: Mutex::new(HashMap::new()),
             work_runs: Mutex::new(HashMap::new()),
             chat_runs: Mutex::new(HashMap::new()),
             data_dir,
@@ -104,6 +108,9 @@ pub struct Settings {
     /// aprobación. Solo suena si la ventana no está en primer plano.
     #[serde(default = "default_true")]
     pub notify_on_finish: bool,
+    /// Con `submit_plan` el agente se para hasta que el usuario revise (y opcional
+    /// cambie) los pasos. Apagado por defecto: hoy el plan se ejecuta tal cual.
+    pub review_plan: bool,
     /// Tapar claves y tokens que el agente lee del proyecto antes de que la
     /// salida de una herramienta salga hacia un proveedor en la nube.
     #[serde(default = "default_true")]
@@ -188,6 +195,7 @@ impl Default for Settings {
             tasks_panel_width: default_tasks_width(),
             focus_mode: false,
             notify_on_finish: true,
+            review_plan: false,
             redact_secrets: true,
         }
     }

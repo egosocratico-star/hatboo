@@ -925,10 +925,29 @@ export default function Settings() {
                     </span>
                   </span>
                 </label>
+                <label className="flex items-start gap-3 rounded-lg border border-base-border bg-base px-3 py-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!draft.reviewPlan}
+                    onChange={(e) =>
+                      setDraft({ ...draft, reviewPlan: e.target.checked })
+                    }
+                    className="mt-0.5 accent-violet-500"
+                  />
+                  <span className="space-y-0.5">
+                    <span className="block text-sm text-zinc-200">
+                      Revisar el plan antes de ejecutarlo
+                    </span>
+                    <span className="block text-xs text-zinc-500">
+                      Cuando el agente propone los pasos se para y te los enseña:
+                      puedes reescribirlos, quitar alguno o añadir pasos, y con lo
+                      que salga de ahí se queda el plan. Sin esto ejecuta tal cual.
+                    </span>
+                  </span>
+                </label>
                 <p className="text-[11px] text-zinc-600">
                   El nivel de aprobación se ajusta por proyecto en la vista de
-                  Trabajo. El límite de pasos del agente y las categorías de
-                  herramientas globales llegarán en una próxima tanda.
+                  Trabajo.
                 </p>
               </section>
             </>

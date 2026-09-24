@@ -20,6 +20,7 @@ import CommandBlock from "./CommandBlock";
 import ResizeHandle from "./ResizeHandle";
 import TaskList from "./TaskList";
 import ToolApprovalModal from "./ToolApprovalModal";
+import PlanReviewModal from "./PlanReviewModal";
 import ApprovalLevelPicker from "./ApprovalLevelPicker";
 import ProjectRules from "./ProjectRules";
 import WorkPlusMenu from "./WorkPlusMenu";
@@ -487,6 +488,7 @@ export default function ProjectView() {
       </div>
 
       <ToolApprovalModal />
+      <PlanReviewModal />
 
       {newProjectDraft && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6">

@@ -56,9 +56,19 @@ export interface TabState {
   stepLines: StepLine[];
   agentStatus: AgentStatus;
   approval: PendingApproval | null;
+  /** Plan esperando que el usuario lo revise antes de ejecutarse. */
+  planReview: PlanReview | null;
   error: string | null;
   git: GitInfo | null;
   approvalLevel: ApprovalLevel;
+}
+
+/** Lo que trae `agent:plan_review`: el id que hay que devolver y los pasos tal
+ *  como los propuso el modelo, que es lo que se edita en la lista. */
+export interface PlanReview {
+  conversationId: string;
+  planId: string;
+  pasos: string[];
 }
 
 const emptyTab = (): TabState => ({
@@ -68,6 +78,7 @@ const emptyTab = (): TabState => ({
   stepLines: [],
   agentStatus: "idle",
   approval: null,
+  planReview: null,
   error: null,
   git: null,
   approvalLevel: "approve_for_me",
@@ -105,6 +116,8 @@ interface WorkStore {
   onPlan: (conversationId: string, tasks: Task[]) => void;
   onStepResult: (result: StepResult) => void;
   onApprovalNeeded: (approval: PendingApproval) => void;
+  onPlanReview: (review: PlanReview) => void;
+  confirmPlan: (pasos?: string[]) => Promise<void>;
   onDone: (conversationId: string, summary: string) => void;
   onError: (conversationId: string, message: string) => void;
   onCancelled: (conversationId: string) => void;
@@ -403,6 +416,27 @@ export const useWorkStore = create<WorkStore>((set, get) => {
       });
       patchSession(approval.conversationId, {
         approval: null,
+        agentStatus: "running",
+      });
+    },
+
+    onPlanReview: (review) => {
+      patchSession(review.conversationId, {
+        planReview: review,
+        agentStatus: "awaiting",
+      });
+    },
+
+    /** Confirmar el plan, con los pasos tal cual o ya editados. */
+    confirmPlan: async (pasos) => {
+      const review = activeTab(get())?.planReview ?? null;
+      if (!review) return;
+      await invoke("respond_plan_review", {
+        planId: review.planId,
+        steps: pasos ?? review.pasos,
+      });
+      patchSession(review.conversationId, {
+        planReview: null,
         agentStatus: "running",
       });
     },

@@ -77,6 +77,7 @@ pub fn run() {
             commands::save_project_rules,
             commands::cancel_work_task,
             commands::respond_to_approval,
+            commands::respond_plan_review,
             commands::check_tool_support,
             commands::project_git_info,
             commands::get_storage_info

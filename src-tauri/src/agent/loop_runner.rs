@@ -45,6 +45,14 @@ struct PlanPayload {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct PlanReviewPayload {
+    conversation_id: String,
+    plan_id: String,
+    tasks: Vec<db::Task>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct StepResultPayload {
     conversation_id: String,
     tasks: Vec<db::Task>,
@@ -515,6 +523,47 @@ async fn handle_submit_plan(
             tasks: tasks.clone(),
         },
     );
+
+    // Revisión opcional: el agente se queda parado hasta que el usuario confirme
+    // o edite los pasos. Lo que devuelva es lo que se guarda y lo que él lee, así
+    // que no hay dos versiones del plan.
+    if state::load_settings(&state).review_plan {
+        let plan_id = uuid::Uuid::new_v4().to_string();
+        let (tx, rx) = tokio::sync::oneshot::channel::<Vec<String>>();
+        state
+            .plan_reviews
+            .lock()
+            .map_err(|e| e.to_string())?
+            .insert(plan_id.clone(), tx);
+        let _ = app.emit(
+            "agent:plan_review",
+            PlanReviewPayload {
+                conversation_id: conversation_id.to_string(),
+                plan_id: plan_id.clone(),
+                tasks: tasks.clone(),
+            },
+        );
+        let pasos = rx
+            .await
+            .map_err(|_| "La revisión del plan se canceló".to_string())?;
+        let pasos = if pasos.is_empty() { steps.clone() } else { pasos };
+        let revisados = {
+            let conn = state.db.lock().map_err(|e| e.to_string())?;
+            db::replace_tasks(&conn, conversation_id, &pasos)?
+        };
+        let _ = app.emit(
+            "agent:plan",
+            PlanPayload {
+                conversation_id: conversation_id.to_string(),
+                tasks: revisados,
+            },
+        );
+        return Ok((
+            json!({ "ok": true, "message": "Plan confirmado por el usuario", "steps": pasos })
+                .to_string(),
+            true,
+        ));
+    }
     Ok((
         json!({ "ok": true, "message": "Plan registrado", "steps": steps }).to_string(),
         true,

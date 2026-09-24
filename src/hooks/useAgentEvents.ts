@@ -37,6 +37,16 @@ export function useAgentEvents() {
         listen<ApprovalEvent>("agent:approval_needed", ({ payload }) => {
           useWorkStore.getState().onApprovalNeeded(payload);
         }),
+        listen<{ conversationId: string; planId: string; tasks: unknown[] }>(
+          "agent:plan_review",
+          ({ payload }) => {
+            useWorkStore.getState().onPlanReview({
+              conversationId: payload.conversationId,
+              planId: payload.planId,
+              pasos: (payload.tasks as { description: string }[]).map((t) => t.description),
+            });
+          }
+        ),
         listen<DoneEvent>("agent:done", ({ payload }) => {
           useWorkStore.getState().onDone(payload.conversationId, payload.summary);
         }),

@@ -1661,6 +1661,25 @@ pub fn respond_to_approval(
     Ok(())
 }
 
+/// Devuelve los pasos (posiblemente editados) al agente que esperaba con el plan.
+/// Una lista vacía se interpreta como «tal cual», para que el botón de aceptar no
+/// tenga que reenviar lo mismo.
+#[tauri::command]
+pub fn respond_plan_review(
+    app: State<AppState>,
+    plan_id: String,
+    steps: Vec<String>,
+) -> Result<(), String> {
+    let sender = app
+        .plan_reviews
+        .lock()
+        .map_err(|e| e.to_string())?
+        .remove(&plan_id)
+        .ok_or("No hay un plan esperando revisión con ese id.")?;
+    let _ = sender.send(steps);
+    Ok(())
+}
+
 /// Indica si el proveedor/modelo activo soporta tool calling (modo trabajo).
 #[tauri::command]
 pub async fn check_tool_support(app: State<'_, AppState>) -> Result<bool, String> {

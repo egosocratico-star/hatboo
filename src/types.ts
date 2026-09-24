@@ -74,6 +74,8 @@ export interface Settings {
   tasksPanelWidth: number;
   focusMode: boolean;
   notifyOnFinish: boolean;
+  /** El agente espera a que el usuario revise el plan antes de ejecutarlo. */
+  reviewPlan: boolean;
   redactSecrets: boolean;
 }
 
