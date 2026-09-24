@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { useWorkStore, useActiveTab } from "../../store/workStore";
@@ -32,7 +33,7 @@ export default function ToolApprovalModal() {
           </h2>
           {approvalLevel === "ask_always" && (
             <span className="ml-auto text-[10px] uppercase tracking-wider text-amber-300/80 shrink-0">
-              Preguntar siempre
+              {t("Preguntar siempre")}
             </span>
           )}
         </div>
@@ -40,7 +41,7 @@ export default function ToolApprovalModal() {
         <div className="px-5 py-4 space-y-3 max-h-[55vh] overflow-y-auto">
           <div>
             <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">
-              Argumentos
+              {t("Argumentos")}
             </div>
             <pre className="p-3 rounded-lg bg-base-code border border-base-border text-[12px] font-mono text-zinc-300 whitespace-pre-wrap break-words">
               {JSON.stringify(approval.input, null, 2)}
@@ -49,7 +50,7 @@ export default function ToolApprovalModal() {
           {approval.preview && (
             <div>
               <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">
-                {approval.toolName === "write_file" ? "Diff del cambio" : "Vista previa"}
+                {approval.toolName === "write_file" ? t("Diff del cambio") : t("Vista previa")}
               </div>
               <pre className="p-3 rounded-lg bg-base-code border border-base-border text-[12px] font-mono whitespace-pre-wrap break-words max-h-72 overflow-y-auto">
                 {approval.preview.split("\n").map((line, i) => (
@@ -77,14 +78,14 @@ export default function ToolApprovalModal() {
             disabled={busy}
             className="px-4 py-2 rounded-lg border border-base-border text-sm text-zinc-300 hover:border-red-500/50 hover:text-red-300 transition-colors disabled:opacity-40"
           >
-            Rechazar
+            {t("Rechazar")}
           </button>
           <button
             onClick={() => void answer(true)}
             disabled={busy}
             className="px-4 py-2 rounded-lg bg-accent text-white text-sm hover:bg-accent-dim transition-colors disabled:opacity-40"
           >
-            Aprobar
+            {t("Aprobar")}
           </button>
         </div>
       </div>

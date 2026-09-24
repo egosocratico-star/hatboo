@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   AlertCircle,
@@ -25,6 +26,8 @@ import ThinkingBlock, { formatDuration } from "./ThinkingBlock";
 import type { Attachment, MascotState } from "../types";
 import { CHAT_FONT_SIZES, CHAT_FONT_STACKS } from "../types";
 
+/** En español a pelo: si se tradujeran aquí, el texto quedaría congelado al del
+ *  arranque, porque esto se evalúa al importar el módulo. Se traduce al pintar. */
 const SUGGESTIONS = [
   "Resúmeme un archivo",
   "Explícame un error",
@@ -35,10 +38,10 @@ const SUGGESTIONS = [
 /** Cuatro franjas; la madrugada tiene la suya porque esta app se usa a deshoras.
  *  Va seguida de "Soy <nombre>", así que es un saludo al usuario, no a la app. */
 function saludo(hora: number): string {
-  if (hora < 6) return "Aún despiertos";
-  if (hora < 13) return "Buenos días";
-  if (hora < 20) return "Buenas tardes";
-  return "Buenas noches";
+  if (hora < 6) return t("Aún despiertos");
+  if (hora < 13) return t("Buenos días");
+  if (hora < 20) return t("Buenas tardes");
+  return t("Buenas noches");
 }
 
 export default function ChatWindow() {
@@ -284,7 +287,7 @@ export default function ChatWindow() {
               ) : (
                 <span
                   className="inline-flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-md text-[11px] border border-base-border bg-base text-zinc-300"
-                  title={`${a.text.length.toLocaleString()} caracteres`}
+                  title={t("{n} caracteres", { n: a.text.length.toLocaleString() })}
                 >
                   <Paperclip className="w-3 h-3 shrink-0 text-accent-soft" />
                   <span className="max-w-[200px] truncate">{a.name}</span>
@@ -295,7 +298,7 @@ export default function ChatWindow() {
                   setAttachments((prev) => prev.filter((_, j) => j !== i))
                 }
                 className="absolute -right-1.5 -top-1.5 grid place-items-center w-4 h-4 rounded-full border border-base-border bg-base-raised text-zinc-400 hover:bg-accent hover:text-white transition-colors"
-                title="Quitar adjunto"
+                title={t("Quitar adjunto")}
               >
                 <X className="w-2.5 h-2.5" />
               </button>
@@ -315,7 +318,7 @@ export default function ChatWindow() {
           }
         }}
         rows={Math.min(6, Math.max(1, input.split("\n").length))}
-        placeholder="Pregúntame lo que necesites…"
+        placeholder={t("Pregúntame lo que necesites…")}
         className="w-full resize-none bg-transparent px-1 pb-2 text-sm leading-relaxed outline-none placeholder:text-zinc-600 max-h-48"
       />
 
@@ -330,11 +333,11 @@ export default function ChatWindow() {
         <button
           onClick={() => setComparar(true)}
           disabled={busy}
-          title="Comparar la misma pregunta en 2-3 modelos a la vez"
+          title={t("Comparar la misma pregunta en 2-3 modelos a la vez")}
           className="flex items-center gap-1.5 rounded-full border border-base-border px-2.5 py-1.5 text-xs text-zinc-400 transition-colors hover:border-accent/50 hover:text-zinc-100 disabled:opacity-40"
         >
           <Scale className="w-3.5 h-3.5 shrink-0" />
-          <span className="hidden sm:inline">Comparar</span>
+          <span className="hidden sm:inline">{t("Comparar")}</span>
         </button>
         <div className="flex-1 min-w-0" />
         <ContextMeter conversationId={activeId} tick={messages.length} />
@@ -343,7 +346,7 @@ export default function ChatWindow() {
           <button
             onClick={() => void stopStreaming()}
             className="grid place-items-center w-8 h-8 shrink-0 rounded-full bg-accent text-white hover:bg-accent-dim transition-colors"
-            title="Detener respuesta"
+            title={t("Detener respuesta")}
           >
             <Square className="w-3 h-3 fill-current" />
           </button>
@@ -352,7 +355,7 @@ export default function ChatWindow() {
             onClick={() => void submit()}
             disabled={!input.trim() && attachments.length === 0}
             className="grid place-items-center w-8 h-8 shrink-0 rounded-full bg-accent text-white disabled:opacity-35 disabled:cursor-not-allowed hover:bg-accent-dim transition-colors"
-            title="Enviar"
+            title={t("Enviar")}
           >
             <ArrowUp className="w-4 h-4" />
           </button>
@@ -389,7 +392,7 @@ export default function ChatWindow() {
                   }}
                   className="rounded-full border border-base-border bg-base-raised/60 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-100 hover:border-accent/50 transition-colors"
                 >
-                  {s}
+                  {t(s)}
                 </button>
               ))}
             </div>
@@ -423,7 +426,7 @@ export default function ChatWindow() {
                   closeSearch();
                 }
               }}
-              placeholder="Buscar en el chat"
+              placeholder={t("Buscar en el chat")}
               className="w-40 bg-transparent text-xs outline-none placeholder:text-zinc-600"
             />
             <span className="shrink-0 text-[11px] tabular-nums text-zinc-500">
@@ -440,14 +443,14 @@ export default function ChatWindow() {
             <button
               onClick={() => focusHit(hitIdx + 1)}
               disabled={hitIds.length === 0}
-              title="Siguiente (Enter)"
+              title={t("Siguiente (Enter)")}
               className="rounded-full p-1 text-zinc-500 hover:bg-layer/8 hover:text-zinc-100 disabled:opacity-30 transition-colors"
             >
               <ChevronDown className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={closeSearch}
-              title="Cerrar búsqueda (Esc)"
+              title={t("Cerrar búsqueda (Esc)")}
               className="rounded-full p-1 text-zinc-500 hover:bg-layer/8 hover:text-zinc-100 transition-colors"
             >
               <X className="w-3.5 h-3.5" />
@@ -456,7 +459,7 @@ export default function ChatWindow() {
         ) : (
           <button
             onClick={openSearch}
-            title="Buscar en la conversación"
+            title={t("Buscar en la conversación")}
             className="rounded-md p-1.5 text-zinc-500 hover:bg-layer/5 hover:text-zinc-100 transition-colors"
           >
             <Search className="w-4 h-4" />
@@ -503,7 +506,7 @@ export default function ChatWindow() {
               <div className="min-w-0">
                 {searching && (
                   <span className="text-sm text-zinc-500 animate-pulse">
-                    Buscando en la web…
+                    {t("Buscando en la web…")}
                   </span>
                 )}
                 {searchNote && !searching && (
@@ -531,7 +534,7 @@ export default function ChatWindow() {
                     <span className="text-sm text-zinc-500 animate-pulse">
                       {thinkMs >= 1000
                         ? `Pensando… ${formatDuration(thinkMs)}`
-                        : "Pensando…"}
+                        : t("Pensando…")}
                     </span>
                   )
                 )}

@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -117,11 +118,11 @@ export default function ProviderModelPicker() {
       <button
         ref={triggerRef}
         onClick={() => setOpen((v) => !v)}
-        title="Proveedor y modelo activo"
+        title={t("Proveedor y modelo activo")}
         className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-zinc-400 hover:bg-layer/5 hover:text-zinc-100 transition-colors max-w-72"
       >
         <span className={`w-1.5 h-1.5 shrink-0 rounded-full ${dot}`} />
-        <span className="truncate font-medium">{model || "sin modelo"}</span>
+        <span className="truncate font-medium">{model || t("sin modelo")}</span>
         <span className="shrink-0 text-zinc-500">
           {PROVIDER_LABELS[settings.activeProvider]}
         </span>
@@ -141,7 +142,7 @@ export default function ProviderModelPicker() {
         className="p-2 space-y-1"
       >
           <div className="text-[10px] uppercase tracking-wider text-zinc-600 px-2 pt-1 pb-0.5">
-            Proveedor
+            {t("Proveedor")}
           </div>
           {(Object.keys(PROVIDER_LABELS) as Settings["activeProvider"][]).map(
             (p) => (
@@ -174,13 +175,13 @@ export default function ProviderModelPicker() {
               )}
               {!loadingModels && ollamaModels === null && (
                 <div className="px-1.5 py-1 text-[11px] text-zinc-500">
-                  No se pudo listar los modelos de Ollama.
+                  {t("No se pudo listar los modelos de Ollama.")}
                 </div>
               )}
               {!loadingModels &&
                 ollamaModels?.length === 0 && (
                   <div className="px-1.5 py-1 text-[11px] text-zinc-500">
-                    Ollama responde pero no tiene modelos descargados.
+                    {t("Ollama responde pero no tiene modelos descargados.")}
                   </div>
                 )}
               {!loadingModels &&
@@ -223,7 +224,7 @@ export default function ProviderModelPicker() {
                   if (e.key === "Enter") (e.target as HTMLInputElement).blur();
                 }}
                 className="w-full rounded-lg border border-base-border bg-base px-2.5 py-1.5 text-xs font-mono outline-none focus:border-accent/70"
-                placeholder="nombre del modelo"
+                placeholder={t("nombre del modelo")}
               />
             </div>
           )}
@@ -234,7 +235,7 @@ export default function ProviderModelPicker() {
               className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-zinc-400 hover:bg-base-hover/60 hover:text-zinc-200 transition-colors"
             >
               <Brain className="w-3.5 h-3.5 shrink-0 text-zinc-500" />
-              <span>Razonamiento</span>
+              <span>{t("Razonamiento")}</span>
               <span
                 className={`ml-auto ${
                   effort === "off" ? "text-zinc-500" : "text-accent-soft"
@@ -265,14 +266,14 @@ export default function ProviderModelPicker() {
                         : "text-zinc-400 hover:bg-base-hover/60"
                     }`}
                   >
-                    {l.label}
+                    {t(l.label)}
                     {effort === l.id && (
                       <Check className="w-3.5 h-3.5 ml-auto text-accent-soft" />
                     )}
                   </button>
                 ))}
                 <p className="px-2.5 pt-1 text-[10px] leading-snug text-zinc-600">
-                  Solo con modelos que lo soportan. No se aplica al modo trabajo.
+                  {t("Solo con modelos que lo soportan. No se aplica al modo trabajo.")}
                 </p>
                 </div>
               </div>

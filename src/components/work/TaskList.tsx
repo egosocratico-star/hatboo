@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 import type { ReactNode } from "react";
 import {
   CircleDashed,
@@ -37,12 +38,12 @@ export default function TaskList({ tasks, stepLines, running }: Props) {
     <div className="h-full flex flex-col">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-base-border text-xs font-medium text-zinc-400 uppercase tracking-wider">
         <ListChecks className="w-4 h-4 text-accent-soft" />
-        Tareas
+        {t("Tareas")}
       </div>
       <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1.5">
         {tasks.length === 0 && stepLines.length === 0 && (
           <p className="text-[11px] text-zinc-600">
-            El plan aparecerá aquí cuando el agente empiece.
+            {t("El plan aparecerá aquí cuando el agente empiece.")}
           </p>
         )}
         {tasks.map((t) => (
@@ -63,7 +64,7 @@ export default function TaskList({ tasks, stepLines, running }: Props) {
         {tasks.length === 0 && stepLines.length > 0 && (
           <>
             <p className="text-[11px] text-zinc-600 pb-0.5">
-              Sin plan: acciones de esta tarea
+              {t("Sin plan: acciones de esta tarea")}
             </p>
             {stepLines.map((l, i) => (
               <div key={i} className="flex items-start gap-2 text-xs leading-relaxed">

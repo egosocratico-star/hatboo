@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Briefcase, MessageSquare, Pin, Search, X } from "lucide-react";
@@ -19,8 +20,8 @@ const DIA = 86_400_000;
 function grupo(ms: number, hoy: number): string {
   const dias = Math.floor((hoy - ms) / DIA);
   if (dias <= 0) return "Hoy";
-  if (dias < 7) return "Esta semana";
-  if (dias < 31) return "Este mes";
+  if (dias < 7) return t("Esta semana");
+  if (dias < 31) return t("Este mes");
   return "Antes";
 }
 
@@ -133,7 +134,7 @@ export default function SearchOverlay() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={teclado}
-            placeholder="Buscar en todos los chats y sesiones…"
+            placeholder={t("Buscar en todos los chats y sesiones…")}
             className="flex-1 min-w-0 bg-transparent text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none"
           />
           {buscando && (
@@ -142,7 +143,7 @@ export default function SearchOverlay() {
           <button
             onClick={() => setOpen(false)}
             className="shrink-0 p-1 rounded-md text-zinc-500 hover:bg-base-hover hover:text-zinc-200 transition-colors"
-            title="Cerrar (Esc)"
+            title={t("Cerrar (Esc)")}
           >
             <X className="w-4 h-4" />
           </button>
@@ -151,8 +152,7 @@ export default function SearchOverlay() {
         <div className="max-h-[52vh] overflow-y-auto py-1.5">
           {query.trim().length < 2 && (
             <p className="px-4 py-6 text-center text-xs text-zinc-600">
-              Escribe al menos dos letras. Busca en títulos y en el contenido de
-              los mensajes; las sesiones archivadas quedan fuera.
+              {t("Escribe al menos dos letras. Busca en títulos y en el contenido de los mensajes; las sesiones archivadas quedan fuera.")}
             </p>
           )}
           {query.trim().length >= 2 && !buscando && hits.length === 0 && (

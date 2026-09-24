@@ -134,6 +134,12 @@ borra la base de datos, los adjuntos y las claves del llavero — pidiéndote es
 
 ## Apariencia
 
+**Idioma de la interfaz**: español, inglés o *Sistema* (el de Windows), en Ajustes →
+Apariencia. La clave de cada cadena es su propio texto en español, así que una frase
+sin traducir se ve en español en vez de convertirse en un código; `npm run i18n`
+avisa de las claves que usen `t()` y no estén en `src/i18n-en.ts`. Lo que escribe el
+modelo no se toca: el idioma de las respuestas se le pide en la charla.
+
 Tema **oscuro**, **claro** o **Sistema** (sigue el de Windows mientras la app está
 abierta), y tamaño del texto del chat. Los colores están tokenizados en variables
 CSS, así que cambiar de tema no toca ningún componente.

@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -129,7 +130,7 @@ function SearchResults({ paths }: { paths: string[] }) {
         );
       })}
       {paths.length === 0 && (
-        <p className="px-2 py-2 text-[11px] text-zinc-600">Sin coincidencias.</p>
+        <p className="px-2 py-2 text-[11px] text-zinc-600">{t("Sin coincidencias.")}</p>
       )}
     </div>
   );
@@ -193,7 +194,7 @@ export default function FileTree({
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar archivos…"
+            placeholder={t("Buscar archivos…")}
             className="w-full min-w-0 bg-transparent text-xs outline-none placeholder:text-zinc-600"
           />
           {query && (
@@ -211,14 +212,14 @@ export default function FileTree({
       <div className="flex-1 overflow-y-auto">
         {searching ? (
           results === null ? (
-            <p className="px-3 py-2 text-[11px] text-zinc-600">Buscando…</p>
+            <p className="px-3 py-2 text-[11px] text-zinc-600">{t("Buscando…")}</p>
           ) : (
             <SearchResults paths={results} />
           )
         ) : (
           <>
             {entries.length === 0 && (
-              <p className="px-3 py-2 text-[11px] text-zinc-600">Carpeta vacía.</p>
+              <p className="px-3 py-2 text-[11px] text-zinc-600">{t("Carpeta vacía.")}</p>
             )}
             {entries.map((e) => (
               <TreeNode key={e.path} projectId={projectId} entry={e} depth={0} />

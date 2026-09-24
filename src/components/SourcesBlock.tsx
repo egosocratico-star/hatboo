@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { useState } from "react";
 import { ChevronDown, Globe } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -18,7 +19,7 @@ export default function SourcesBlock({ sources }: { sources: WebSource[] }) {
       <button
         onClick={() => setOpen((o) => !o)}
         className="inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 -ml-1 text-[12px] text-zinc-500 hover:text-zinc-300 transition-colors"
-        title={open ? "Ocultar las fuentes" : "Ver las fuentes de la web"}
+        title={open ? t("Ocultar las fuentes") : t("Ver las fuentes de la web")}
       >
         <Globe className="w-3.5 h-3.5" />
         <span>

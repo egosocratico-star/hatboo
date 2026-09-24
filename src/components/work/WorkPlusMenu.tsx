@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 import { useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -29,7 +30,7 @@ export default function WorkPlusMenu({ onPickFiles, onInsertTemplate, disabled }
     const picked = await open({
       multiple: true,
       directory: false,
-      title: "Adjuntar archivos de texto",
+      title: t("Adjuntar archivos de texto"),
     });
     if (!picked) return;
     const paths = Array.isArray(picked) ? picked : [picked];
@@ -73,7 +74,7 @@ export default function WorkPlusMenu({ onPickFiles, onInsertTemplate, disabled }
         ref={triggerRef}
         onClick={() => setOpen((v) => !v)}
         disabled={disabled}
-        title="Añadir"
+        title={t("Añadir")}
         className="grid place-items-center w-8 h-8 shrink-0 rounded-full border border-base-border text-zinc-400 hover:text-white hover:border-accent/50 disabled:opacity-40 transition-colors"
       >
         <Plus className="w-4 h-4" />
@@ -88,21 +89,21 @@ export default function WorkPlusMenu({ onPickFiles, onInsertTemplate, disabled }
         className="p-1.5"
       >
         <div className="px-2 pt-1 pb-1 text-[10px] uppercase tracking-wider text-zinc-500">
-          Añadir
+          {t("Añadir")}
         </div>
         <button onClick={() => void pickTextFiles()} className={item} disabled={busy}>
           <FileText className="w-4 h-4 text-accent-soft shrink-0" />
-          <span className="flex-1">{busy ? "Leyendo…" : "Archivo de texto"}</span>
+          <span className="flex-1">{busy ? t("Leyendo…") : t("Archivo de texto")}</span>
         </button>
 
         <div className="my-1.5 h-px bg-base-border" />
         <div className="px-2 pt-0.5 pb-1 text-[10px] uppercase tracking-wider text-zinc-500">
-          Plantillas
+          {t("Plantillas")}
         </div>
         {skills.length === 0 ? (
-          <div className={item + " opacity-45 cursor-not-allowed"} title="Créalas en Ajustes → Skills">
+          <div className={item + " opacity-45 cursor-not-allowed"} title={t("Créalas en Ajustes → Skills")}>
             <Sparkles className="w-4 h-4 text-zinc-500 shrink-0" />
-            <span className="flex-1">Aún no hay plantillas</span>
+            <span className="flex-1">{t("Aún no hay plantillas")}</span>
           </div>
         ) : (
           skills.map((s) => (
@@ -125,11 +126,11 @@ export default function WorkPlusMenu({ onPickFiles, onInsertTemplate, disabled }
 
         <div className="my-1.5 h-px bg-base-border" />
         <div className="px-2 pt-0.5 pb-1 text-[10px] uppercase tracking-wider text-zinc-500">
-          Sesión
+          {t("Sesión")}
         </div>
         <button onClick={() => void clearSession()} className={item + " hover:text-red-300"}>
           <Eraser className="w-4 h-4 shrink-0" />
-          <span className="flex-1">Limpiar esta sesión</span>
+          <span className="flex-1">{t("Limpiar esta sesión")}</span>
         </button>
 
         {notice && (

@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { FileText } from "lucide-react";
@@ -65,8 +66,8 @@ export default function ProjectRules({ projectId }: { projectId: string }) {
         onClick={() => setOpen((v) => !v)}
         title={
           hayReglas
-            ? "El agente está leyendo las reglas de este proyecto (HATBOO.md)"
-            : "Reglas de este proyecto (HATBOO.md): aún no hay ninguna"
+            ? t("El agente está leyendo las reglas de este proyecto (HATBOO.md)")
+            : t("Reglas de este proyecto (HATBOO.md): aún no hay ninguna")
         }
         className={`relative flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] transition-colors ${
           hayReglas
@@ -75,7 +76,7 @@ export default function ProjectRules({ projectId }: { projectId: string }) {
         }`}
       >
         <FileText className="w-3.5 h-3.5 shrink-0" />
-        <span>Reglas</span>
+        <span>{t("Reglas")}</span>
       </button>
 
       <Popover
@@ -88,7 +89,7 @@ export default function ProjectRules({ projectId }: { projectId: string }) {
       >
         <div>
           <p className="text-xs font-medium text-zinc-200">
-            Reglas de este proyecto
+            {t("Reglas de este proyecto")}
           </p>
           <p className="text-[11px] text-zinc-500 break-all">
             {reglas?.path ?? "HATBOO.md"} — se añade al prompt del agente al
@@ -102,7 +103,7 @@ export default function ProjectRules({ projectId }: { projectId: string }) {
           onChange={(e) => setBorrador(e.target.value)}
           rows={11}
           spellCheck={false}
-          placeholder={"Escribe aquí las convenciones del proyecto…"}
+          placeholder={t("Escribe aquí las convenciones del proyecto…")}
           className="w-full resize-y rounded-lg border border-base-border bg-base-code px-2.5 py-2 font-mono text-[11px] leading-relaxed text-zinc-200 focus:border-accent/60 focus:outline-none"
         />
 
@@ -115,7 +116,7 @@ export default function ProjectRules({ projectId }: { projectId: string }) {
               onClick={() => setBorrador(PLANTILLA)}
               className="rounded-md px-2 py-1 text-[11px] text-zinc-400 hover:bg-base-hover hover:text-zinc-200 transition-colors"
             >
-              Empezar con una plantilla
+              {t("Empezar con una plantilla")}
             </button>
           )}
           <button
@@ -123,7 +124,7 @@ export default function ProjectRules({ projectId }: { projectId: string }) {
             disabled={guardando}
             className="ml-auto rounded-lg bg-accent px-3 py-1.5 text-xs text-white hover:bg-accent-dim transition-colors disabled:opacity-50"
           >
-            {guardando ? "Guardando…" : reglas?.exists ? "Guardar" : "Crear HATBOO.md"}
+            {guardando ? t("Guardando…") : reglas?.exists ? t("Guardar") : "Crear HATBOO.md"}
           </button>
         </div>
       </Popover>

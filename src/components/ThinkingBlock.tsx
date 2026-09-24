@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { useState } from "react";
 import { Brain, ChevronDown } from "lucide-react";
 
@@ -27,10 +28,10 @@ export default function ThinkingBlock({ reasoning, ms, streaming = false }: Prop
       <button
         onClick={() => setOpen((o) => !o)}
         className="inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 -ml-1 text-[12px] text-zinc-500 hover:text-zinc-300 transition-colors"
-        title={open ? "Ocultar el razonamiento" : "Ver el razonamiento"}
+        title={open ? t("Ocultar el razonamiento") : t("Ver el razonamiento")}
       >
         <Brain className="w-3.5 h-3.5" />
-        <span>{streaming ? "Pensando" : "Pensó"}{label ? ` ${label}` : ""}</span>
+        <span>{streaming ? t("Pensando") : t("Pensó")}{label ? ` ${label}` : ""}</span>
         <ChevronDown
           className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`}
         />

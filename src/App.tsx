@@ -9,10 +9,15 @@ import { useWorkStore } from "./store/workStore";
 import { useStreaming } from "./hooks/useStreaming";
 import { useAgentEvents } from "./hooks/useAgentEvents";
 import { applyMotion, applyTheme, applyVibrancy, watchSystemTheme } from "./theme";
+import { setLanguage, useT } from "./i18n";
 
 export default function App() {
+  // Toda la app se re-renderiza al cambiar el idioma: `t()` se llama durante el
+  // render, así que sin este suscriptor el cambio no se vería hasta recargar.
+  useT();
   const view = useChatStore((s) => s.view);
   const theme = useChatStore((s) => s.settings?.theme ?? "dark");
+  const idioma = useChatStore((s) => s.settings?.uiLanguage ?? "system");
   const motion = useChatStore((s) => s.settings?.motion ?? "system");
   const transparency = useChatStore((s) => s.settings?.windowTransparency ?? false);
   const loadConversations = useChatStore((s) => s.loadConversations);
@@ -31,6 +36,10 @@ export default function App() {
   useEffect(() => {
     applyMotion(motion);
   }, [motion]);
+
+  useEffect(() => {
+    setLanguage(idioma);
+  }, [idioma]);
 
   // Después del de `theme`: necesita el `data-theme` ya resuelto para elegir el
   // tinte de Mica, y se vuelve a llamar al cambiar de tema con la ventana translúcida.

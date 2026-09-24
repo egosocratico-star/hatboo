@@ -51,6 +51,9 @@ pub struct Settings {
     pub openai_model: String,
     pub local_model: String,
     pub theme: String,
+    /// `system` (el idioma del navegador) | `es` | `en`.
+    #[serde(default = "default_ui_language")]
+    pub ui_language: String,
     /// `system` (respeta `prefers-reduced-motion` del SO) | `reduced`.
     pub motion: String,
     /// Fondo Mica compuesto por Windows detrás del webview. Apagado por defecto:
@@ -120,6 +123,10 @@ pub struct Settings {
     pub redact_secrets: bool,
 }
 
+fn default_ui_language() -> String {
+    "system".to_string()
+}
+
 fn default_files_width() -> i64 {
     240
 }
@@ -178,6 +185,7 @@ impl Default for Settings {
             openai_model: "gpt-4o-mini".to_string(),
             local_model: "llama3.2".to_string(),
             theme: "dark".to_string(),
+            ui_language: default_ui_language(),
             motion: "system".to_string(),
             window_transparency: false,
             run_command_enabled: false,

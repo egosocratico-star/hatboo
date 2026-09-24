@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
@@ -74,7 +75,7 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
     const picked = await open({
       multiple: true,
       directory: false,
-      title: "Adjuntar archivos de texto",
+      title: t("Adjuntar archivos de texto"),
     });
     if (!picked) return;
     const paths = Array.isArray(picked) ? picked : [picked];
@@ -137,10 +138,10 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
     const picked = await open({
       multiple: true,
       directory: false,
-      title: "Adjuntar imágenes",
+      title: t("Adjuntar imágenes"),
       filters: [
         {
-          name: "Imágenes",
+          name: t("Imágenes"),
           extensions: ["png", "jpg", "jpeg", "gif", "webp"],
         },
       ],
@@ -187,7 +188,7 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
       "conversacion";
     const safeName = title.replace(/[\\/:*?"<>|]/g, "_").slice(0, 60) || "conversacion";
     const path = await save({
-      title: "Exportar conversación",
+      title: t("Exportar conversación"),
       defaultPath: `${safeName}.md`,
       filters: [
         { name: "Markdown", extensions: ["md"] },
@@ -224,7 +225,7 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
         ref={triggerRef}
         onClick={() => setOpen((v) => !v)}
         disabled={disabled}
-        title="Añadir"
+        title={t("Añadir")}
         className="grid place-items-center w-8 h-8 rounded-full border border-base-border text-zinc-400 hover:text-layer hover:border-accent/50 disabled:opacity-40 transition-colors"
       >
         <Plus className="w-4 h-4" />
@@ -238,19 +239,19 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
         className="p-1.5"
       >
           <div className="px-2 pt-1 pb-1 text-[10px] uppercase tracking-wider text-zinc-500">
-            Añadir
+            {t("Añadir")}
           </div>
           <button onClick={() => void pickTextFiles()} className={item} disabled={busy}>
             <FileText className="w-4 h-4 text-accent-soft shrink-0" />
-            <span className="flex-1">{busy ? "Leyendo…" : "Archivo de texto"}</span>
+            <span className="flex-1">{busy ? t("Leyendo…") : t("Archivo de texto")}</span>
           </button>
           <button
             onClick={() => setUrlGitHub((v) => (v === null ? "" : null))}
             className={item}
           >
             <Github className="w-4 h-4 text-accent-soft shrink-0" />
-            <span className="flex-1">Desde GitHub</span>
-            <span className="text-[10px] text-zinc-600">sin clonar</span>
+            <span className="flex-1">{t("Desde GitHub")}</span>
+            <span className="text-[10px] text-zinc-600">{t("sin clonar")}</span>
           </button>
           {urlGitHub !== null && (
             <div className="px-1 pb-1.5">
@@ -273,59 +274,59 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
                 disabled={!urlGitHub.trim() || ocupado}
                 className="mt-1 w-full rounded-lg bg-accent px-2 py-1.5 text-xs text-white hover:bg-accent-dim disabled:opacity-40 transition-colors"
               >
-                {ocupado ? "Descargando…" : "Añadir como contexto"}
+                {ocupado ? t("Descargando…") : t("Añadir como contexto")}
               </button>
             </div>
           )}
           {visionOk ? (
             <button onClick={() => void capturarPantalla()} className={item} disabled={busy}>
               <Camera className="w-4 h-4 text-accent-soft shrink-0" />
-              <span className="flex-1">Tomar captura</span>
-              <span className="text-[10px] text-zinc-600">pantalla entera</span>
+              <span className="flex-1">{t("Tomar captura")}</span>
+              <span className="text-[10px] text-zinc-600">{t("pantalla entera")}</span>
             </button>
           ) : (
             <div
               className={item + " opacity-45 cursor-not-allowed"}
-              title="Hace falta un modelo con visión para que Hatboo lea una captura."
+              title={t("Hace falta un modelo con visión para que Hatboo lea una captura.")}
             >
               <Camera className="w-4 h-4 text-zinc-500 shrink-0" />
-              <span className="flex-1">Tomar captura</span>
-              <span className="text-[10px] text-zinc-500">sin visión</span>
+              <span className="flex-1">{t("Tomar captura")}</span>
+              <span className="text-[10px] text-zinc-500">{t("sin visión")}</span>
             </div>
           )}
           {visionOk ? (
             <button onClick={() => void pickImages()} className={item} disabled={busy}>
               <ImageIcon className="w-4 h-4 text-accent-soft shrink-0" />
-              <span className="flex-1">Imagen</span>
+              <span className="flex-1">{t("Imagen")}</span>
             </button>
           ) : (
             <div
               className={item + " opacity-45 cursor-not-allowed"}
-              title="El modelo actual no admite imágenes. Cambia a un modelo con visión en Ajustes."
+              title={t("El modelo actual no admite imágenes. Cambia a un modelo con visión en Ajustes.")}
             >
               <ImageIcon className="w-4 h-4 text-zinc-500 shrink-0" />
-              <span className="flex-1">Imagen</span>
-              <span className="text-[10px] text-zinc-500">sin visión</span>
+              <span className="flex-1">{t("Imagen")}</span>
+              <span className="text-[10px] text-zinc-500">{t("sin visión")}</span>
             </div>
           )}
 
           <div className="my-1.5 h-px bg-base-border" />
           <div className="px-2 pt-0.5 pb-1 text-[10px] uppercase tracking-wider text-zinc-500">
-            Conectores
+            {t("Conectores")}
           </div>
           {(
             [
               {
                 key: "webSearch" as const,
-                label: "Búsqueda web",
+                label: t("Búsqueda web"),
                 Icon: Globe,
-                ayuda: "Consulta DuckDuckGo antes de responder. Sin cuenta ni clave.",
+                ayuda: t("Consulta DuckDuckGo antes de responder. Sin cuenta ni clave."),
               },
               {
                 key: "codeMode" as const,
-                label: "Modo código",
+                label: t("Modo código"),
                 Icon: Code2,
-                ayuda: "Prompt orientado a programar: respuestas directas y código completo.",
+                ayuda: t("Prompt orientado a programar: respuestas directas y código completo."),
               },
             ]
           ).map(({ key, label, Icon, ayuda }) => {
@@ -348,15 +349,15 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
 
           <div className="my-1.5 h-px bg-base-border" />
           <div className="px-2 pt-0.5 pb-1 text-[10px] uppercase tracking-wider text-zinc-500">
-            Plantillas
+            {t("Plantillas")}
           </div>
           {skills.length === 0 ? (
             <div
               className={item + " opacity-45 cursor-not-allowed"}
-              title="Créalas en Ajustes → Skills"
+              title={t("Créalas en Ajustes → Skills")}
             >
               <Sparkles className="w-4 h-4 text-zinc-500 shrink-0" />
-              <span className="flex-1">Aún no hay plantillas</span>
+              <span className="flex-1">{t("Aún no hay plantillas")}</span>
             </div>
           ) : (
             skills.map((s) => (
@@ -385,11 +386,11 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
 
           <div className="my-1.5 h-px bg-base-border" />
           <div className="px-2 pt-0.5 pb-1 text-[10px] uppercase tracking-wider text-zinc-500">
-            Sesión
+            {t("Sesión")}
           </div>
           <button onClick={goWork} className={item}>
             <FolderKanban className="w-4 h-4 text-accent-soft shrink-0" />
-            <span className="flex-1">Proyectos</span>
+            <span className="flex-1">{t("Proyectos")}</span>
           </button>
           <button
             onClick={() => void exportConversation()}
@@ -397,7 +398,7 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
             disabled={!canClear}
           >
             <Download className="w-4 h-4 text-accent-soft shrink-0" />
-            <span className="flex-1">Exportar conversación</span>
+            <span className="flex-1">{t("Exportar conversación")}</span>
           </button>
           <button
             onClick={() => void clearConversation()}
@@ -405,7 +406,7 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
             disabled={!canClear}
           >
             <Trash2 className="w-4 h-4 shrink-0" />
-            <span className="flex-1">Limpiar conversación</span>
+            <span className="flex-1">{t("Limpiar conversación")}</span>
           </button>
 
           {notice && (

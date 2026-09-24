@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
@@ -9,7 +10,9 @@ const NAME_MAX = 60;
 const PROMPT_MAX = 2000;
 
 /** Plantillas que se pueden añadir de un clic. Entran apagadas: no cambian el
- *  comportamiento de Hatboo hasta que el usuario las activa. */
+ *  comportamiento de Hatboo hasta que el usuario las activa. El texto se traduce
+ *  al usarlo, no aquí: una constante de módulo se evalúa al importar, cuando aún
+ *  no se conoce el idioma guardado. */
 const EXAMPLES: Array<{ name: string; prompt: string }> = [
   {
     name: "Explicar paso a paso",
@@ -82,7 +85,7 @@ export default function SkillsSettings() {
     const ruta = await open({
       directory: carpeta,
       multiple: false,
-      title: carpeta ? "Elige la carpeta de la plantilla" : "Elige el archivo de la plantilla",
+      title: carpeta ? t("Elige la carpeta de la plantilla") : t("Elige el archivo de la plantilla"),
       filters: carpeta ? undefined : [{ name: "Markdown", extensions: ["md", "markdown", "txt"] }],
     });
     if (!ruta) return;
@@ -100,7 +103,7 @@ export default function SkillsSettings() {
   const exportar = async (skill: Skill) => {
     setError(null);
     const ruta = await save({
-      title: "Guardar la plantilla como archivo",
+      title: t("Guardar la plantilla como archivo"),
       defaultPath: `${skill.name.toLowerCase().replace(/[^a-z0-9]+/gi, "-")}.md`,
       filters: [{ name: "Markdown", extensions: ["md"] }],
     });
@@ -118,18 +121,17 @@ export default function SkillsSettings() {
   return (
     <section className="space-y-3">
       <p className="text-xs leading-snug text-zinc-500">
-        Cada plantilla es un trozo de instrucciones escrito por ti. Si está
-        activada, Hatboo la aplica en <strong className="text-zinc-400">todas</strong>{" "}
-        las respuestas del chat y del modo trabajo; si no, siempre puedes
-        insertarla en un mensaje concreto desde el botón «+» de la barra de chat.
+        {t(
+          "Cada plantilla es un trozo de instrucciones escrito por ti. Si está activada, Hatboo la aplica en todas las respuestas del chat y del modo trabajo; si no, siempre puedes insertarla en un mensaje concreto desde el botón «+» de la barra de chat.",
+        )}
       </p>
 
       {skills.length === 0 && !draft && (
         <div className="rounded-lg border border-dashed border-base-border px-4 py-6 text-center">
           <Sparkles className="mx-auto w-5 h-5 text-zinc-600" />
-          <p className="mt-2 text-sm text-zinc-400">Todavía no tienes plantillas.</p>
+          <p className="mt-2 text-sm text-zinc-400">{t("Todavía no tienes plantillas.")}</p>
           <p className="mt-0.5 text-xs text-zinc-600">
-            Crea la primera o añade una de los ejemplos de abajo.
+            {t("Crea la primera o añade una de los ejemplos de abajo.")}
           </p>
         </div>
       )}
@@ -147,7 +149,7 @@ export default function SkillsSettings() {
                   checked={s.enabled}
                   onChange={(e) => void toggle(s, e.target.checked)}
                   className="accent-violet-500"
-                  title={s.enabled ? "Se aplica a cada respuesta" : "Solo se puede insertar a mano"}
+                  title={s.enabled ? t("Se aplica a cada respuesta") : t("Solo se puede insertar a mano")}
                 />
               </label>
               <div className="min-w-0 flex-1">
@@ -159,7 +161,7 @@ export default function SkillsSettings() {
               <div className="flex shrink-0 items-center gap-0.5">
                 <button
                   onClick={() => void exportar(s)}
-                  title="Guardar como archivo .md"
+                  title={t("Guardar como archivo .md")}
                   className="rounded-md p-1.5 text-zinc-500 hover:bg-layer/8 hover:text-zinc-100 transition-colors"
                 >
                   <Download className="w-3.5 h-3.5" />
@@ -184,7 +186,7 @@ export default function SkillsSettings() {
                     onClick={() => void drop(s.id)}
                     className="rounded-md bg-red-500/15 px-2 py-1 text-[11px] text-red-300 hover:bg-red-500/25 transition-colors"
                   >
-                    Confirmar
+                    {t("Confirmar")}
                   </button>
                 ) : (
                   <button
@@ -205,7 +207,7 @@ export default function SkillsSettings() {
         <div className="space-y-2 rounded-lg border border-accent/40 bg-base-raised p-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-medium text-zinc-100">
-              {draft.id ? "Editar plantilla" : "Nueva plantilla"}
+              {draft.id ? t("Editar plantilla") : t("Nueva plantilla")}
             </h3>
             <button
               onClick={() => {
@@ -221,14 +223,14 @@ export default function SkillsSettings() {
           <input
             value={draft.name}
             onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-            placeholder="Nombre, p. ej. Explicar paso a paso"
+            placeholder={t("Nombre, p. ej. Explicar paso a paso")}
             maxLength={NAME_MAX}
             className={field}
           />
           <textarea
             value={draft.prompt}
             onChange={(e) => setDraft({ ...draft, prompt: e.target.value })}
-            placeholder="Qué debe hacer Hatboo cuando esta plantilla esté activa…"
+            placeholder={t("Qué debe hacer Hatboo cuando esta plantilla esté activa…")}
             maxLength={PROMPT_MAX}
             rows={5}
             className={field + " resize-y leading-relaxed"}
@@ -240,8 +242,8 @@ export default function SkillsSettings() {
               onChange={(e) => setDraft({ ...draft, enabled: e.target.checked })}
               className="accent-violet-500"
             />
-            Aplicarla siempre (si la desactivas, sigue disponible en el menú «+» del chat)
-          </label>
+              {t("Aplicarla siempre (si la desactivas, sigue disponible en el menú «+» del chat)")}
+            </label>
           <div className="flex items-center justify-between pt-0.5">
             <span className="text-[11px] text-zinc-600">
               {draft.prompt.length.toLocaleString("es")}/{PROMPT_MAX}
@@ -254,14 +256,14 @@ export default function SkillsSettings() {
                 }}
                 className="rounded-lg border border-base-border px-3 py-1.5 text-xs text-zinc-300 hover:border-zinc-500 transition-colors"
               >
-                Cancelar
+                {t("Cancelar")}
               </button>
               <button
                 onClick={() => void commit(draft)}
                 disabled={!draft.name.trim() || !draft.prompt.trim()}
                 className="rounded-lg bg-accent px-3.5 py-1.5 text-xs font-medium text-white hover:bg-accent-dim disabled:opacity-40 transition-colors"
               >
-                Guardar
+                {t("Guardar")}
               </button>
             </div>
           </div>
@@ -276,23 +278,23 @@ export default function SkillsSettings() {
             className="inline-flex items-center gap-1.5 rounded-lg border border-base-border px-3 py-1.5 text-xs text-zinc-300 hover:border-accent/50 hover:text-layer transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
-            Nueva plantilla
+            {t("Nueva plantilla")}
           </button>
           <button
             onClick={() => void instalar(false)}
-            title="Un archivo .md con cabecera «name:» y «description:», o el cuerpo a pelo"
+            title={t("Un archivo .md con cabecera «name:» y «description:», o el cuerpo a pelo")}
             className="inline-flex items-center gap-1.5 rounded-lg border border-base-border px-3 py-1.5 text-xs text-zinc-300 hover:border-accent/50 hover:text-layer transition-colors"
           >
             <Upload className="w-3.5 h-3.5" />
-            Instalar desde archivo
+            {t("Instalar desde archivo")}
           </button>
           <button
             onClick={() => void instalar(true)}
-            title="Una carpeta que traiga su SKILL.md o README.md"
+            title={t("Una carpeta que traiga su SKILL.md o README.md")}
             className="inline-flex items-center gap-1.5 rounded-lg border border-base-border px-3 py-1.5 text-xs text-zinc-300 hover:border-accent/50 hover:text-layer transition-colors"
           >
             <Upload className="w-3.5 h-3.5" />
-            Desde carpeta
+            {t("Desde carpeta")}
           </button>
         </div>
       )}
@@ -302,17 +304,24 @@ export default function SkillsSettings() {
       {!draft && EXAMPLES.length > 0 && (
         <div className="pt-1">
           <p className="mb-1.5 text-[10px] uppercase tracking-wider text-zinc-600">
-            Ejemplos para añadir
+            {t("Ejemplos para añadir")}
           </p>
           <div className="flex flex-wrap gap-1.5">
             {EXAMPLES.map((ex) => (
               <button
                 key={ex.name}
-                onClick={() => void commit({ id: "", ...ex, enabled: false })}
-                title={ex.prompt}
+                onClick={() =>
+                  void commit({
+                    id: "",
+                    name: t(ex.name),
+                    prompt: t(ex.prompt),
+                    enabled: false,
+                  })
+                }
+                title={t(ex.prompt)}
                 className="rounded-full border border-base-border bg-base-raised/60 px-2.5 py-1 text-[11px] text-zinc-400 hover:text-zinc-100 hover:border-accent/50 transition-colors"
               >
-                + {ex.name}
+                + {t(ex.name)}
               </button>
             ))}
           </div>

@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { Code2, Globe } from "lucide-react";
 import { useChatStore } from "../store/chatStore";
 import type { Settings } from "../types";
@@ -37,13 +38,13 @@ export default function ModeToggles({ disabled = false }: Props) {
         aria-pressed={settings.codeMode}
         title={
           settings.codeMode
-            ? "Modo código activado: respuestas directas, con código completo"
-            : "Activar modo código"
+            ? t("Modo código activado: respuestas directas, con código completo")
+            : t("Activar modo código")
         }
         className={chip(settings.codeMode)}
       >
         <Code2 className="w-3.5 h-3.5 shrink-0" />
-        <span className="hidden sm:inline">Código</span>
+        <span className="hidden sm:inline">{t("Código")}</span>
       </button>
       <button
         onClick={() => toggle("webSearch")}
@@ -51,8 +52,8 @@ export default function ModeToggles({ disabled = false }: Props) {
         aria-pressed={settings.webSearch}
         title={
           settings.webSearch
-            ? "Búsqueda web activada: el chat consulta DuckDuckGo antes de responder y el modo trabajo puede pedir usar la herramienta web_search."
-            : "Activar búsqueda web (DuckDuckGo, sin cuenta). Afecta al chat y al modo trabajo."
+            ? t("Búsqueda web activada: el chat consulta DuckDuckGo antes de responder y el modo trabajo puede pedir usar la herramienta web_search.")
+            : t("Activar búsqueda web (DuckDuckGo, sin cuenta). Afecta al chat y al modo trabajo.")
         }
         className={chip(settings.webSearch)}
       >

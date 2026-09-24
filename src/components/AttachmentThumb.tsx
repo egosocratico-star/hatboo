@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
@@ -51,7 +52,7 @@ export default function AttachmentImage({ file, name, onAccent = false }: Props)
   if (src === "") {
     return (
       <span
-        title="La imagen ya no está en disco"
+        title={t("La imagen ya no está en disco")}
         className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-[9px] ${
           onAccent ? "bg-white/15 text-white/80" : "bg-layer/5 text-zinc-500"
         }`}
@@ -103,7 +104,7 @@ function Lightbox({ src, name, onClose }: { src: string; name: string; onClose: 
       />
       <button
         onClick={onClose}
-        aria-label="Cerrar imagen"
+        aria-label={t("Cerrar imagen")}
         className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20 transition-colors"
       >
         <X className="w-4 h-4" />

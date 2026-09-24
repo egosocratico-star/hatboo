@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 import { useState } from "react";
 import { Check, ChevronDown, ChevronRight, Copy } from "lucide-react";
 import type { CommandData } from "../../store/workStore";
@@ -53,11 +54,11 @@ export default function CommandBlock({ data, ok, durationMs }: Props) {
           }`}
           title={
             codigo === null
-              ? "El comando no devolvió código de salida (cancelado o sin permisos)"
-              : `El proceso terminó con código ${codigo}`
+              ? t("El comando no devolvió código de salida (cancelado o sin permisos)")
+              : t("El proceso terminó con código {c}", { c: codigo })
           }
         >
-          {codigo === null ? "sin código" : `exit ${codigo}`}
+          {codigo === null ? t("sin código") : `exit ${codigo}`}
         </span>
         {durationMs > 0 && (
           <span className="shrink-0 text-[10px] text-zinc-500 tabular-nums">
@@ -67,7 +68,7 @@ export default function CommandBlock({ data, ok, durationMs }: Props) {
         <button
           onClick={copiar}
           className="shrink-0 rounded-md p-1 text-zinc-500 hover:bg-base-hover hover:text-zinc-200 transition-colors"
-          title="Copiar el comando y su salida"
+          title={t("Copiar el comando y su salida")}
         >
           {copiado ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
         </button>
@@ -75,7 +76,7 @@ export default function CommandBlock({ data, ok, durationMs }: Props) {
           <button
             onClick={() => setAbierto((v) => !v)}
             className="shrink-0 rounded-md p-1 text-zinc-500 hover:bg-base-hover hover:text-zinc-200 transition-colors"
-            title={abierto ? "Ocultar la salida" : "Mostrar la salida"}
+            title={abierto ? t("Ocultar la salida") : t("Mostrar la salida")}
           >
             {abierto ? (
               <ChevronDown className="w-3.5 h-3.5" />
@@ -96,7 +97,7 @@ export default function CommandBlock({ data, ok, durationMs }: Props) {
       )}
       {abierto && salida === "" && (
         <p className="border-t border-base-border px-3 py-2 text-[11px] text-zinc-600">
-          Sin salida.
+          {t("Sin salida.")}
         </p>
       )}
     </div>

@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { Fragment, type ReactNode } from "react";
 
 const CODE_FENCE = /```(\w*)\n?([\s\S]*?)```/g;
@@ -94,7 +95,7 @@ export default function RichText({ text }: { text: string }) {
     blocks.push(
       <CodeBlock
         key={`c${key++}`}
-        lang={match[1] || "código"}
+        lang={match[1] || t("código")}
         code={match[2].replace(/\n$/, "")}
       />,
     );

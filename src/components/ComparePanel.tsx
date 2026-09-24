@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -101,7 +102,7 @@ export default function ComparePanel({
           [payload.id]: {
             ...(prev[payload.id] ?? { texto: "", razon: "", estado: "corriendo" as Estado }),
             estado: "error",
-            error: payload.message ?? "La comparación falló.",
+            error: payload.message ?? t("La comparación falló."),
           },
         })),
       ),
@@ -188,13 +189,13 @@ export default function ComparePanel({
       <div className="flex h-full max-h-[82vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-base-border bg-base-raised shadow-2xl shadow-shade/50">
         <div className="flex shrink-0 items-center gap-2 border-b border-base-border px-4 py-2.5">
           <Scale className="w-4 h-4 text-accent-soft" />
-          <h2 className="text-sm font-medium text-zinc-100">Comparar modelos</h2>
+          <h2 className="text-sm font-medium text-zinc-100">{t("Comparar modelos")}</h2>
           <p className="ml-2 hidden text-[11px] text-zinc-500 sm:block">
-            La misma pregunta a la vez; no se guarda en la conversación.
+            {t("La misma pregunta a la vez; no se guarda en la conversación.")}
           </p>
           <button
             onClick={onCerrar}
-            title="Cerrar (Esc)"
+            title={t("Cerrar (Esc)")}
             className="ml-auto rounded-md p-1 text-zinc-500 hover:bg-base hover:text-zinc-100 transition-colors"
           >
             <X className="w-4 h-4" />
@@ -250,7 +251,7 @@ export default function ComparePanel({
                 <button
                   onClick={() => setObjetivos((prev) => prev.filter((x) => x.id !== o.id))}
                   disabled={objetivos.length <= 1}
-                  title="Quitar este modelo"
+                  title={t("Quitar este modelo")}
                   className="rounded p-1 text-zinc-600 hover:text-red-300 disabled:opacity-30 transition-colors"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -268,7 +269,7 @@ export default function ComparePanel({
                 className="inline-flex items-center gap-1 rounded-lg border border-dashed border-base-border px-2 py-1.5 text-[11px] text-zinc-500 hover:border-accent/50 hover:text-zinc-200 transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
-                Añadir modelo
+                {t("Añadir modelo")}
               </button>
             )}
           </div>
@@ -285,17 +286,17 @@ export default function ComparePanel({
                 }
               }}
               rows={2}
-              placeholder="Escribe la pregunta y pulsa Ctrl+Enter"
+              placeholder={t("Escribe la pregunta y pulsa Ctrl+Enter")}
               className="flex-1 resize-none rounded-lg border border-base-border bg-base px-3 py-2 text-sm outline-none focus:border-accent/70 placeholder:text-zinc-600"
             />
             {ocupado ? (
               <button
                 onClick={() => void detener()}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-xs font-medium text-white hover:bg-accent-dim transition-colors"
-                title="Detener las tres generaciones"
+                title={t("Detener las tres generaciones")}
               >
                 <Square className="w-3 h-3 fill-current" />
-                Detener
+                {t("Detener")}
               </button>
             ) : (
               <button
@@ -303,7 +304,7 @@ export default function ComparePanel({
                 disabled={!pregunta.trim()}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-xs font-medium text-white hover:bg-accent-dim disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
-                Comparar
+                {t("Comparar")}
               </button>
             )}
           </div>
@@ -316,13 +317,13 @@ export default function ComparePanel({
             return (
               <div key={o.id} className="flex min-w-0 flex-1 flex-col">
                 <div className="flex shrink-0 items-center gap-2 border-b border-base-border px-3 py-1.5">
-                  <span className="truncate text-xs text-zinc-300">{o.model || "sin modelo"}</span>
+                  <span className="truncate text-xs text-zinc-300">{o.model || t("sin modelo")}</span>
                   <span className="shrink-0 text-[10px] uppercase tracking-wider text-zinc-600">
                     {PROVIDERS.find((p) => p.id === o.provider)?.label}
                   </span>
                   <span className="ml-auto shrink-0 text-[10px] text-zinc-600">
                     {r?.estado === "corriendo"
-                      ? "escribiendo…"
+                      ? t("escribiendo…")
                       : r?.estado === "listo"
                         ? "listo"
                         : r?.estado === "error"
@@ -332,7 +333,7 @@ export default function ComparePanel({
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2.5">
                   {!r ? (
-                    <p className="text-xs text-zinc-600">Sin respuesta todavía.</p>
+                    <p className="text-xs text-zinc-600">{t("Sin respuesta todavía.")}</p>
                   ) : r.estado === "error" ? (
                     <p className="text-xs leading-relaxed text-red-400">{r.error}</p>
                   ) : (
@@ -341,7 +342,7 @@ export default function ComparePanel({
                       {r.texto ? (
                         <RichText text={r.texto} />
                       ) : (
-                        <p className="text-xs text-zinc-600">Pensando…</p>
+                        <p className="text-xs text-zinc-600">{t("Pensando…")}</p>
                       )}
                     </>
                   )}
@@ -353,8 +354,10 @@ export default function ComparePanel({
 
         <p className="shrink-0 border-t border-base-border px-4 py-1.5 text-[10px] text-zinc-600">
           {mensajes.length > 0
-            ? `Se envían también los ${mensajes.length} mensajes anteriores, igual que en el chat.`
-            : "Sin historial de fondo: pregunta suelta."}
+            ? t("Se envían también los {n} mensajes anteriores, igual que en el chat.", {
+                n: mensajes.length,
+              })
+            : t("Sin historial de fondo: pregunta suelta.")}
         </p>
       </div>
     </div>

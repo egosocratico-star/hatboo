@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 import type { MascotState } from "../../types";
 import idle from "./states/idle.png";
 import coding from "./states/coding.png";
@@ -13,6 +14,8 @@ const SPRITES: Record<MascotState, string> = {
   surprised,
 };
 
+/** Etiquetas en español: se traducen al pintar, porque una constante de módulo
+ *  se evalúa al importar, antes de conocer el idioma guardado. */
 const LABELS: Record<MascotState, string> = {
   idle: "Hatboo",
   thinking: "Pensando…",
@@ -32,7 +35,7 @@ export default function Mascot({ state, size = 96, showLabel = false }: Props) {
     <div className="flex flex-col items-center gap-2 select-none">
       <img
         src={SPRITES[state]}
-        alt={LABELS[state]}
+        alt={t(LABELS[state])}
         width={size}
         height={size}
         className={`object-contain transition-opacity duration-200 ${
@@ -41,7 +44,7 @@ export default function Mascot({ state, size = 96, showLabel = false }: Props) {
         draggable={false}
       />
       {showLabel && (
-        <span className="text-xs text-zinc-500">{LABELS[state]}</span>
+        <span className="text-xs text-zinc-500">{t(LABELS[state])}</span>
       )}
     </div>
   );

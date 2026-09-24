@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { useRef, useState } from "react";
 import {
   Settings,
@@ -50,15 +51,15 @@ const fmtDate = (ms: number) =>
  *  es la cercanía. La fecha completa se queda en el `title`. */
 function haceRelativo(ms: number): string {
   const minutos = Math.floor((Date.now() - ms) / 60_000);
-  if (minutos < 1) return "ahora";
-  if (minutos < 60) return `hace ${minutos} min`;
+  if (minutos < 1) return t("ahora");
+  if (minutos < 60) return t("hace {n} min", { n: minutos });
   const horas = Math.floor(minutos / 60);
-  if (horas < 24) return `hace ${horas} h`;
+  if (horas < 24) return t("hace {n} h", { n: horas });
   const dias = Math.floor(horas / 24);
-  if (dias === 1) return "ayer";
-  if (dias < 7) return `hace ${dias} días`;
+  if (dias === 1) return t("ayer");
+  if (dias < 7) return t("hace {n} días", { n: dias });
   const semanas = Math.floor(dias / 7);
-  if (semanas < 5) return `hace ${semanas} sem`;
+  if (semanas < 5) return t("hace {n} sem", { n: semanas });
   return fmtDate(ms);
 }
 
@@ -95,7 +96,7 @@ function SessionRow({
           ? "bg-base-hover text-zinc-100"
           : "text-zinc-500 hover:bg-base-hover hover:text-zinc-300"
       }`}
-      title={`${conv.title} · ${fmtDate(conv.updatedAt)} · clic derecho para más opciones`}
+      title={`${conv.title} · ${fmtDate(conv.updatedAt)} · ${t("clic derecho para más opciones")}`}
     >
       <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${dot}`} />
       <span className="flex-1 truncate">{conv.title}</span>
@@ -109,7 +110,7 @@ function SessionRow({
           onDelete();
         }}
         disabled={isActive}
-        title={isActive ? "Es la sesión abierta" : "Eliminar sesión"}
+        title={isActive ? t("Es la sesión abierta") : t("Eliminar sesión")}
         className="hidden group-hover:block shrink-0 p-0.5 rounded text-zinc-500 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-40"
       >
         <Trash2 className="w-3 h-3" />
@@ -180,12 +181,12 @@ export default function Sidebar() {
 
   const projectMenuItems = (p: Project): MenuItem[] => [
     {
-      label: p.pinned ? "Dejar de fijar" : "Fijar arriba",
+      label: p.pinned ? t("Dejar de fijar") : t("Fijar arriba"),
       icon: <Pin className="w-3.5 h-3.5" />,
       onSelect: () => void setProjectPinned(p.id, !p.pinned),
     },
     {
-      label: "Quitar de la lista",
+      label: t("Quitar de la lista"),
       icon: <Trash2 className="w-3.5 h-3.5" />,
       danger: true,
       onSelect: () => void removeProject(p.id),
@@ -194,7 +195,7 @@ export default function Sidebar() {
 
   const menuItems = (conv: Conversation): MenuItem[] => [
     {
-      label: conv.pinned ? "Dejar de fijar" : "Fijar arriba",
+      label: conv.pinned ? t("Dejar de fijar") : t("Fijar arriba"),
       icon: <Pin className="w-3.5 h-3.5" />,
       onSelect: () => void setConversationFlags(conv.id, { pinned: !conv.pinned }),
     },
@@ -210,7 +211,7 @@ export default function Sidebar() {
           onSelect: () => void setConversationFlags(conv.id, { archived: true }),
         },
     {
-      label: "Eliminar",
+      label: t("Eliminar"),
       icon: <Trash2 className="w-3.5 h-3.5" />,
       danger: true,
       onSelect: () => void removeConversation(conv.id),
@@ -261,35 +262,35 @@ export default function Sidebar() {
         <button
           onClick={() => patchSettings({ sidebarCompact: false })}
           className={`${RAIL_BTN} text-accent-soft hover:bg-base-hover`}
-          title="Desplegar la barra lateral (Ctrl+B)"
+          title={t("Desplegar la barra lateral (Ctrl+B)")}
         >
           <Ghost className="w-5 h-5" />
         </button>
         <button
           onClick={() => void newConversation()}
           className={`${RAIL_BTN} text-accent-soft hover:bg-base-hover`}
-          title="Nueva conversación (Ctrl+N)"
+          title={t("Nueva conversación (Ctrl+N)")}
         >
           <Plus className="w-4 h-4" />
         </button>
         <button
           onClick={() => useChatStore.getState().setSearchOpen(true)}
           className={`${RAIL_BTN} text-zinc-400 hover:bg-base-hover hover:text-zinc-100`}
-          title="Buscar en todos los chats (Ctrl+K)"
+          title={t("Buscar en todos los chats (Ctrl+K)")}
         >
           <Search className="w-4 h-4" />
         </button>
         <button
           onClick={() => void openProjectPicker()}
           className={`${RAIL_BTN} text-zinc-400 hover:bg-base-hover hover:text-zinc-100`}
-          title="Abrir carpeta existente"
+          title={t("Abrir carpeta existente")}
         >
           <FolderOpen className="w-4 h-4" />
         </button>
         <button
           onClick={() => void startCreateProject()}
           className={`${RAIL_BTN} text-zinc-400 hover:bg-base-hover hover:text-zinc-100`}
-          title="Crear proyecto nuevo"
+          title={t("Crear proyecto nuevo")}
         >
           <FolderPlus className="w-4 h-4" />
         </button>
@@ -339,14 +340,14 @@ export default function Sidebar() {
               ? "text-accent-soft bg-base-hover"
               : "text-zinc-500 hover:text-zinc-100 hover:bg-base-hover"
           }`}
-          title="Ajustes (Ctrl+,)"
+          title={t("Ajustes (Ctrl+,)")}
         >
           <Settings className="w-4 h-4" />
         </button>
         <button
           onClick={() => patchSettings({ sidebarCompact: false })}
           className={`${RAIL_BTN} w-full text-zinc-500 hover:bg-base-hover hover:text-zinc-100`}
-          title="Desplegar la barra lateral (Ctrl+B)"
+          title={t("Desplegar la barra lateral (Ctrl+B)")}
         >
           <PanelLeftOpen className="w-4 h-4" />
         </button>
@@ -362,14 +363,14 @@ export default function Sidebar() {
         <button
           onClick={() => useChatStore.getState().setSearchOpen(true)}
           className="shrink-0 p-1.5 rounded-lg text-zinc-500 hover:bg-base-hover hover:text-zinc-100 transition-colors"
-          title="Buscar en todos los chats (Ctrl+K)"
+          title={t("Buscar en todos los chats (Ctrl+K)")}
         >
           <Search className="w-4 h-4" />
         </button>
         <button
           onClick={() => patchSettings({ sidebarCompact: true })}
           className="shrink-0 p-1.5 rounded-lg text-zinc-500 hover:bg-base-hover hover:text-zinc-100 transition-colors"
-          title="Plegar la barra lateral (Ctrl+B)"
+          title={t("Plegar la barra lateral (Ctrl+B)")}
         >
           <PanelLeftClose className="w-4 h-4" />
         </button>
@@ -382,36 +383,36 @@ export default function Sidebar() {
                      border border-accent/40 bg-accent/10 hover:bg-accent/20 text-accent-soft text-sm font-medium transition-colors"
         >
           <Plus className="w-4 h-4" />
-          Nueva conversación
+          {t("Nueva conversación")}
         </button>
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2 pb-2 space-y-0.5">
         <div className="flex items-center gap-1.5 px-3 pt-3 pb-1.5 text-[11px] font-medium text-zinc-500">
           <Briefcase className="w-3.5 h-3.5" />
-          Proyectos
+          {t("Proyectos")}
         </div>
         <div className="grid grid-cols-2 gap-2 px-1 pb-1">
           <button
             onClick={() => void openProjectPicker()}
             className="flex items-center gap-1.5 justify-center px-2 py-1.5 rounded-lg text-xs text-zinc-400 hover:bg-base-hover hover:text-zinc-100 transition-colors"
-            title="Abrir carpeta existente"
+            title={t("Abrir carpeta existente")}
           >
             <FolderOpen className="w-3.5 h-3.5" />
-            Abrir
+            {t("Abrir")}
           </button>
           <button
             onClick={() => void startCreateProject()}
             className="flex items-center gap-1.5 justify-center px-2 py-1.5 rounded-lg text-xs text-zinc-400 hover:bg-base-hover hover:text-zinc-100 transition-colors"
-            title="Crear proyecto nuevo"
+            title={t("Crear proyecto nuevo")}
           >
             <FolderPlus className="w-3.5 h-3.5" />
-            Crear
+            {t("Crear")}
           </button>
         </div>
         {projects.length === 0 && (
           <p className="px-3 py-1 text-xs text-zinc-500">
-            Aún no hay proyectos.
+            {t("Aún no hay proyectos.")}
           </p>
         )}
         {projects.map((p) => {
@@ -440,7 +441,7 @@ export default function Sidebar() {
                     toggleExpanded(p.id);
                   }}
                   className="p-1 shrink-0 text-zinc-500 hover:text-layer"
-                  title={isOpen ? "Ocultar sesiones" : "Ver sesiones"}
+                  title={isOpen ? t("Ocultar sesiones") : t("Ver sesiones")}
                 >
                   {isOpen ? (
                     <ChevronDown className="w-3.5 h-3.5" />
@@ -453,17 +454,17 @@ export default function Sidebar() {
                 {p.pinned && (
                   <Pin
                     className="w-3 h-3 shrink-0 text-accent-soft/70"
-                    aria-label="Proyecto fijado"
+                    aria-label={t("Proyecto fijado")}
                   />
                 )}
                 {tab && (
                   <span
                     className="shrink-0 w-1.5 h-1.5 rounded-full bg-accent-soft/80"
-                    title="Pestaña abierta"
+                    title={t("Pestaña abierta")}
                   />
                 )}
                 <button
-                  title="Quitar proyecto"
+                  title={t("Quitar proyecto")}
                   onClick={(ev) => {
                     ev.stopPropagation();
                     void removeProject(p.id);
@@ -490,10 +491,10 @@ export default function Sidebar() {
                   <button
                     onClick={() => openBlankSession(p.id)}
                     className="w-full flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-zinc-500 hover:bg-base-hover hover:text-zinc-200 transition-colors"
-                    title="Nueva sesión de trabajo"
+                    title={t("Nueva sesión de trabajo")}
                   >
                     <Plus className="w-3 h-3" />
-                    Nueva sesión
+                    {t("Nueva sesión")}
                   </button>
                 </div>
               )}
@@ -503,11 +504,11 @@ export default function Sidebar() {
 
         <div className="flex items-center gap-1.5 px-3 pt-5 pb-1.5 text-[11px] font-medium text-zinc-500">
           <MessageCircle className="w-3.5 h-3.5" />
-          Conversaciones
+          {t("Conversaciones")}
         </div>
         {chatConversations.length === 0 && (
           <p className="px-3 py-2 text-xs text-zinc-500">
-            Aún no hay conversaciones.
+            {t("Aún no hay conversaciones.")}
           </p>
         )}
         {chatConversations.map((conv) => (
@@ -528,7 +529,7 @@ export default function Sidebar() {
             <span className="flex-1 truncate">{conv.title}</span>
             {conv.pinned && <Pin className="w-3.5 h-3.5 shrink-0 text-accent-soft/70" />}
             <button
-              title="Eliminar"
+              title={t("Eliminar")}
               onClick={(ev) => {
                 ev.stopPropagation();
                 void removeConversation(conv.id);
@@ -543,10 +544,10 @@ export default function Sidebar() {
           <button
             onClick={() => setShowArchived((v) => !v)}
             className="w-full flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
-            title="Las archivadas no se borran: solo salen de la lista"
+            title={t("Las archivadas no se borran: solo salen de la lista")}
           >
             <Archive className="w-3 h-3 shrink-0" />
-            {showArchived ? "Ocultar archivadas" : `Archivadas (${archivedCount})`}
+            {showArchived ? t("Ocultar archivadas") : t("Archivadas ({n})", { n: archivedCount })}
           </button>
         )}
       </nav>
@@ -556,7 +557,7 @@ export default function Sidebar() {
           ref={profileRef}
           onClick={() => setProfileOpen((v) => !v)}
           className="w-full flex items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-base-hover transition-colors"
-          title="Menú rápido"
+          title={t("Menú rápido")}
         >
           <Avatar
             style={(settings?.avatarStyle ?? "mascota") as AvatarStyle}
@@ -584,7 +585,7 @@ export default function Sidebar() {
         >
           <div>
             <p className="px-1.5 pb-1 text-[10px] uppercase tracking-wider text-zinc-600">
-              Tema
+              {t("Tema")}
             </p>
             <ThemePicker
               value={(settings?.theme ?? "dark") as ThemeChoice}
@@ -601,7 +602,7 @@ export default function Sidebar() {
               className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-zinc-300 hover:bg-base-hover transition-colors"
             >
               <Settings className="w-3.5 h-3.5 shrink-0 text-zinc-500" />
-              Ajustes
+              {t("Ajustes")}
               <span className="ml-auto text-[10px] text-zinc-600">Ctrl+,</span>
             </button>
             <button
@@ -612,7 +613,7 @@ export default function Sidebar() {
               className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-zinc-300 hover:bg-base-hover transition-colors"
             >
               <PanelLeftClose className="w-3.5 h-3.5 shrink-0 text-zinc-500" />
-              Plegar la barra lateral
+              {t("Plegar la barra lateral")}
               <span className="ml-auto text-[10px] text-zinc-600">Ctrl+B</span>
             </button>
           </div>

@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { FileDiff, FilePlus2, FilePen } from "lucide-react";
@@ -49,8 +50,10 @@ export default function SessionChanges({
         onClick={() => setOpen((v) => !v)}
         title={
           total === 0
-            ? "Aún no has escrito archivos en esta sesión"
-            : `${total} archivo${total === 1 ? "" : "s"} escrito${total === 1 ? "" : "s"} en esta sesión`
+            ? t("Aún no has escrito archivos en esta sesión")
+            : total === 1
+              ? t("{n} archivo escrito en esta sesión", { n: total })
+              : t("{n} archivos escritos en esta sesión", { n: total })
         }
         className={`relative flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] transition-colors ${
           total > 0
@@ -59,7 +62,7 @@ export default function SessionChanges({
         }`}
       >
         <FileDiff className="w-3.5 h-3.5 shrink-0" />
-        <span>Cambios</span>
+        <span>{t("Cambios")}</span>
         {total > 0 && <span className="tabular-nums">{total}</span>}
       </button>
 
@@ -72,11 +75,11 @@ export default function SessionChanges({
         className="p-3 space-y-2"
       >
         <p className="text-xs font-medium text-zinc-200">
-          Cambios de esta sesión
+          {t("Cambios de esta sesión")}
         </p>
         {total === 0 ? (
           <p className="text-[11px] text-zinc-500">
-            El agente todavía no escribió ningún archivo aquí.
+            {t("El agente todavía no escribió ningún archivo aquí.")}
           </p>
         ) : (
           cambios.map((c) => (
@@ -94,7 +97,7 @@ export default function SessionChanges({
                 </span>
               </div>
               <pre className="max-h-40 overflow-auto px-2 py-1.5 bg-base-code text-[11px] font-mono leading-relaxed whitespace-pre text-zinc-300">
-                {c.diff || "(sin diff)"}
+                {c.diff || t("(sin diff)")}
               </pre>
             </div>
           ))

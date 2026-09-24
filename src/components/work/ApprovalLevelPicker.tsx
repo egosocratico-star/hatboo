@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 import { useRef, useState } from "react";
 import { ChevronDown, ShieldCheck, ShieldAlert, ShieldQuestion } from "lucide-react";
 import { useWorkStore } from "../../store/workStore";
@@ -42,7 +43,7 @@ export default function ApprovalLevelPicker({ projectId }: { projectId: string }
       <button
         ref={triggerRef}
         onClick={() => setOpen((v) => !v)}
-        title={`Nivel de aprobación: ${current.label} — ${current.help}`}
+        title={t("Nivel de aprobación: {l} — {h}", { l: t(current.label), h: t(current.help) })}
         className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] transition-colors ${
           level === "full_access"
             ? "border-red-500/60 text-red-300 hover:border-red-400"
@@ -78,14 +79,14 @@ export default function ApprovalLevelPicker({ projectId }: { projectId: string }
                       l.id === "full_access" ? "text-red-300" : "text-zinc-200"
                     }`}
                   >
-                    {l.label}
+                    {t(l.label)}
                   </span>
                   {l.id === level && (
-                    <span className="ml-auto text-[10px] text-accent-soft">activo</span>
+                    <span className="ml-auto text-[10px] text-accent-soft">{t("activo")}</span>
                   )}
                 </span>
                 <span className="block pl-[22px] pt-0.5 text-[11px] leading-snug text-zinc-500">
-                  {l.help}
+                  {t(l.help)}
                 </span>
               </button>
             ))
@@ -93,20 +94,20 @@ export default function ApprovalLevelPicker({ projectId }: { projectId: string }
             <div className="p-2 space-y-2">
               <p className="text-xs text-zinc-200 font-medium">
                 {confirming === "full_access"
-                  ? "Activar Acceso total"
-                  : "Salir de Acceso total"}
+                  ? t("Activar Acceso total")
+                  : t("Salir de Acceso total")}
               </p>
               <p className="text-[11px] leading-snug text-zinc-400">
                 {confirming === "full_access"
-                  ? "Hatboo ejecutará TODAS las acciones sin pedir aprobación, incluida escritura de archivos y comandos. El sandbox de rutas dentro de la carpeta del proyecto se mantiene."
-                  : "Vas a cambiar fuera de Acceso total: las tools de alto riesgo volverán a pedir aprobación."}
+                  ? t("Hatboo ejecutará TODAS las acciones sin pedir aprobación, incluida escritura de archivos y comandos. El sandbox de rutas dentro de la carpeta del proyecto se mantiene.")
+                  : t("Vas a cambiar fuera de Acceso total: las tools de alto riesgo volverán a pedir aprobación.")}
               </p>
               <div className="flex justify-end gap-2">
                 <button
                   onClick={() => setConfirming(null)}
                   className="px-2.5 py-1 rounded-lg border border-base-border text-xs text-zinc-300 hover:border-zinc-500"
                 >
-                  Cancelar
+                  {t("Cancelar")}
                 </button>
                 <button
                   onClick={() => apply(confirming)}
@@ -116,7 +117,7 @@ export default function ApprovalLevelPicker({ projectId }: { projectId: string }
                       : "bg-accent hover:bg-accent-dim"
                   }`}
                 >
-                  Confirmar
+                  {t("Confirmar")}
                 </button>
               </div>
             </div>

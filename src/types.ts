@@ -52,6 +52,8 @@ export interface Settings {
   openaiModel: string;
   localModel: string;
   theme: string;
+  /** `system` sigue el idioma del navegador (que en Windows es el del sistema). */
+  uiLanguage: "system" | "es" | "en";
   /** `system` obedece a `prefers-reduced-motion` del SO; `reduced` lo fuerza. */
   motion: MotionChoice;
   /** Fondo Mica de Windows detrás del webview. Solo Windows, apagado por defecto. */
@@ -142,6 +144,17 @@ export type MotionChoice = "system" | "reduced";
 export const MOTION_OPTIONS: { id: MotionChoice; label: string }[] = [
   { id: "system", label: "Sistema" },
   { id: "reduced", label: "Reducido" },
+];
+
+export type LanguageChoice = "system" | "es" | "en";
+
+/** Cada idioma se enseña escrito en su propio idioma: es la única forma de que
+ *  la lista sirva a quien no lee el resto de la interfaz. `system` sí se
+ *  traduce, porque su texto depende del idioma en curso. */
+export const LANGUAGE_OPTIONS: { id: LanguageChoice; label: string }[] = [
+  { id: "system", label: "Sistema" },
+  { id: "es", label: "Español" },
+  { id: "en", label: "English" },
 ];
 
 export interface StorageInfo {

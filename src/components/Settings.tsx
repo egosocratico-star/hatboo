@@ -1,3 +1,4 @@
+import { setLanguage, t } from "../i18n";
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
@@ -40,6 +41,8 @@ import {
   CHAT_FONTS,
   CHAT_FONT_STACKS,
   MOTION_OPTIONS,
+  LANGUAGE_OPTIONS,
+  type LanguageChoice,
   AVATAR_STYLES,
   AVATAR_COLORS,
   type AvatarStyle,
@@ -98,7 +101,7 @@ function ConnectionTestButton({
       <button
         onClick={() => void run()}
         disabled={test.status === "running"}
-        title="Probar conexión con este proveedor"
+        title={t("Probar conexión con este proveedor")}
         className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-base-border text-xs text-zinc-300 hover:border-accent/50 hover:text-layer disabled:opacity-50 transition-colors"
       >
         {test.status === "running" ? (
@@ -106,7 +109,7 @@ function ConnectionTestButton({
         ) : (
           <Zap className="w-3 h-3 text-accent-soft" />
         )}
-        {test.status === "running" ? "Probando…" : "Probar conexión"}
+        {test.status === "running" ? t("Probando…") : t("Probar conexión")}
       </button>
       {test.status === "ok" && (
         <span className="inline-flex items-start gap-1 text-[11px] text-emerald-400 max-w-xs">
@@ -161,8 +164,8 @@ function LocalModelField({
         void refresh();
         setNotice(
           payload.error
-            ? `No se pudo descargar: ${payload.error}`
-            : `«${payload.model}» ya está disponible.`,
+            ? t("No se pudo descargar: {e}", { e: payload.error })
+            : t("«{m}» ya está disponible.", { m: payload.model }),
         );
         return;
       }
@@ -199,10 +202,10 @@ function LocalModelField({
         endpoint: draft.localEndpoint,
       });
       setModels(list);
-      if (list.length === 0) setNotice("Ollama responde pero no tiene modelos descargados.");
+      if (list.length === 0) setNotice(t("Ollama responde pero no tiene modelos descargados."));
     } catch (e) {
       setModels([]);
-      setNotice(`No se pudo listar modelos: ${String(e)}`);
+      setNotice(t("No se pudo listar modelos: {e}", { e: String(e) }));
     } finally {
       setLoading(false);
     }
@@ -215,7 +218,7 @@ function LocalModelField({
 
   return (
     <label className="block space-y-1">
-      <span className="text-xs text-zinc-500">Modelo local</span>
+      <span className="text-xs text-zinc-500">{t("Modelo local")}</span>
       <div className="flex gap-2">
         <input
           value={draft.localModel}
@@ -233,7 +236,7 @@ function LocalModelField({
           type="button"
           onClick={() => void refresh()}
           disabled={loading}
-          title="Recargar modelos desde Ollama"
+          title={t("Recargar modelos desde Ollama")}
           className="px-3 py-2 rounded-lg border border-base-border text-zinc-400 hover:text-layer hover:border-accent/50 disabled:opacity-50 transition-colors"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
@@ -268,7 +271,7 @@ function LocalModelField({
             }
           }}
           className={`${field} flex-1 !py-1.5 text-xs`}
-          placeholder="descargar un modelo nuevo, p. ej. qwen3:4b"
+          placeholder={t("descargar un modelo nuevo, p. ej. qwen3:4b")}
         />
         <button
           type="button"
@@ -276,7 +279,7 @@ function LocalModelField({
           disabled={!nuevo.trim() || !!descarga}
           className="px-2.5 py-1.5 rounded-lg border border-base-border text-xs text-zinc-300 hover:border-accent/50 hover:text-layer disabled:opacity-45 transition-colors"
         >
-          Descargar
+          {t("Descargar")}
         </button>
       </div>
       {descarga && (
@@ -350,12 +353,12 @@ function ApiKeyField({ provider }: { provider: string }) {
           disabled={!key.trim()}
           className="px-3 py-2 rounded-lg bg-accent text-white text-sm disabled:opacity-40 hover:bg-accent-dim transition-colors"
         >
-          {saved ? "Guardada" : "Guardar"}
+          {saved ? "Guardada" : t("Guardar")}
         </button>
         {configured && (
           <button
             onClick={() => void remove()}
-            title="Borrar key"
+            title={t("Borrar key")}
             className="px-2.5 py-2 rounded-lg border border-base-border text-zinc-400 hover:text-red-400 hover:border-red-500/40 transition-colors"
           >
             <Trash2 className="w-4 h-4" />
@@ -386,7 +389,7 @@ const CATEGORIES: Array<{
 }> = [
   { id: "general", label: "General", icon: SlidersHorizontal, ready: true },
   { id: "appearance", label: "Apariencia", icon: Palette, ready: true },
-  { id: "api", label: "API y modelos", icon: Cpu, ready: true },
+  { id: "api", label: t("API y modelos"), icon: Cpu, ready: true },
   { id: "agent", label: "Agente", icon: Bot, ready: true },
   { id: "skills", label: "Skills", icon: Sparkles, ready: true },
   { id: "profile", label: "Perfil", icon: User, ready: true },
@@ -451,7 +454,7 @@ export default function Settings() {
     const day = new Date().toISOString().slice(0, 10);
     const path = await pickSavePath({
       defaultPath: `hatboo-copia-${day}.json`,
-      filters: [{ name: "Copia de Hatboo", extensions: ["json"] }],
+      filters: [{ name: t("Copia de Hatboo"), extensions: ["json"] }],
     });
     if (!path) return;
     setDataBusy(true);
@@ -472,7 +475,7 @@ export default function Settings() {
   const importAll = async () => {
     const path = await pickFile({
       multiple: false,
-      filters: [{ name: "Copia de Hatboo", extensions: ["json"] }],
+      filters: [{ name: t("Copia de Hatboo"), extensions: ["json"] }],
     });
     if (typeof path !== "string") return;
     setDataBusy(true);
@@ -502,7 +505,7 @@ export default function Settings() {
       await invoke("factory_reset", { token: resetText });
       setResetOpen(false);
       setResetText("");
-      setDataMsg("Hatboo restablecida: sin conversaciones, sin proyectos, sin claves guardadas.");
+      setDataMsg(t("Hatboo restablecida: sin conversaciones, sin proyectos, sin claves guardadas."));
       reloadEverywhere();
     } catch (e) {
       setDataErr(String(e));
@@ -516,7 +519,7 @@ export default function Settings() {
     loadStorage();
   }, []);
 
-  // Si `get_settings` falla no puede quedar un "Cargando ajustes…" eterno: hay
+  // Si `get_settings` falla no puede quedar un t("Cargando ajustes…") eterno: hay
   // que poder cerrar y reintentar desde el propio modal.
   if (!draft) {
     return (
@@ -528,25 +531,25 @@ export default function Settings() {
       >
         <div className="w-full max-w-md rounded-2xl border border-base-border bg-base p-5 shadow-2xl shadow-shade/50">
           <p className="text-sm font-medium text-zinc-100">
-            {settingsError ? "No se pudieron leer los ajustes" : "Cargando ajustes…"}
+            {settingsError ? t("No se pudieron leer los ajustes") : t("Cargando ajustes…")}
           </p>
           <p className="mt-1.5 text-xs leading-snug text-zinc-500">
             {settingsError ??
-              "Tarda más de lo normal; puedes cerrar y volver a abrir."}
+              t("Tarda más de lo normal; puedes cerrar y volver a abrir.")}
           </p>
           <div className="mt-4 flex justify-end gap-2">
             <button
               onClick={() => setView("chat")}
               className="rounded-lg border border-base-border px-3 py-1.5 text-xs text-zinc-300 hover:border-zinc-500 transition-colors"
             >
-              Cerrar
+              {t("Cerrar")}
             </button>
             <button
               onClick={() => void loadSettings()}
               className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs text-white hover:bg-accent-dim transition-colors"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              Reintentar
+              {t("Reintentar")}
             </button>
           </div>
         </div>
@@ -581,6 +584,7 @@ export default function Settings() {
     setDraft(next);
     if (part.theme) applyTheme(part.theme);
     if (part.motion) applyMotion(part.motion);
+    if (part.uiLanguage) setLanguage(part.uiLanguage);
     // Al cambiar de tema con Mica puesto hay que volver a pedir el tinte nuevo.
     if (part.theme && next.windowTransparency) applyVibrancy(true);
     if (part.windowTransparency !== undefined) applyVibrancy(part.windowTransparency);
@@ -612,7 +616,7 @@ export default function Settings() {
       <div className="relative flex w-full max-w-5xl h-[85vh] overflow-clip rounded-2xl border border-base-border hatboo-blur shadow-2xl shadow-shade/50">
         <button
           onClick={close}
-          title="Cerrar (Esc)"
+          title={t("Cerrar (Esc)")}
           className="absolute right-3 top-3 z-10 grid place-items-center w-8 h-8 rounded-lg text-zinc-500 hover:text-layer hover:bg-base-hover transition-colors"
         >
           <X className="w-4 h-4" />
@@ -621,14 +625,14 @@ export default function Settings() {
         {/* Rail de categorías */}
         <nav className="w-60 shrink-0 border-r border-base-border bg-base-raised/40 p-3 overflow-y-auto">
           <h1 className="px-1 mb-2 mt-9 text-sm font-semibold text-zinc-200">
-            Ajustes
+            {t("Ajustes")}
           </h1>
           <div className="relative mb-3">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 w-3.5 h-3.5 -translate-y-1/2 text-zinc-600" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar en Ajustes"
+              placeholder={t("Buscar en Ajustes")}
               className="w-full rounded-lg border border-base-border bg-base py-1.5 pl-8 pr-2 text-xs outline-none placeholder:text-zinc-600 focus:border-accent/70"
             />
           </div>
@@ -647,7 +651,7 @@ export default function Settings() {
                   }`}
                 >
                   <Icon className="w-4 h-4 shrink-0" />
-                  <span className="flex-1">{c.label}</span>
+                  <span className="flex-1">{t(c.label)}</span>
                   {!c.ready && (
                     <span className="text-[9px] uppercase tracking-wide text-zinc-600">
                       pronto
@@ -670,12 +674,12 @@ export default function Settings() {
           {cat === "api" && (
             <>
               <SectionTitle
-                title="API y modelos"
-                subtitle="Proveedor de IA, credenciales y modelos."
+                title={t("API y modelos")}
+                subtitle={t("Proveedor de IA, credenciales y modelos.")}
               />
               <section className="space-y-3">
                 <h2 className="text-sm font-medium text-zinc-300">
-                  Proveedor activo
+                  {t("Proveedor activo")}
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {PROVIDERS.map((p) => (
@@ -710,7 +714,7 @@ export default function Settings() {
               {activeProviderMeta?.needsKey && (
                 <section className="space-y-4">
                   <h2 className="text-sm font-medium text-zinc-300">
-                    Credenciales
+                    {t("Credenciales")}
                   </h2>
                   <p className="text-xs text-zinc-500">
                     Las keys se guardan en el llavero del sistema operativo,
@@ -721,11 +725,11 @@ export default function Settings() {
               )}
 
               <section className="space-y-3">
-                <h2 className="text-sm font-medium text-zinc-300">Modelos</h2>
+                <h2 className="text-sm font-medium text-zinc-300">{t("Modelos")}</h2>
                 <div className="space-y-3">
                   <label className="block space-y-1">
                     <span className="text-xs text-zinc-500">
-                      Modelo de Anthropic
+                      {t("Modelo de Anthropic")}
                     </span>
                     <input
                       value={draft.anthropicModel}
@@ -737,7 +741,7 @@ export default function Settings() {
                   </label>
                   <label className="block space-y-1">
                     <span className="text-xs text-zinc-500">
-                      Modelo de OpenAI
+                      {t("Modelo de OpenAI")}
                     </span>
                     <input
                       value={draft.openaiModel}
@@ -759,18 +763,15 @@ export default function Settings() {
 
               <section className="space-y-3">
                 <h2 className="text-sm font-medium text-zinc-300">
-                  Razonamiento
+                  {t("Razonamiento")}
                 </h2>
                 <div className="flex items-center justify-between gap-4 rounded-lg border border-base-border bg-base px-3 py-3">
                   <div className="min-w-0">
                     <p className="text-sm text-zinc-300">
-                      Pensamiento extendido
+                      {t("Pensamiento extendido")}
                     </p>
                     <p className="text-xs text-zinc-500 mt-0.5">
-                      Pide al modelo que razone antes de responder, en el chat y
-                      también en el modo trabajo. Solo funciona con modelos que lo
-                      soportan. En el agente cuesta más caro: piensa en cada uno de
-                      sus vueltas, no una sola vez.
+                      {t("Pide al modelo que razone antes de responder, en el chat y también en el modo trabajo. Solo funciona con modelos que lo soportan. En el agente cuesta más caro: piensa en cada uno de sus vueltas, no una sola vez.")}
                     </p>
                   </div>
                   <div className="shrink-0 flex rounded-lg border border-base-border bg-base-raised p-0.5">
@@ -789,7 +790,7 @@ export default function Settings() {
                             : "text-zinc-500 hover:text-zinc-300"
                         }`}
                       >
-                        {l.label}
+                        {t(l.label)}
                       </button>
                     ))}
                   </div>
@@ -798,11 +799,11 @@ export default function Settings() {
 
               <section className="space-y-3">
                 <h2 className="text-sm font-medium text-zinc-300">
-                  Servidor local
+                  {t("Servidor local")}
                 </h2>
                 <label className="block space-y-1">
                   <span className="text-xs text-zinc-500">
-                    Endpoint (compatible con Ollama / llama.cpp)
+                    {t("Endpoint (compatible con Ollama / llama.cpp)")}
                   </span>
                   <input
                     value={draft.localEndpoint}
@@ -821,7 +822,7 @@ export default function Settings() {
             <>
               <SectionTitle
                 title="General"
-                subtitle="Avisos mientras trabajas en otra ventana, y qué sale de la máquina."
+                subtitle={t("Avisos mientras trabajas en otra ventana, y qué sale de la máquina.")}
               />
               <section className="space-y-3">
                 <label className="flex items-start gap-3 rounded-lg border border-base-border bg-base px-3 py-3 cursor-pointer">
@@ -835,13 +836,10 @@ export default function Settings() {
                   />
                   <span className="space-y-0.5">
                     <span className="block text-sm text-zinc-200">
-                      Avisar cuando una sesión de trabajo pida algo
+                      {t("Avisar cuando una sesión de trabajo pida algo")}
                     </span>
                     <span className="block text-xs text-zinc-500">
-                      Notificación del sistema al terminar la tarea, al fallar o
-                      cuando hace falta aprobar una acción. Solo se manda si la
-                      ventana de Hatboo no está en primer plano: si la tienes
-                      delante, ya lo estás viendo.
+                      {t("Notificación del sistema al terminar la tarea, al fallar o cuando hace falta aprobar una acción. Solo se manda si la ventana de Hatboo no está en primer plano: si la tienes delante, ya lo estás viendo.")}
                     </span>
                   </span>
                 </label>
@@ -850,17 +848,17 @@ export default function Settings() {
                     onClick={() => {
                       setAviso(null);
                       void invoke("test_notification").then(
-                        () => setAviso("Aviso enviado. Mira la esquina de Windows."),
+                        () => setAviso(t("Aviso enviado. Mira la esquina de Windows.")),
                         (e) => setAviso(String(e))
                       );
                     }}
                     className="px-2.5 py-1 rounded-lg border border-base-border text-xs text-zinc-300 hover:border-accent/50 hover:text-zinc-100 transition-colors"
                   >
-                    Probar aviso
+                    {t("Probar aviso")}
                   </button>
                   <p className="text-xs text-zinc-500">
                     {aviso ??
-                      "Este no comprueba si la ventana está delante: lo lanza igual."}
+                      t("Este no comprueba si la ventana está delante: lo lanza igual.")}
                   </p>
                 </div>
                 <label className="flex items-start gap-3 rounded-lg border border-base-border bg-base px-3 py-3 cursor-pointer">
@@ -874,24 +872,19 @@ export default function Settings() {
                   />
                   <span className="space-y-0.5">
                     <span className="block text-sm text-zinc-200">
-                      Tapar claves antes de enviarlas a un proveedor en la nube
+                      {t("Tapar claves antes de enviarlas a un proveedor en la nube")}
                     </span>
                     <span className="block text-xs text-zinc-500">
-                      Cuando el agente lee un archivo del proyecto, las formas
-                      habituales de secreto (API keys, tokens de GitHub/Slack/
-                      Stripe/AWS, JWT, contraseñas en `clave = valor`, bloques de
-                      clave privada) se sustituyen por
+                      {t(
+                        "Cuando el agente lee un archivo del proyecto, las formas habituales de secreto (API keys, tokens de GitHub/Slack/Stripe/AWS, JWT, contraseñas en `clave = valor`, bloques de clave privada) se sustituyen por",
+                      )}
                       <code className="mx-1 font-mono text-accent-soft">[REDACTED]</code>
-                      antes de salir hacia Anthropic u OpenAI, y también antes de
-                      guardarse en el historial. Con un modelo local no se toca
-                      nada. Es un filtro de patrones, no un detector perfecto.
+                      {t(
+                        "antes de salir hacia Anthropic u OpenAI, y también antes de guardarse en el historial. Con un modelo local no se toca nada. Es un filtro de patrones, no un detector perfecto.",
+                      )}
                     </span>
                   </span>
                 </label>
-                <p className="text-[11px] text-zinc-600">
-                  El idioma de la app está fijado en español; un selector real
-                  llega cuando se traduzca la interfaz entera.
-                </p>
               </section>
             </>
           )}
@@ -899,8 +892,8 @@ export default function Settings() {
           {cat === "agent" && (
             <>
               <SectionTitle
-                title="Agente (modo trabajo)"
-                subtitle="Qué puede hacer el agente en la vista de Trabajo."
+                title={t("Agente (modo trabajo)")}
+                subtitle={t("Qué puede hacer el agente en la vista de Trabajo.")}
               />
               <section className="space-y-3">
                 <label className="flex items-start gap-3 rounded-lg border border-base-border bg-base px-3 py-3 cursor-pointer">
@@ -920,10 +913,7 @@ export default function Settings() {
                       </code>
                     </span>
                     <span className="block text-xs text-zinc-500">
-                      Permite que el agente ejecute comandos de shell dentro del
-                      proyecto. Desactivado por defecto. Si está habilitado, si
-                      cada comando pide aprobación lo decide el nivel de
-                      aprobación del proyecto (vista Trabajo).
+                      {t("Permite que el agente ejecute comandos de shell dentro del proyecto. Desactivado por defecto. Si está habilitado, si cada comando pide aprobación lo decide el nivel de aprobación del proyecto (vista Trabajo).")}
                     </span>
                   </span>
                 </label>
@@ -938,18 +928,15 @@ export default function Settings() {
                   />
                   <span className="space-y-0.5">
                     <span className="block text-sm text-zinc-200">
-                      Revisar el plan antes de ejecutarlo
+                      {t("Revisar el plan antes de ejecutarlo")}
                     </span>
                     <span className="block text-xs text-zinc-500">
-                      Cuando el agente propone los pasos se para y te los enseña:
-                      puedes reescribirlos, quitar alguno o añadir pasos, y con lo
-                      que salga de ahí se queda el plan. Sin esto ejecuta tal cual.
+                      {t("Cuando el agente propone los pasos se para y te los enseña: puedes reescribirlos, quitar alguno o añadir pasos, y con lo que salga de ahí se queda el plan. Sin esto ejecuta tal cual.")}
                     </span>
                   </span>
                 </label>
                 <p className="text-[11px] text-zinc-600">
-                  El nivel de aprobación se ajusta por proyecto en la vista de
-                  Trabajo.
+                  {t("El nivel de aprobación se ajusta por proyecto en la vista de Trabajo.")}
                 </p>
               </section>
             </>
@@ -959,14 +946,13 @@ export default function Settings() {
             <>
               <SectionTitle
                 title="Apariencia"
-                subtitle="Cómo se ve Hatboo. Se aplica al elegirlo, sin guardar."
+                subtitle={t("Cómo se ve Hatboo. Se aplica al elegirlo, sin guardar.")}
               />
               <section className="space-y-3">
                 <div className="rounded-lg border border-base-border bg-base px-3 py-3">
-                  <p className="text-sm text-zinc-200">Tema</p>
+                  <p className="text-sm text-zinc-200">{t("Tema")}</p>
                   <p className="mt-0.5 mb-2.5 text-xs text-zinc-500">
-                    «Sistema» sigue el claro/oscuro de Windows mientras la app
-                    esté abierta.
+                    {t("«Sistema» sigue el claro/oscuro de Windows mientras la app esté abierta.")}
                   </p>
                   <ThemePicker
                     value={(draft.theme || "dark") as ThemeChoice}
@@ -975,10 +961,37 @@ export default function Settings() {
                 </div>
 
                 <div className="rounded-lg border border-base-border bg-base px-3 py-3">
-                  <p className="text-sm text-zinc-200">Movimiento</p>
+                  <p className="text-sm text-zinc-200">{t("Idioma")}</p>
                   <p className="mt-0.5 mb-2.5 text-xs text-zinc-500">
-                    «Reducido» quita animaciones y transiciones solo dentro de
-                    Hatboo, sin tocar el ajuste de Windows.
+                    {t(
+                      "«Sistema» sigue el idioma de Windows. No cambia lo que escribe el modelo: eso se le pide en cada charla.",
+                    )}
+                  </p>
+                  <div className="flex gap-1">
+                    {LANGUAGE_OPTIONS.map((o) => (
+                      <button
+                        key={o.id}
+                        onClick={() =>
+                          void patchAppearance({ uiLanguage: o.id as LanguageChoice })
+                        }
+                        className={`px-2.5 py-1 rounded-md text-xs transition-colors ${
+                          (draft.uiLanguage || "system") === o.id
+                            ? "bg-accent/20 text-accent-soft"
+                            : "text-zinc-500 hover:text-zinc-300"
+                        }`}
+                      >
+                        {o.id === "system" ? t("Sistema") : o.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-base-border bg-base px-3 py-3">
+                  <p className="text-sm text-zinc-200">{t("Movimiento")}</p>
+                  <p className="mt-0.5 mb-2.5 text-xs text-zinc-500">
+                    {t(
+                      "«Reducido» quita animaciones y transiciones solo dentro de Hatboo, sin tocar el ajuste de Windows.",
+                    )}
                   </p>
                   <div className="flex gap-1">
                     {MOTION_OPTIONS.map((m) => (
@@ -993,7 +1006,7 @@ export default function Settings() {
                             : "text-zinc-500 hover:text-zinc-300"
                         }`}
                       >
-                        {m.label}
+                        {t(m.label)}
                       </button>
                     ))}
                   </div>
@@ -1010,21 +1023,18 @@ export default function Settings() {
                   />
                   <span className="space-y-0.5">
                     <span className="block text-sm text-zinc-200">
-                      Fondo translúcido de la ventana
+                      {t("Fondo translúcido de la ventana")}
                     </span>
                     <span className="block text-xs text-zinc-500">
-                      Mica, compuesto por Windows detrás de la app, no por nosotros.
-                      Solo en Windows 11. Puede ir fino al arrastrar o redimensionar
-                      la ventana; si te molesta, desactívalo.
+                      {t("Mica, compuesto por Windows detrás de la app, no por nosotros. Solo en Windows 11. Puede ir fino al arrastrar o redimensionar la ventana; si te molesta, desactívalo.")}
                     </span>
                   </span>
                 </label>
 
                 <div className="rounded-lg border border-base-border bg-base px-3 py-3">
-                  <p className="text-sm text-zinc-200">Tamaño del texto del chat</p>
+                  <p className="text-sm text-zinc-200">{t("Tamaño del texto del chat")}</p>
                   <p className="mt-0.5 mb-2.5 text-xs text-zinc-500">
-                    Afecta a las respuestas y a tus mensajes; el código va dos
-                    puntos por debajo.
+                    {t("Afecta a las respuestas y a tus mensajes; el código va dos puntos por debajo.")}
                   </p>
                   <div className="flex gap-1">
                     {CHAT_FONT_SIZES.map((f) => (
@@ -1038,11 +1048,11 @@ export default function Settings() {
                         }`}
                         style={{ fontSize: f.px * 0.8 }}
                       >
-                        {f.label}
+                        {t(f.label)}
                       </button>
                     ))}
                   </div>
-                  <p className="mt-3 mb-1.5 text-xs text-zinc-500">Fuente</p>
+                  <p className="mt-3 mb-1.5 text-xs text-zinc-500">{t("Fuente")}</p>
                   <div className="flex gap-1">
                     {CHAT_FONTS.map((f) => (
                       <button
@@ -1057,7 +1067,7 @@ export default function Settings() {
                         }`}
                         style={{ fontFamily: CHAT_FONT_STACKS[f.id] }}
                       >
-                        {f.label}
+                        {t(f.label)}
                       </button>
                     ))}
                   </div>
@@ -1072,7 +1082,7 @@ export default function Settings() {
                         CHAT_FONT_STACKS[draft.chatFontFamily || "sans"],
                     }}
                   >
-                    Ejemplo: así se vería una respuesta de Hatboo.
+                    {t("Ejemplo: así se vería una respuesta de Hatboo.")}
                   </p>
                 </div>
                 {saveErr && <p className="text-xs text-red-400">{saveErr}</p>}
@@ -1084,7 +1094,7 @@ export default function Settings() {
             <>
               <SectionTitle
                 title="Skills"
-                subtitle="Plantillas de comportamiento escritas por ti."
+                subtitle={t("Plantillas de comportamiento escritas por ti.")}
               />
               <SkillsSettings />
             </>
@@ -1092,11 +1102,11 @@ export default function Settings() {
 
           {cat === "profile" && (
             <>
-              <SectionTitle title="Perfil" subtitle="Cómo te trata Hatboo." />
+              <SectionTitle title="Perfil" subtitle={t("Cómo te trata Hatboo.")} />
               <section className="space-y-3">
                 <label className="block space-y-1">
                   <span className="text-xs text-zinc-500">
-                    ¿Cómo debería llamarte Hatboo?
+                    {t("¿Cómo debería llamarte Hatboo?")}
                   </span>
                   <input
                     value={draft.assistantName ?? ""}
@@ -1105,19 +1115,17 @@ export default function Settings() {
                       setDraft({ ...draft, assistantName: e.target.value })
                     }
                     className={field}
-                    placeholder="p. ej. Azrael (vacío = sin nombre)"
+                    placeholder={t("p. ej. Azrael (vacío = sin nombre)")}
                   />
                   <span className="block text-[11px] text-zinc-600">
-                    Se añade al prompt del chat y del agente para que te trate
-                    por ese nombre. Solo local.
+                    {t("Se añade al prompt del chat y del agente para que te trate por ese nombre. Solo local.")}
                   </span>
                 </label>
 
                 <div className="rounded-lg border border-base-border bg-base px-3 py-3">
-                  <p className="text-sm text-zinc-200">Avatar</p>
+                  <p className="text-sm text-zinc-200">{t("Avatar")}</p>
                   <p className="mt-0.5 mb-2.5 text-xs text-zinc-500">
-                    Sin subir un archivo: color de una paleta fija y qué se pinta
-                    encima. Se ve en la tarjeta de perfil del lateral.
+                    {t("Sin subir un archivo: color de una paleta fija y qué se pinta encima. Se ve en la tarjeta de perfil del lateral.")}
                   </p>
                   <div className="flex items-center gap-3">
                     <Avatar
@@ -1138,7 +1146,7 @@ export default function Settings() {
                               : "text-zinc-500 hover:text-zinc-300"
                           }`}
                         >
-                          {a.label}
+                          {t(a.label)}
                         </button>
                       ))}
                     </div>
@@ -1149,8 +1157,8 @@ export default function Settings() {
                       <button
                         key={c.id}
                         onClick={() => setDraft({ ...draft, avatarColor: c.id })}
-                        title={c.label}
-                        aria-label={c.label}
+                        title={t(c.label)}
+                        aria-label={t(c.label)}
                         className={`w-6 h-6 rounded-full transition-shadow ${
                           (draft.avatarColor || "violeta") === c.id
                             ? "ring-2 ring-offset-2 ring-accent ring-offset-base"
@@ -1163,7 +1171,7 @@ export default function Settings() {
 
                   {draft.avatarStyle === "emoji" && (
                     <label className="block space-y-1 mt-3">
-                      <span className="text-xs text-zinc-500">Emoji</span>
+                      <span className="text-xs text-zinc-500">{t("Emoji")}</span>
                       <input
                         value={draft.avatarEmoji ?? "🎩"}
                         maxLength={4}
@@ -1183,7 +1191,7 @@ export default function Settings() {
             <>
               <SectionTitle
                 title="Atajos"
-                subtitle="Atajos de teclado disponibles en esta versión."
+                subtitle={t("Atajos de teclado disponibles en esta versión.")}
               />
               <section className="space-y-2">
                 {SHORTCUTS.map((s) => (
@@ -1191,7 +1199,7 @@ export default function Settings() {
                     key={s.desc}
                     className="flex items-center justify-between gap-4 rounded-lg border border-base-border bg-base px-3 py-2.5"
                   >
-                    <span className="text-sm text-zinc-300">{s.desc}</span>
+                    <span className="text-sm text-zinc-300">{t(s.desc)}</span>
                     <span className="flex items-center gap-1.5 shrink-0">
                       {s.keys.map((k) => (
                         <kbd
@@ -1205,7 +1213,7 @@ export default function Settings() {
                   </div>
                 ))}
                 <p className="text-[11px] text-zinc-600">
-                  Remapear atajos llegará en una versión futura.
+                  {t("Remapear atajos llegará en una versión futura.")}
                 </p>
               </section>
             </>
@@ -1215,30 +1223,31 @@ export default function Settings() {
             <>
               <SectionTitle
                 title="Sistema"
-                subtitle="Dónde guarda Hatboo sus archivos en este equipo."
+                subtitle={t("Dónde guarda Hatboo sus archivos en este equipo.")}
               />
               {!storage && (
                 <p className="text-sm text-zinc-500">
-                  No se pudo leer el estado de almacenamiento.
+                  {t("No se pudo leer el estado de almacenamiento.")}
                 </p>
               )}
               {storage && (
                 <div className="space-y-3">
                   <PathRow
-                    label="Base de datos"
+                    label={t("Base de datos")}
                     path={storage.dbPath}
                     detail={`${formatBytes(storage.dbSizeBytes)} · SQLite`}
                   />
                   <PathRow
-                    label="Imágenes adjuntas"
+                    label={t("Imágenes adjuntas")}
                     path={storage.attachmentsPath}
-                    detail={`${storage.attachmentsCount} archivo(s) · ${formatBytes(
-                      storage.attachmentsSizeBytes,
-                    )}`}
+                    detail={t("{n} archivo(s) · {tamaño}", {
+                      n: storage.attachmentsCount,
+                      tamaño: formatBytes(storage.attachmentsSizeBytes),
+                    })}
                   />
                   <div className="flex items-center justify-between gap-4 rounded-lg border border-base-border bg-base px-3 py-3">
                     <div>
-                      <p className="text-sm text-zinc-300">Versión</p>
+                      <p className="text-sm text-zinc-300">{t("Versión")}</p>
                       <p className="mt-0.5 text-xs text-zinc-600">
                         Tauri 2 · React · Rust
                       </p>
@@ -1252,7 +1261,7 @@ export default function Settings() {
                     className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-200 transition-colors"
                   >
                     <RefreshCw className="w-3 h-3" />
-                    Volver a calcular
+                    {t("Volver a calcular")}
                   </button>
                 </div>
               )}
@@ -1263,7 +1272,7 @@ export default function Settings() {
             <>
               <SectionTitle
                 title="Datos"
-                subtitle="Resumen de lo que hay en tu base de datos local."
+                subtitle={t("Resumen de lo que hay en tu base de datos local.")}
               />
               <div className="space-y-4">
                 {storage ? (
@@ -1274,23 +1283,20 @@ export default function Settings() {
                     <Stat label="Proyectos" value={storage.counts.projects} />
                     <Stat label="Tareas" value={storage.counts.tasks} />
                     <Stat
-                      label="Llamadas a herramientas"
+                      label={t("Llamadas a herramientas")}
                       value={storage.counts.toolCalls}
                     />
-                    <Stat label="Imágenes" value={storage.attachmentsCount} />
+                    <Stat label={t("Imágenes")} value={storage.attachmentsCount} />
                   </div>
                   <p className="text-xs text-zinc-500 leading-relaxed">
-                    Todo esto se calcula leyendo tu propio histórico en este PC;
-                    no se envía a ningún servicio. Las claves de API no aparecen
-                    aquí porque solo viven en el llavero del sistema. Puedes
-                    exportar una conversación concreta desde el botón{" "}
-                    <span className="text-zinc-400">+</span> del chat.
+                    {t(
+                      "Todo esto se calcula leyendo tu propio histórico en este PC; no se envía a ningún servicio. Las claves de API no aparecen aquí porque solo viven en el llavero del sistema. Puedes exportar una conversación concreta desde el botón «+» del chat.",
+                    )}
                   </p>
                   </>
                 ) : (
                   <p className="text-sm text-zinc-500">
-                    No se pudo leer la base de datos ahora mismo; más abajo
-                    puedes exportar, importar o restablecer igualmente.
+                    {t("No se pudo leer la base de datos ahora mismo; más abajo puedes exportar, importar o restablecer igualmente.")}
                   </p>
                 )}
                   <div className="flex flex-wrap gap-2 pt-1">
@@ -1308,7 +1314,7 @@ export default function Settings() {
                       className="flex items-center gap-1.5 rounded-lg border border-base-border px-3 py-1.5 text-xs text-zinc-300 hover:border-accent/50 hover:text-layer transition-colors disabled:opacity-40"
                     >
                       <Upload className="w-3.5 h-3.5" />
-                      Importar copia
+                      {t("Importar copia")}
                     </button>
                     <button
                       onClick={() => {
@@ -1319,7 +1325,7 @@ export default function Settings() {
                       className="flex items-center gap-1.5 rounded-lg border border-red-500/40 px-3 py-1.5 text-xs text-red-300 hover:bg-red-500/10 transition-colors disabled:opacity-40"
                     >
                       <AlertTriangle className="w-3.5 h-3.5" />
-                      Restablecer de fábrica
+                      {t("Restablecer de fábrica")}
                     </button>
                   </div>
                   {dataMsg && (
@@ -1329,7 +1335,7 @@ export default function Settings() {
                   {resetOpen && (
                     <div className="space-y-2 rounded-xl border border-red-500/40 bg-red-500/5 p-3">
                       <p className="text-sm font-medium text-zinc-100">
-                        Restablecer Hatboo
+                        {t("Restablecer Hatboo")}
                       </p>
                       <p className="text-[11px] leading-snug text-zinc-400">
                         Se borran de este PC todas las conversaciones, los
@@ -1356,14 +1362,14 @@ export default function Settings() {
                           }}
                           className="rounded-lg border border-base-border px-3 py-1.5 text-xs text-zinc-300 hover:border-zinc-500 transition-colors"
                         >
-                          Cancelar
+                          {t("Cancelar")}
                         </button>
                         <button
                           onClick={() => void doReset()}
                           disabled={resetText.trim() !== RESET_TOKEN || dataBusy}
                           className="rounded-lg bg-red-500 px-3 py-1.5 text-xs text-white hover:bg-red-600 disabled:opacity-40 transition-colors"
                         >
-                          Borrar todo
+                          {t("Borrar todo")}
                         </button>
                       </div>
                     </div>
@@ -1375,8 +1381,8 @@ export default function Settings() {
           {cat === "about" && (
             <>
               <SectionTitle
-                title="Acerca de"
-                subtitle="Información de la aplicación."
+                title={t("Acerca de")}
+                subtitle={t("Información de la aplicación.")}
               />
               <section className="space-y-3 text-sm text-zinc-300">
                 <div className="flex items-baseline gap-2">
@@ -1388,17 +1394,14 @@ export default function Settings() {
                   </span>
                 </div>
                 <p className="text-zinc-400 leading-relaxed">
-                  Chat de IA de escritorio, local-first: sin cuentas, sin
-                  telemetría y sin alojar inferencia. Tus conversaciones viven en
-                  una base de datos SQLite local y tus claves solo en el llavero
-                  del sistema.
+                  {t("Chat de IA de escritorio, local-first: sin cuentas, sin telemetría y sin alojar inferencia. Tus conversaciones viven en una base de datos SQLite local y tus claves solo en el llavero del sistema.")}
                 </p>
                 <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs pt-1">
-                  <dt className="text-zinc-500">Interfaz</dt>
+                  <dt className="text-zinc-500">{t("Interfaz")}</dt>
                   <dd className="text-zinc-400">Tauri 2 · React · TypeScript · Tailwind</dd>
-                  <dt className="text-zinc-500">Backend</dt>
-                  <dd className="text-zinc-400">Rust · SQLite · keyring</dd>
-                  <dt className="text-zinc-500">Proveedores</dt>
+                  <dt className="text-zinc-500">{t("Backend")}</dt>
+                  <dd className="text-zinc-400">{t("Rust · SQLite · keyring")}</dd>
+                  <dt className="text-zinc-500">{t("Proveedores")}</dt>
                   <dd className="text-zinc-400">
                     Anthropic · OpenAI · local (Ollama / llama.cpp)
                   </dd>
@@ -1413,7 +1416,7 @@ export default function Settings() {
                 title={
                   CATEGORIES.find((c) => c.id === cat)?.label ?? "Ajustes"
                 }
-                subtitle="Esta categoría está en desarrollo."
+                subtitle={t("Esta categoría está en desarrollo.")}
               />
               <p className="text-sm text-zinc-500">
                 Aquí irá el control de {CATEGORIES.find((c) => c.id === cat)?.label.toLowerCase()} de
@@ -1433,7 +1436,7 @@ export default function Settings() {
                 }
                 className="px-4 py-2 rounded-lg bg-accent text-white text-sm hover:bg-accent-dim transition-colors"
               >
-                {savingMsg ? "Guardado ✓" : "Guardar ajustes"}
+                {savingMsg ? "Guardado ✓" : t("Guardar ajustes")}
               </button>
               {saveErr && (
                 <span className="text-xs text-red-400">{saveErr}</span>
@@ -1481,11 +1484,11 @@ function PathRow({
       </div>
       <button
         onClick={() => void revealItemInDir(path).catch(() => {})}
-        title="Mostrar en el explorador de archivos"
+        title={t("Mostrar en el explorador de archivos")}
         className="shrink-0 flex items-center gap-1.5 rounded-lg border border-base-border px-2.5 py-1.5 text-xs text-zinc-400 hover:text-zinc-100 hover:border-accent/50 transition-colors"
       >
         <FolderOpen className="w-3.5 h-3.5" />
-        Mostrar
+        {t("Mostrar")}
       </button>
     </div>
   );

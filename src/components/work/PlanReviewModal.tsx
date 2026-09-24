@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 import { useEffect, useState } from "react";
 import { ListChecks, Plus, Trash2 } from "lucide-react";
 import { useWorkStore, useActiveTab } from "../../store/workStore";
@@ -28,10 +29,10 @@ export default function PlanReviewModal() {
         <div className="flex items-center gap-2 px-5 py-4 border-b border-base-border">
           <ListChecks className="w-5 h-5 text-accent-soft" />
           <h2 className="text-sm font-semibold">
-            El agente propone este plan
+            {t("El agente propone este plan")}
           </h2>
           <span className="ml-auto text-[10px] uppercase tracking-wider text-zinc-500">
-            no ejecuta nada todavía
+            {t("no ejecuta nada todavía")}
           </span>
         </div>
 
@@ -50,7 +51,7 @@ export default function PlanReviewModal() {
               />
               <button
                 onClick={() => setPasos((prev) => prev.filter((_, j) => j !== i))}
-                title="Quitar este paso"
+                title={t("Quitar este paso")}
                 className="mt-1 p-1 rounded text-zinc-500 hover:text-red-400 transition-colors"
               >
                 <Trash2 className="w-4 h-4" />
@@ -70,14 +71,14 @@ export default function PlanReviewModal() {
             onClick={() => void cancelar()}
             className="px-3 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-layer hover:bg-base-hover transition-colors"
           >
-            Cancelar la tarea
+            {t("Cancelar la tarea")}
           </button>
           <button
             onClick={() => void confirmPlan(validos)}
             disabled={validos.length === 0}
             className="px-3.5 py-1.5 rounded-lg bg-accent text-white text-xs font-medium hover:bg-accent-dim disabled:opacity-40 transition-colors"
           >
-            Ejecutar {validos.length > 0 ? `${validos.length} paso${validos.length > 1 ? "s" : ""}` : "el plan"}
+            Ejecutar {validos.length > 0 ? `${validos.length} paso${validos.length > 1 ? "s" : ""}` : t("el plan")}
           </button>
         </div>
       </div>

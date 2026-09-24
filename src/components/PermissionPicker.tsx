@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { useRef, useState } from "react";
 import {
   Check,
@@ -77,7 +78,7 @@ export default function PermissionPicker({ open, onOpenChange }: Props) {
       <button
         ref={triggerRef}
         onClick={() => (open ? close() : onOpenChange(true))}
-        title={`Permisos de herramientas — ${current.label}`}
+        title={t("Permisos de herramientas — {l}", { l: t(current.label) })}
         className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs transition-colors ${
           level === "full_access"
             ? "border-red-500/60 text-red-300 hover:border-red-400"
@@ -85,7 +86,7 @@ export default function PermissionPicker({ open, onOpenChange }: Props) {
         }`}
       >
         <LevelIcon level={level} className="w-3.5 h-3.5 shrink-0" />
-        <span className="max-w-32 truncate">{current.short}</span>
+        <span className="max-w-32 truncate">{t(current.short)}</span>
         <ChevronDown
           className={`w-3 h-3 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
         />
@@ -102,7 +103,7 @@ export default function PermissionPicker({ open, onOpenChange }: Props) {
           {!confirming ? (
             <>
               <p className="px-2.5 py-1.5 text-xs text-zinc-500">
-                ¿Cómo se aprueban las acciones de Hatboo?
+                {t("¿Cómo se aprueban las acciones de Hatboo?")}
               </p>
               {APPROVAL_LEVELS.map((l) => (
                 <button
@@ -126,41 +127,41 @@ export default function PermissionPicker({ open, onOpenChange }: Props) {
                           : "text-zinc-100"
                       }`}
                     >
-                      {l.label}
+                      {t(l.label)}
                     </span>
                     {l.id === level && (
                       <Check className="w-4 h-4 shrink-0 text-accent-soft" />
                     )}
                   </span>
                   <span className="block pl-[26px] pt-1 text-[11px] leading-snug text-zinc-500">
-                    {l.help}
+                    {t(l.help)}
                   </span>
                 </button>
               ))}
               <p className="px-2.5 pt-1.5 pb-1 text-[11px] text-zinc-600">
                 {projectId
-                  ? `Se guarda en el proyecto «${project?.name}».`
-                  : "No hay proyecto abierto: se guarda como nivel por defecto de los proyectos nuevos."}
+                  ? t("Se guarda en el proyecto «{n}».", { n: project?.name })
+                  : t("No hay proyecto abierto: se guarda como nivel por defecto de los proyectos nuevos.")}
               </p>
             </>
           ) : (
             <div className="p-2 space-y-2">
               <p className="text-sm font-medium text-zinc-100">
                 {confirming === "full_access"
-                  ? "Activar Acceso total"
-                  : "Salir de Acceso total"}
+                  ? t("Activar Acceso total")
+                  : t("Salir de Acceso total")}
               </p>
               <p className="text-[11px] leading-snug text-zinc-400">
                 {confirming === "full_access"
-                  ? "Hatboo ejecutará TODAS las acciones sin pedir aprobación, incluida escritura de archivos y comandos. El sandbox de rutas dentro de la carpeta del proyecto se mantiene."
-                  : "Vas a cambiar fuera de Acceso total: las tools de alto riesgo volverán a pedir aprobación."}
+                  ? t("Hatboo ejecutará TODAS las acciones sin pedir aprobación, incluida escritura de archivos y comandos. El sandbox de rutas dentro de la carpeta del proyecto se mantiene.")
+                  : t("Vas a cambiar fuera de Acceso total: las tools de alto riesgo volverán a pedir aprobación.")}
               </p>
               <div className="flex justify-end gap-2">
                 <button
                   onClick={() => setConfirming(null)}
                   className="px-2.5 py-1 rounded-lg border border-base-border text-xs text-zinc-300 hover:border-zinc-500"
                 >
-                  Cancelar
+                  {t("Cancelar")}
                 </button>
                 <button
                   onClick={() => void apply(confirming)}
@@ -170,7 +171,7 @@ export default function PermissionPicker({ open, onOpenChange }: Props) {
                       : "bg-accent hover:bg-accent-dim"
                   }`}
                 >
-                  Confirmar
+                  {t("Confirmar")}
                 </button>
               </div>
             </div>

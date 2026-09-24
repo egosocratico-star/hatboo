@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { t } from "../i18n";
 
 interface Usage {
   chars: number;
@@ -47,11 +48,18 @@ export default function ContextMeter({
   return (
     <span
       className="text-[11px] text-zinc-500 tabular-nums shrink-0"
-      title={`${uso.chars.toLocaleString("es")} caracteres · ${uso.messages} mensajes${
-        uso.images ? ` · ${uso.images} imagen(es) en base64, no contadas aquí` : ""
-      }. Los tokens son una estimación, no el contador del proveedor.`}
+      title={t(
+        "{c} caracteres · {m} mensajes{imagenes}. Los tokens son una estimación, no el contador del proveedor.",
+        {
+          c: uso.chars.toLocaleString("es"),
+          m: uso.messages,
+          imagenes: uso.images
+            ? t(" · {n} imagen(es) en base64, no contadas aquí", { n: uso.images })
+            : "",
+        },
+      )}
     >
-      Contexto ≈ {miles(uso.estTokens)}
+      {t("Contexto")} ≈ {miles(uso.estTokens)}
     </span>
   );
 }

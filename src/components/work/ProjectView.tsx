@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 import { useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
@@ -209,7 +210,7 @@ export default function ProjectView() {
               }}
               disabled={status === "running" || status === "awaiting"}
               className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-base text-zinc-500 hover:text-layer transition-all disabled:cursor-not-allowed"
-              title="Cerrar pestaña"
+              title={t("Cerrar pestaña")}
             >
               <X className="w-3 h-3" />
             </button>
@@ -226,11 +227,10 @@ export default function ProjectView() {
         <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6">
           <Mascot state="idle" size={140} />
           <h1 className="text-2xl font-semibold tracking-tight">
-            Modo <span className="text-accent-soft">Trabajo</span>
+            <span className="text-accent-soft">{t("Modo Trabajo")}</span>
           </h1>
           <p className="text-sm text-zinc-500 max-w-md text-center">
-            Abre una carpeta existente o crea un proyecto nuevo desde la barra
-            lateral para que Hatboo pueda leer, escribir y ejecutar dentro de él.
+            {t("Abre una carpeta existente o crea un proyecto nuevo desde la barra lateral para que Hatboo pueda leer, escribir y ejecutar dentro de él.")}
           </p>
         </div>
       </div>
@@ -257,7 +257,7 @@ export default function ProjectView() {
         <div className="h-full flex flex-col" style={{ width: filesPx }}>
           <div className="flex items-center gap-2 px-3 py-2 border-b border-base-border text-xs font-medium text-zinc-400 uppercase tracking-wider">
             <FolderTree className="w-4 h-4 text-accent-soft" />
-            Archivos
+            {t("Archivos")}
           </div>
           <FileTree projectId={project.id} version={treeVersion} />
         </div>
@@ -282,7 +282,7 @@ export default function ProjectView() {
           <button
             onClick={() => patchSettings({ focusMode: false, filesPanelOpen: !filesOpen })}
             className={panelToggle(filesOpen)}
-            title={filesOpen ? "Ocultar los archivos" : "Mostrar los archivos"}
+            title={filesOpen ? t("Ocultar los archivos") : t("Mostrar los archivos")}
             aria-pressed={filesOpen}
           >
             <FolderTree className="w-4 h-4" />
@@ -295,7 +295,7 @@ export default function ProjectView() {
             <button
               onClick={() => void refreshGit(project.id)}
               className="shrink-0 flex items-center gap-1.5 rounded-lg border border-base-border bg-base-raised px-2 py-1 text-[11px] text-zinc-400 hover:border-accent/50 hover:text-zinc-200 transition-colors"
-              title={`Rama ${git.branch} · ${git.dirtyCount} archivo(s) con cambios`}
+              title={t("Rama {r} · {n} archivo(s) con cambios", { r: git.branch, n: git.dirtyCount })}
             >
               <GitBranch className="w-3.5 h-3.5 text-accent-soft" />
               <span className="font-mono max-w-28 truncate">{git.branch}</span>
@@ -310,7 +310,7 @@ export default function ProjectView() {
             <button
               onClick={() => patchSettings({ focusMode: false, tasksPanelOpen: !tasksOpen })}
               className={panelToggle(tasksOpen)}
-              title={tasksOpen ? "Ocultar las tareas" : "Mostrar las tareas"}
+              title={tasksOpen ? t("Ocultar las tareas") : t("Mostrar las tareas")}
               aria-pressed={tasksOpen}
             >
               <ListChecks className="w-4 h-4" />
@@ -320,8 +320,8 @@ export default function ProjectView() {
               className={panelToggle(focus)}
               title={
                 focus
-                  ? "Salir del modo foco (Ctrl+.)"
-                  : "Modo foco: solo el chat, sin barra lateral ni paneles (Ctrl+.)"
+                  ? t("Salir del modo foco (Ctrl+.)")
+                  : t("Modo foco: solo el chat, sin barra lateral ni paneles (Ctrl+.)")
               }
               aria-pressed={focus}
             >
@@ -337,7 +337,7 @@ export default function ProjectView() {
                 if (focus) patchSettings({ focusMode: false });
               }}
               className={panelToggle(preview && !focus)}
-              title={preview ? "Ocultar la vista previa" : "Vista previa del HTML del proyecto"}
+              title={preview ? t("Ocultar la vista previa") : t("Vista previa del HTML del proyecto")}
               aria-pressed={preview}
             >
               <Eye className="w-4 h-4" />
@@ -349,7 +349,7 @@ export default function ProjectView() {
 
         {approvalLevel === "full_access" && (
           <div className="mx-4 mt-3 rounded-lg border border-red-500/50 bg-red-500/10 px-3 py-2 text-xs text-red-300">
-            <span className="font-semibold">Acceso total activo:</span> el agente
+            <span className="font-semibold">{t("Acceso total activo:")}</span> el agente
             ejecuta todas las acciones sin pedir aprobación, incluida escritura
             de archivos y comandos. Las rutas siguen limitadas a la carpeta del
             proyecto.
@@ -369,8 +369,7 @@ export default function ProjectView() {
           {messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center gap-2 px-6 text-center">
               <p className="text-sm text-zinc-500 max-w-sm">
-                Pide una tarea sobre este proyecto. Hatboo hará un plan, leerá
-                archivos y pedirá aprobación antes de escribir o ejecutar.
+                {t("Pide una tarea sobre este proyecto. Hatboo hará un plan, leerá archivos y pedirá aprobación antes de escribir o ejecutar.")}
               </p>
             </div>
           ) : (
@@ -387,7 +386,7 @@ export default function ProjectView() {
                 <div className="flex justify-start">
                   <div className="rounded-2xl rounded-bl-md px-4 py-2.5 text-sm bg-base-raised border border-base-border text-zinc-400">
                     <span className="inline-block w-2 h-2 mr-1 rounded-full bg-accent-soft animate-bounce" />
-                    Trabajando en la tarea…
+                    {t("Trabajando en la tarea…")}
                   </div>
                 </div>
               )}
@@ -416,14 +415,14 @@ export default function ProjectView() {
                   <span
                     key={i}
                     className="inline-flex items-center gap-1.5 rounded-md border border-base-border bg-base px-2 py-1 text-[11px] text-zinc-300"
-                    title={`${a.text.length.toLocaleString("es")} caracteres`}
+                    title={t("{n} caracteres", { n: a.text.length.toLocaleString("es") })}
                   >
                     <Paperclip className="w-3 h-3 shrink-0 text-accent-soft" />
                     <span className="max-w-[200px] truncate">{a.name}</span>
                     <button
                       onClick={() => setAttachments((prev) => prev.filter((_, j) => j !== i))}
                       className="rounded p-0.5 text-zinc-500 hover:bg-white/10 hover:text-white transition-colors"
-                      title="Quitar adjunto"
+                      title={t("Quitar adjunto")}
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -444,7 +443,7 @@ export default function ProjectView() {
                 }
               }}
               rows={Math.min(6, Math.max(1, input.split("\n").length))}
-              placeholder="¿Qué quieres hacer en este proyecto?"
+              placeholder={t("¿Qué quieres hacer en este proyecto?")}
               disabled={toolSupport === false}
               className="max-h-48 w-full resize-none bg-transparent px-1 pb-2 text-sm leading-relaxed outline-none placeholder:text-zinc-600 disabled:cursor-not-allowed"
             />
@@ -462,7 +461,7 @@ export default function ProjectView() {
                 <button
                   onClick={() => void cancelTask()}
                   className="grid place-items-center w-8 h-8 shrink-0 rounded-full bg-accent text-white hover:bg-accent-dim transition-colors"
-                  title="Detener la tarea en curso"
+                  title={t("Detener la tarea en curso")}
                 >
                   <Square className="w-3 h-3 fill-current" />
                 </button>
@@ -471,7 +470,7 @@ export default function ProjectView() {
                   onClick={() => void submit()}
                   disabled={(!input.trim() && attachments.length === 0) || toolSupport === false}
                   className="grid place-items-center w-8 h-8 shrink-0 rounded-full bg-accent text-white disabled:opacity-35 disabled:cursor-not-allowed hover:bg-accent-dim transition-colors"
-                  title="Enviar"
+                  title={t("Enviar")}
                 >
                   <ArrowUp className="w-4 h-4" />
                 </button>
@@ -526,7 +525,7 @@ export default function ProjectView() {
             }}
             className="w-full max-w-sm rounded-xl border border-base-border bg-base-raised p-5 space-y-4"
           >
-            <h2 className="text-sm font-semibold">Nombre del proyecto</h2>
+            <h2 className="text-sm font-semibold">{t("Nombre del proyecto")}</h2>
             <p className="text-xs text-zinc-500 break-all">en {newProjectDraft.parentPath}</p>
             <input
               autoFocus
@@ -541,14 +540,14 @@ export default function ProjectView() {
                 onClick={cancelCreateProject}
                 className="px-3 py-2 rounded-lg border border-base-border text-sm text-zinc-300 hover:border-zinc-500"
               >
-                Cancelar
+                {t("Cancelar")}
               </button>
               <button
                 type="submit"
                 disabled={!newName.trim()}
                 className="px-3 py-2 rounded-lg bg-accent text-white text-sm disabled:opacity-40 hover:bg-accent-dim"
               >
-                Crear
+                {t("Crear")}
               </button>
             </div>
           </form>

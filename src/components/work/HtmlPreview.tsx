@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -73,18 +74,18 @@ export default function HtmlPreview({
       <div className="flex items-center gap-1.5 px-3 py-2 border-b border-base-border">
         <Eye className="w-4 h-4 text-accent-soft shrink-0" />
         <span className="text-xs font-medium text-zinc-300 uppercase tracking-wider">
-          Vista previa
+          {t("Vista previa")}
         </span>
         <button
           onClick={() => setNonce((n) => n + 1)}
-          title="Volver a leer"
+          title={t("Volver a leer")}
           className="ml-auto p-1 rounded text-zinc-500 hover:text-layer hover:bg-base transition-colors"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${cargando ? "animate-spin" : ""}`} />
         </button>
         <button
           onClick={onCerrar}
-          title="Cerrar"
+          title={t("Cerrar")}
           className="p-1 rounded text-zinc-500 hover:text-layer hover:bg-base transition-colors"
         >
           ×
@@ -97,7 +98,7 @@ export default function HtmlPreview({
           onChange={(e) => setArchivo(e.target.value)}
           className="w-full rounded-lg border border-base-border bg-base px-2 py-1.5 text-xs outline-none focus:border-accent/70"
         >
-          {opciones.length === 0 && <option value="">(sin archivos HTML)</option>}
+          {opciones.length === 0 && <option value="">{t("(sin archivos HTML)")}</option>}
           {opciones.map((p) => (
             <option key={p} value={p}>
               {p}
@@ -118,10 +119,10 @@ export default function HtmlPreview({
           }
           disabled={!archivo}
           className="flex items-center gap-1.5 text-[11px] text-zinc-400 hover:text-layer disabled:opacity-40 transition-colors"
-          title="Ábrelo en el navegador si necesita JavaScript"
+          title={t("Ábrelo en el navegador si necesita JavaScript")}
         >
           <ExternalLink className="w-3 h-3" />
-          Abrir en el navegador
+          {t("Abrir en el navegador")}
         </button>
       </div>
 
@@ -131,12 +132,12 @@ export default function HtmlPreview({
         ) : html === null ? (
           <p className="p-3 text-xs text-zinc-500">
             {opciones.length === 0
-              ? "Este proyecto no tiene ningún .html que previsualizar."
-              : "Cargando…"}
+              ? t("Este proyecto no tiene ningún .html que previsualizar.")
+              : t("Cargando…")}
           </p>
         ) : (
           <iframe
-            title="Vista previa"
+            title={t("Vista previa")}
             srcDoc={html}
             // Vacío del todo: sin scripts, sin formularios, sin mismo-origen.
             sandbox=""

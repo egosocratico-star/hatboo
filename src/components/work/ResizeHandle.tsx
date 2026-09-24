@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 import { useRef } from "react";
 
 interface Props {
@@ -59,7 +60,7 @@ export default function ResizeHandle({ width, min, max, def, side, onWidth, onCo
         onWidth(def);
         onCommit(def);
       }}
-      title="Arrastra para cambiar el ancho · doble clic para dejar el de fábrica"
+      title={t("Arrastra para cambiar el ancho · doble clic para dejar el de fábrica")}
       className="w-1 shrink-0 cursor-col-resize bg-transparent hover:bg-accent/30 active:bg-accent/50 transition-colors"
     />
   );

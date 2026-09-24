@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState } from "react";
+import { t, useT } from "../i18n";
 import { Check, Copy, GitBranch, Paperclip, Pencil, RotateCcw, ThumbsDown, ThumbsUp, X } from "lucide-react";
 import RichText from "./RichText";
 import ThinkingBlock from "./ThinkingBlock";
@@ -51,6 +52,9 @@ function MessageBubble({
   onBranch,
   busy = false,
 }: Props) {
+  // Va memo: sin este suscriptor se quedaría con el idioma del último render,
+  // que ya no coincide con el de la app tras cambiarlo en Ajustes.
+  useT();
   const isUser = message.role === "user";
   const setFeedback = useChatStore((s) => s.setFeedback);
   const [copied, setCopied] = useState(false);
@@ -107,7 +111,7 @@ function MessageBubble({
                 ? "border-white/25 bg-white/10 text-white"
                 : "border-base-border bg-base-raised text-zinc-300"
             }`}
-            title={`${a.text.length.toLocaleString("es")} caracteres`}
+            title={t("{n} caracteres", { n: a.text.length.toLocaleString("es") })}
           >
             <Paperclip className="w-3 h-3 shrink-0" />
             <span className="max-w-[180px] truncate">{a.name}</span>
@@ -141,7 +145,7 @@ function MessageBubble({
                 className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-layer/5 transition-colors"
               >
                 <X className="w-3.5 h-3.5" />
-                Cancelar
+                {t("Cancelar")}
               </button>
               <button
                 onClick={commitEdit}
@@ -149,7 +153,7 @@ function MessageBubble({
                 className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3.5 py-1.5 text-xs font-medium text-white hover:bg-accent-dim disabled:opacity-40 transition-colors"
               >
                 <Check className="w-3.5 h-3.5" />
-                Enviar
+                {t("Enviar")}
               </button>
             </div>
           </div>
@@ -175,7 +179,7 @@ function MessageBubble({
                     <Copy className="w-3.5 h-3.5" />
                   )}
                 </ActionButton>
-                <ActionButton title="Editar mensaje" onClick={startEdit}>
+                <ActionButton title={t("Editar mensaje")} onClick={startEdit}>
                   <Pencil className="w-3.5 h-3.5" />
                 </ActionButton>
               </div>
@@ -206,7 +210,7 @@ function MessageBubble({
         }`}
       >
         <ActionButton
-          title={copied ? "Copiado" : "Copiar respuesta"}
+          title={copied ? "Copiado" : t("Copiar respuesta")}
           onClick={() => void copy()}
         >
           {copied ? (
@@ -216,27 +220,27 @@ function MessageBubble({
           )}
         </ActionButton>
         <ActionButton
-          title="Buena respuesta"
+          title={t("Buena respuesta")}
           active={message.feedback === "up"}
           onClick={() => void setFeedback(message.id, "up")}
         >
           <ThumbsUp className="w-3.5 h-3.5" />
         </ActionButton>
         <ActionButton
-          title="Mala respuesta"
+          title={t("Mala respuesta")}
           active={message.feedback === "down"}
           onClick={() => void setFeedback(message.id, "down")}
         >
           <ThumbsDown className="w-3.5 h-3.5" />
         </ActionButton>
         {onRegenerate && (
-          <ActionButton title="Regenerar respuesta" onClick={onRegenerate}>
+          <ActionButton title={t("Regenerar respuesta")} onClick={onRegenerate}>
             <RotateCcw className="w-3.5 h-3.5" />
           </ActionButton>
         )}
         {onBranch && (
           <ActionButton
-            title="Crear una rama desde aquí"
+            title={t("Crear una rama desde aquí")}
             onClick={() => onBranch(message.id)}
           >
             <GitBranch className="w-3.5 h-3.5" />
