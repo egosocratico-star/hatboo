@@ -185,6 +185,100 @@ pub async fn list_local_models(endpoint: String) -> Result<Vec<String>, String> 
     providers::list_ollama_models(&endpoint).await
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PullProgress {
+    model: String,
+    estado: String,
+    /// 0..100; Ollama manda `total` y `completed` en bytes.
+    porcentaje: u8,
+    terminado: bool,
+    error: Option<String>,
+}
+
+/// Descarga un modelo de Ollama y va contando el progreso por evento.
+/// `/api/pull` responde NDJSON y cierra al terminar, así que no hace falta
+/// sondear: lo que llega aquí es literalmente lo que Ollama va diciendo.
+#[tauri::command]
+pub async fn pull_model(
+    app: tauri::AppHandle,
+    endpoint: String,
+    name: String,
+) -> Result<(), String> {
+    use futures_util::StreamExt;
+    use tauri::Emitter;
+
+    let nombre = name.trim().to_string();
+    if nombre.is_empty() || nombre.len() > 120 {
+        return Err("Ese nombre de modelo no vale.".into());
+    }
+    let url = format!("{}/api/pull", endpoint.trim_end_matches('/'));
+    let cliente = reqwest::Client::builder()
+        // Sin timeout global: una descarga de varios GB puede tardar lo que tarde.
+        .connect_timeout(std::time::Duration::from_secs(6))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let respuesta = cliente
+        .post(&url)
+        .json(&serde_json::json!({ "name": nombre }))
+        .send()
+        .await
+        .map_err(|e| format!("No se pudo conectar con Ollama: {e}"))?;
+    let estado = respuesta.status();
+    if !estado.is_success() {
+        return Err(format!("Ollama respondió {estado}."));
+    }
+
+    let emitir = |modelo: &str, estado: &str, porcentaje: u8, terminado: bool, error: Option<String>| {
+        let _ = app.emit(
+            "ollama:pull",
+            PullProgress {
+                model: modelo.to_string(),
+                estado: estado.to_string(),
+                porcentaje,
+                terminado,
+                error,
+            },
+        );
+    };
+
+    let mut resto = Vec::new();
+    let mut flujo = respuesta.bytes_stream();
+    while let Some(trozo) = flujo.next().await {
+        let trozo = match trozo {
+            Ok(b) => b,
+            Err(e) => {
+                emitir(&nombre, "error", 0, true, Some(format!("La descarga se cortó: {e}")));
+                return Err(format!("La descarga se cortó: {e}"));
+            }
+        };
+        resto.extend_from_slice(&trozo);
+        while let Some(pos) = resto.iter().position(|b| *b == b'\n') {
+            let linea: Vec<u8> = resto.drain(..=pos).collect();
+            let Ok(valor) = serde_json::from_slice::<serde_json::Value>(&linea) else {
+                continue;
+            };
+            if let Some(err) = valor["error"].as_str() {
+                emitir(&nombre, "error", 0, true, Some(err.to_string()));
+                return Err(err.to_string());
+            }
+            let estado = valor["status"].as_str().unwrap_or("").to_string();
+            let total = valor["total"].as_i64().unwrap_or(0);
+            let hecho = valor["completed"].as_i64().unwrap_or(0);
+            let porcentaje = if total > 0 {
+                ((hecho as f64 / total as f64) * 100.0).round().clamp(0.0, 100.0) as u8
+            } else {
+                0
+            };
+            let fin = estado.eq_ignore_ascii_case("success");
+            emitir(&nombre, &estado, porcentaje, fin, None);
+        }
+    }
+    emitir(&nombre, "success", 100, true, None);
+    Ok(())
+}
+
 /// Prueba de conexión para un proveedor (sin enviar un mensaje real).
 #[tauri::command]
 pub async fn test_provider(

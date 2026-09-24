@@ -20,7 +20,9 @@ Escrito con **Tauri 2** (Rust) + **React 18** + **TypeScript** + **Tailwind** +
 
 - **Proveedores**: Anthropic (Claude), OpenAI y local (Ollama o cualquier
   servidor compatible con `/v1/chat/completions`). Un proveedor activo a la vez,
-  con selector de modelo y prueba de conexión.
+  con selector de modelo y prueba de conexión. Con Ollama además se pueden
+  **descargar modelos** desde Ajustes → API: escribe el nombre, y la barra sigue
+  el progreso que va contando Ollama.
 - **Streaming de verdad**: el botón de detener corta la generación en el servidor
   (no solo en la interfaz) y lo ya generado se guarda como respuesta parcial.
 - **Razonamiento extendido** (`off` / `low` / `medium` / `high`) por proveedor:

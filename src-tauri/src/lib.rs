@@ -46,6 +46,7 @@ pub fn run() {
             commands::save_image_attachment,
             commands::attachment_image,
             commands::list_local_models,
+            commands::pull_model,
             commands::test_provider,
             commands::get_settings,
             commands::update_settings,

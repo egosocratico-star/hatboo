@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
+import { listen } from "@tauri-apps/api/event";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { open as pickFile, save as pickSavePath } from "@tauri-apps/plugin-dialog";
 import {
@@ -123,6 +124,15 @@ function ConnectionTestButton({
   );
 }
 
+/** Lo que manda `pull_model` por el evento `ollama:pull`. */
+interface PullProgreso {
+  model: string;
+  estado: string;
+  porcentaje: number;
+  terminado: boolean;
+  error: string | null;
+}
+
 function LocalModelField({
   draft,
   onChange,
@@ -135,6 +145,51 @@ function LocalModelField({
   const [models, setModels] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [nuevo, setNuevo] = useState("");
+  const [descarga, setDescarga] = useState<{ estado: string; porcentaje: number } | null>(null);
+
+  // El progreso llega por evento desde Ollama mientras dura la descarga; el
+  // listener se desmonta al terminar o al cerrar el campo.
+  useEffect(() => {
+    if (!descarga) return;
+    let sinescucha: (() => void) | undefined;
+    let vivo = true;
+    void listen<PullProgreso>("ollama:pull", ({ payload }) => {
+      if (!vivo) return;
+      if (payload.terminado) {
+        setDescarga(null);
+        void refresh();
+        setNotice(
+          payload.error
+            ? `No se pudo descargar: ${payload.error}`
+            : `«${payload.model}» ya está disponible.`,
+        );
+        return;
+      }
+      setDescarga({ estado: payload.estado, porcentaje: payload.porcentaje });
+    }).then((un) => {
+      if (!vivo) un();
+      else sinescucha = un;
+    });
+    return () => {
+      vivo = false;
+      sinescucha?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!descarga]);
+
+  const descargar = async () => {
+    const nombre = nuevo.trim();
+    if (!nombre || descarga) return;
+    setNotice(null);
+    setDescarga({ estado: "conectando", porcentaje: 0 });
+    try {
+      await invoke("pull_model", { endpoint: draft.localEndpoint, name: nombre });
+    } catch (e) {
+      setDescarga(null);
+      setNotice(String(e));
+    }
+  };
 
   const refresh = async () => {
     setLoading(true);
@@ -200,6 +255,42 @@ function LocalModelField({
               {m}
             </button>
           ))}
+        </div>
+      )}
+      <div className="flex gap-2 pt-1.5">
+        <input
+          value={nuevo}
+          onChange={(e) => setNuevo(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              void descargar();
+            }
+          }}
+          className={`${field} flex-1 !py-1.5 text-xs`}
+          placeholder="descargar un modelo nuevo, p. ej. qwen3:4b"
+        />
+        <button
+          type="button"
+          onClick={() => void descargar()}
+          disabled={!nuevo.trim() || !!descarga}
+          className="px-2.5 py-1.5 rounded-lg border border-base-border text-xs text-zinc-300 hover:border-accent/50 hover:text-layer disabled:opacity-45 transition-colors"
+        >
+          Descargar
+        </button>
+      </div>
+      {descarga && (
+        <div className="pt-1">
+          <div className="h-1 rounded-full bg-base-border overflow-hidden">
+            <div
+              className="h-full bg-accent-soft transition-[width] duration-300"
+              style={{ width: `${descarga.porcentaje}%` }}
+            />
+          </div>
+          <p className="text-[11px] text-zinc-500 pt-0.5">
+            {descarga.estado}
+            {descarga.porcentaje > 0 ? ` · ${descarga.porcentaje}%` : ""}
+          </p>
         </div>
       )}
       {notice && <p className="text-[11px] text-zinc-500 pt-0.5">{notice}</p>}
