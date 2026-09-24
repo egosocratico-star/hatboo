@@ -9,9 +9,10 @@ llavero del sistema operativo.
 Escrito con **Tauri 2** (Rust) + **React 18** + **TypeScript** + **Tailwind** +
 **Zustand** + **SQLite** (`rusqlite`).
 
-> Estado: app personal en desarrollo, versión **0.3.0** para Windows. Funciona,
+> Estado: app personal en desarrollo, versión **0.4.0** para Windows. Funciona,
 > no hay autoactualización. Los binarios se publican como release de GitHub al
-> empujar una etiqueta `v*` — el flujo ya está probado y funcionando, ver
+> empujar una etiqueta `v*` — el flujo ya está probado y funcionando, ver la
+> última
 > [`v0.3.0`](https://github.com/egosocratico-star/hatboo/releases/tag/v0.3.0).
 
 ---
