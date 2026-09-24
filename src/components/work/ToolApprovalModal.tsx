@@ -23,7 +23,7 @@ export default function ToolApprovalModal() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6">
-      <div className="w-full max-w-xl rounded-xl border border-base-border bg-base-raised shadow-2xl">
+      <div className="w-full max-w-xl rounded-xl border border-base-border hatboo-blur shadow-2xl">
         <div className="flex items-center gap-2 px-5 py-4 border-b border-base-border">
           <AlertTriangle className="w-5 h-5 text-amber-400" />
           <h2 className="text-sm font-semibold">

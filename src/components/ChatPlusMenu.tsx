@@ -2,9 +2,12 @@ import { useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import {
+  Check,
+  Code2,
   Download,
   FileText,
   FolderKanban,
+  Globe,
   Image as ImageIcon,
   Plus,
   Sparkles,
@@ -47,6 +50,18 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
   const settings = useChatStore((s) => s.settings);
   const skills = useChatStore((s) => s.skills);
   const visionOk = supportsVision(settings);
+
+  /** Conector activo/inactivo. Se lee el estado en el momento de escribir, como
+   *  en ModeToggles: guardar el blob desde el render de este menú podía pisar un
+   *  cambio hecho mientras estaba abierto. */
+  const toggleConector = (key: "codeMode" | "webSearch") => {
+    const actual = useChatStore.getState().settings;
+    if (!actual) return;
+    void useChatStore
+      .getState()
+      .saveSettings({ ...actual, [key]: !actual[key] })
+      .catch(() => {});
+  };
 
   const close = () => setOpen(false);
 
@@ -205,6 +220,43 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
               <span className="text-[10px] text-zinc-500">sin visión</span>
             </div>
           )}
+
+          <div className="my-1.5 h-px bg-base-border" />
+          <div className="px-2 pt-0.5 pb-1 text-[10px] uppercase tracking-wider text-zinc-500">
+            Conectores
+          </div>
+          {(
+            [
+              {
+                key: "webSearch" as const,
+                label: "Búsqueda web",
+                Icon: Globe,
+                ayuda: "Consulta DuckDuckGo antes de responder. Sin cuenta ni clave.",
+              },
+              {
+                key: "codeMode" as const,
+                label: "Modo código",
+                Icon: Code2,
+                ayuda: "Prompt orientado a programar: respuestas directas y código completo.",
+              },
+            ]
+          ).map(({ key, label, Icon, ayuda }) => {
+            const activo = !!settings?.[key];
+            return (
+              <button
+                key={key}
+                onClick={() => toggleConector(key)}
+                disabled={!settings}
+                title={ayuda}
+                aria-pressed={activo}
+                className={item}
+              >
+                <Icon className="w-4 h-4 text-accent-soft shrink-0" />
+                <span className="flex-1">{label}</span>
+                {activo && <Check className="w-4 h-4 text-accent-soft shrink-0" />}
+              </button>
+            );
+          })}
 
           <div className="my-1.5 h-px bg-base-border" />
           <div className="px-2 pt-0.5 pb-1 text-[10px] uppercase tracking-wider text-zinc-500">

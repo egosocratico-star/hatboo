@@ -174,7 +174,7 @@ export default function Popover({
       }}
       className={`fixed z-50 ${
         leaving ? "animate-pop-out pointer-events-none" : "animate-pop-in"
-      } overflow-y-auto overscroll-contain rounded-xl border border-base-border bg-base-raised shadow-2xl shadow-shade/50 ${className}`}
+      } overflow-y-auto overscroll-contain rounded-xl border border-base-border hatboo-blur shadow-2xl shadow-shade/50 ${className}`}
     >
       {children}
     </div>,

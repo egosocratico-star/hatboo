@@ -124,7 +124,7 @@ export default function SearchOverlay() {
     >
       <div
         onMouseDown={(e) => e.stopPropagation()}
-        className="w-full max-w-xl rounded-xl border border-base-border bg-base-raised shadow-2xl shadow-shade/50 overflow-hidden animate-pop-in"
+        className="w-full max-w-xl rounded-xl border border-base-border hatboo-blur shadow-2xl shadow-shade/50 overflow-hidden animate-pop-in"
       >
         <div className="flex items-center gap-2 px-3.5 py-3 border-b border-base-border">
           <Search className="w-4 h-4 shrink-0 text-zinc-500" />

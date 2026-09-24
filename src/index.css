@@ -234,3 +234,25 @@ html[data-motion="reduced"] *::after {
   animation-duration: 0.01ms !important;
   transition-duration: 0.01ms !important;
 }
+
+/* Blur de verdad, y SOLO en superficies transitorias: menús, popovers, modales.
+ * La guía de visual lo dice explícitamente —el acrílico de Windows no va en
+ * superficies grandes de fondo ni en varios paneles pegados—, así que los tres
+ * paneles permanentes del modo trabajo quedan fuera a propósito.
+ * El fondo se vuelve translúcido aquí, no en cada componente, para que la
+ * opacidad y el blur no se puedan desincronizar. */
+.hatboo-blur {
+  background-color: rgb(var(--surface-raised) / 0.86);
+  backdrop-filter: blur(14px) saturate(1.35);
+  -webkit-backdrop-filter: blur(14px) saturate(1.35);
+}
+
+/* Reduced transparency es otra preferencia del SO que la de movimiento: si el
+ * usuario la pide, el panel vuelve a ser opaco y se quita el blur. */
+@media (prefers-reduced-transparency: reduce) {
+  .hatboo-blur {
+    background-color: rgb(var(--surface-raised));
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
