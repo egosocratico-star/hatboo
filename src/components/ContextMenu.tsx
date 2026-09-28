@@ -9,6 +9,8 @@ import { createPortal } from "react-dom";
 
 export interface MenuItem {
   label: string;
+  /** Segunda línea, más discreta: sirve para aclarar qué hace (y qué no) la opción. */
+  detail?: string;
   icon: ReactNode;
   danger?: boolean;
   onSelect: () => void;
@@ -73,14 +75,19 @@ export default function ContextMenu({ x, y, items, onClose }: Props) {
             it.onSelect();
             onClose();
           }}
-          className={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs transition-colors ${
+          className={`flex w-full items-start gap-2 rounded-md px-2.5 py-1.5 text-left text-xs transition-colors ${
             it.danger
               ? "text-red-400 hover:bg-red-500/10"
               : "text-zinc-300 hover:bg-base-hover"
           }`}
         >
-          <span className="shrink-0">{it.icon}</span>
-          {it.label}
+          <span className="mt-px shrink-0">{it.icon}</span>
+          <span className="min-w-0 flex-1">
+            {it.label}
+            {it.detail && (
+              <span className="block text-[10px] leading-snug text-zinc-500">{it.detail}</span>
+            )}
+          </span>
         </button>
       ))}
     </div>,

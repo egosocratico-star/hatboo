@@ -9,11 +9,11 @@ llavero del sistema operativo.
 Escrito con **Tauri 2** (Rust) + **React 18** + **TypeScript** + **Tailwind** +
 **Zustand** + **SQLite** (`rusqlite`).
 
-> Estado: app personal en desarrollo, versión **0.4.0** para Windows. Funciona,
+> Estado: app personal en desarrollo, versión **0.5.0** para Windows. Funciona,
 > no hay autoactualización. Los binarios se publican como release de GitHub al
 > empujar una etiqueta `v*` — el flujo ya está probado y funcionando, ver la
 > última
-> [`v0.3.0`](https://github.com/egosocratico-star/hatboo/releases/tag/v0.3.0).
+> [`v0.4.0`](https://github.com/egosocratico-star/hatboo/releases/tag/v0.4.0).
 
 ---
 
@@ -24,6 +24,10 @@ Escrito con **Tauri 2** (Rust) + **React 18** + **TypeScript** + **Tailwind** +
   con selector de modelo y prueba de conexión. Con Ollama además se pueden
   **descargar modelos** desde Ajustes → API: escribe el nombre, y la barra sigue
   el progreso que va contando Ollama.
+- **Buscador de modelos**: al abrir el selector, un campo filtra la lista de
+  Ollama por subcadena. Cada modelo tiene además un botón de **expulsar**, que
+  manda `keep_alive: 0` y libera la RAM del modelo cargado sin borrarlo del disco
+  (lo mismo que `ollama stop`).
 - **Streaming de verdad**: el botón de detener corta la generación en el servidor
   (no solo en la interfaz) y lo ya generado se guarda como respuesta parcial.
 - **Razonamiento extendido** (`off` / `low` / `medium` / `high`) por proveedor:
@@ -65,20 +69,25 @@ Escrito con **Tauri 2** (Rust) + **React 18** + **TypeScript** + **Tailwind** +
   markdown para compartirla o versionarla. La cabecera admite `name:` y
   `description:`; si ya existe una plantilla con ese nombre, instalarla la
   actualiza en vez de duplicarla.
-- **Comparar modelos**: el chip ⚖ del compositor abre un panel con la misma
-  pregunta en 2-3 modelos a la vez, en columnas que se van escribiendo juntas.
-  Envía el historial del chat + la pregunta, así que la comparación se hace en las
-  mismas condiciones que una respuesta normal. Lo que responden **no se guarda** en
-  la conversación: es una prueba, no un turno del hilo.
 - **Exportar** la conversación a Markdown o JSON (incluye razonamiento y fuentes).
 - **Barra lateral**: clic derecho para fijar arriba, archivar o borrar. Lo fijado
   manda sobre la recencia y lo archivado se esconde sin borrarse; las horas se
   enseñan relativas («ahora», «hace 12 min», «ayer») y la fecha exacta queda en el
-  aviso al pasar por encima. Se puede reducir a un riel de iconos con `Ctrl+B`.
+  aviso al pasar por encima. Se puede reducir a un riel de iconos con `Ctrl+B`: en
+  la cabecera el buscador (`Ctrl+K`) va suelto y el de plegar, encajado a su lado.
+  «Proyectos» y «Conversaciones» son secciones plegables desde su chevrón, y el
+  estado se guarda entre arranques.
 
 ## Modo trabajo (agente)
 
 Abre una carpeta como proyecto y el agente planifica, ejecuta y reporta.
+
+- **Página de Proyectos** (se abre desde el encabezado «Proyectos» de la barra
+  lateral, o con su icono en el riel): buscador, botón de nuevo proyecto y una
+  tarjeta por carpeta con su ruta, cuántas sesiones tiene, cuándo lo abriste y lo
+  fijado. `Esc` te devuelve al chat.
+- **Rama de git bajo el compositor**: en el modo trabajo, debajo de la caja de
+  texto, la rama actual y los archivos con cambios. Se pulsa para refrescar.
 
 - **Herramientas**: `read_file`, `list_dir`, `search_files`, `write_file`,
   `git_status`, `git_diff`, `git_log`, `git_commit`, y dos opcionales:
@@ -98,10 +107,6 @@ Abre una carpeta como proyecto y el agente planifica, ejecuta y reporta.
   ejecuta esa lista, no la suya.
 - **Chip «Cambios»** en la cabecera: lista los archivos que escribió esta sesión,
   si eran nuevos o ya existían, y el último diff de cada uno.
-- **Vista previa**: el icono del ojo abre un panel con los `.html` del proyecto,
-  pintados en un iframe sin permisos (`sandbox=""`, o sea sin JavaScript ni
-  formularios). Lo que necesite scripts se abre en el navegador real desde el
-  propio panel. No es un navegador embebido: una web de fuera no se puede cargar.
 - **Reglas por proyecto**: un `HATBOO.md` en la raíz del proyecto se añade al prompt
   del agente en cada sesión de trabajo de esa carpeta. Se edita desde la cabecera
   de la vista (*Reglas*). Son contexto sobre el proyecto: no amplían el sandbox ni
@@ -148,11 +153,6 @@ CSS, así que cambiar de tema no toca ningún componente.
 **Movimiento**: con **Reducido** se quitan animaciones y transiciones solo dentro
 de Hatboo, sin tocar el ajuste del sistema operativo. Con **Sistema** manda
 `prefers-reduced-motion`.
-
-**Fondo translúcido** (solo Windows 11, apagado por defecto): pide a Windows que
-componga Mica detrás de la ventana en vez de pintar un fondo opaco. Está detrás
-de un interruptor a propósito —el propio crate avisa de que va fino al arrastrar
-o redimensionar la ventana—, así que pruébalo antes de dejarlo fijo.
 
 ## Atajos
 
@@ -217,6 +217,11 @@ src-tauri/src/
 
 - No hay "memoria" entre conversaciones, ni selector Chat/Cowork en línea: se probaron y se
   descartaron a propósito.
+- La ventana va **opaca por dentro y por fuera**: se probó Mica de Windows detrás del
+  webview (`window-vibrancy` + `transparent: true`) y al hacer transparente el lienzo
+  entero WebView2 recomponía toda la ventana en cada repintado — parpadeo en el chat, en
+  los paneles de trabajo y en la mascota, y el texto perdía el antialiasing. Como el
+  efecto solo se nota tapando el fondo, no hay término medio: fuera.
 - La interfaz está traducida al inglés, pero el texto que escribe el modelo sigue
   en el idioma que se le pida.
 - El razonamiento en el agente **cuesta caro por diseño**: el modelo piensa en cada

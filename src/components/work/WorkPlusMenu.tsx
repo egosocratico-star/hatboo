@@ -2,7 +2,7 @@ import { t } from "../../i18n";
 import { useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Eraser, FileText, Plus, Sparkles } from "lucide-react";
+import { Download, Eraser, Paperclip, Plus, Sparkles } from "lucide-react";
 import { useChatStore } from "../../store/chatStore";
 import { useWorkStore } from "../../store/workStore";
 import Popover from "../Popover";
@@ -25,12 +25,33 @@ export default function WorkPlusMenu({ onPickFiles, onInsertTemplate, disabled }
   const skills = useChatStore((s) => s.skills);
   const close = () => setOpen(false);
 
-  const pickTextFiles = async () => {
+  /** Plantilla instalada desde un .md ajeno, sin salir a Ajustes. */
+  const instalarPlantilla = async () => {
+    setNotice(null);
+    const ruta = await open({
+      multiple: false,
+      directory: false,
+      title: t("Elige la plantilla"),
+      filters: [{ name: "Markdown", extensions: ["md", "markdown", "txt"] }],
+    });
+    if (!ruta) return;
+    try {
+      await invoke("install_skill", { path: ruta });
+      await useChatStore.getState().loadSkills();
+      setNotice(t("Plantilla instalada."));
+    } catch (e) {
+      setNotice(String(e));
+    }
+  };
+
+  /** El mismo selector del chat. Aquí las imágenes se descartan con aviso: el
+   *  agente trabaja con texto y con archivos, no mira fotos. */
+  const pickFiles = async () => {
     setNotice(null);
     const picked = await open({
       multiple: true,
       directory: false,
-      title: t("Adjuntar archivos de texto"),
+      title: t("Adjuntar archivos"),
     });
     if (!picked) return;
     const paths = Array.isArray(picked) ? picked : [picked];
@@ -40,7 +61,12 @@ export default function WorkPlusMenu({ onPickFiles, onInsertTemplate, disabled }
       const failures: string[] = [];
       for (const path of paths) {
         try {
-          results.push(await invoke<Attachment>("read_attachment", { path }));
+          const a = await invoke<Attachment>("read_attachment", { path });
+          if (a.imageMediaType) {
+            failures.push(t("«{n}» es una imagen: el agente no mira fotos.", { n: a.name }));
+            continue;
+          }
+          results.push(a);
         } catch (e) {
           failures.push(String(e));
         }
@@ -88,12 +114,10 @@ export default function WorkPlusMenu({ onPickFiles, onInsertTemplate, disabled }
         cap={340}
         className="p-1.5"
       >
-        <div className="px-2 pt-1 pb-1 text-[10px] uppercase tracking-wider text-zinc-500">
-          {t("Añadir")}
-        </div>
-        <button onClick={() => void pickTextFiles()} className={item} disabled={busy}>
-          <FileText className="w-4 h-4 text-accent-soft shrink-0" />
-          <span className="flex-1">{busy ? t("Leyendo…") : t("Archivo de texto")}</span>
+        <button onClick={() => void pickFiles()} className={item} disabled={busy}>
+          <Paperclip className="w-4 h-4 text-accent-soft shrink-0" />
+          <span className="flex-1">{busy ? t("Leyendo…") : t("Archivos")}</span>
+          <span className="shrink-0 text-[10px] text-zinc-600">{t("solo texto")}</span>
         </button>
 
         <div className="my-1.5 h-px bg-base-border" />
@@ -101,10 +125,25 @@ export default function WorkPlusMenu({ onPickFiles, onInsertTemplate, disabled }
           {t("Plantillas")}
         </div>
         {skills.length === 0 ? (
-          <div className={item + " opacity-45 cursor-not-allowed"} title={t("Créalas en Ajustes → Skills")}>
-            <Sparkles className="w-4 h-4 text-zinc-500 shrink-0" />
-            <span className="flex-1">{t("Aún no hay plantillas")}</span>
-          </div>
+          <>
+            <button
+              onClick={() => {
+                const st = useChatStore.getState();
+                st.setSettingsCat("skills");
+                st.setView("settings");
+                close();
+              }}
+              className={item}
+            >
+              <Plus className="w-4 h-4 text-accent-soft shrink-0" />
+              <span className="flex-1">{t("Crear plantilla")}</span>
+              <span className="shrink-0 text-[10px] text-zinc-500">{t("Ajustes → Skills")}</span>
+            </button>
+            <button onClick={() => void instalarPlantilla()} className={item}>
+              <Download className="w-4 h-4 text-accent-soft shrink-0" />
+              <span className="flex-1">{t("Instalar desde un .md")}</span>
+            </button>
+          </>
         ) : (
           skills.map((s) => (
             <button
@@ -119,7 +158,7 @@ export default function WorkPlusMenu({ onPickFiles, onInsertTemplate, disabled }
             >
               <Sparkles className="w-4 h-4 text-accent-soft shrink-0" />
               <span className="flex-1 truncate">{s.name}</span>
-              {s.enabled && <span className="text-[10px] text-accent-soft/80">siempre</span>}
+              {s.enabled && <span className="text-[10px] text-accent-soft/80">{t("siempre")}</span>}
             </button>
           ))
         )}

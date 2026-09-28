@@ -1,11 +1,31 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { t, useT } from "../i18n";
-import { Check, Copy, GitBranch, Paperclip, Pencil, RotateCcw, ThumbsDown, ThumbsUp, X } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import { t, useT, currentLanguage } from "../i18n";
+import {
+  Check,
+  Copy,
+  GitBranch,
+  MoreHorizontal,
+  Paperclip,
+  Pencil,
+  RotateCcw,
+  RotateCw,
+  ScrollText,
+  Square,
+  ThumbsDown,
+  ThumbsUp,
+  Volume2,
+  X,
+} from "lucide-react";
 import RichText from "./RichText";
+import PromptModal from "./PromptModal";
 import ThinkingBlock from "./ThinkingBlock";
 import SourcesBlock from "./SourcesBlock";
 import AttachmentImage from "./AttachmentThumb";
+import mascota from "./mascot/states/idle.png";
+import Popover from "./Popover";
 import { useChatStore } from "../store/chatStore";
+import { haceRelativo, fmtDate } from "../time";
 import type { Message } from "../types";
 
 interface Props {
@@ -18,6 +38,8 @@ interface Props {
   onBranch?: (messageId: string) => void;
   /** Bloquea editar mientras hay una respuesta en curso. */
   busy?: boolean;
+  /** `false` donde la fila flotante se plantaría encima de lo que viene debajo. */
+  accionesFlotando?: boolean;
 }
 
 function ActionButton({
@@ -36,12 +58,39 @@ function ActionButton({
       onClick={onClick}
       title={title}
       aria-label={title}
-      className={`rounded-md p-1.5 transition-colors hover:bg-layer/8 ${
+      className={`rounded-md p-1 transition-colors hover:bg-layer/8 ${
         active ? "text-accent-soft" : "text-zinc-500 hover:text-zinc-100"
       }`}
     >
       {children}
     </button>
+  );
+}
+
+/** La fila de acciones flota en el hueco que ya deja el mensaje en vez de
+ *  reservar el suyo: con `opacity-0` seguía ocupando ~30 px y la separación real
+ *  entre dos frases se iba a más de 50 px, que es el hueco enorme del hilo.
+ *  Cabe en los 24 px de `space-y-6` con `p-1` en cada botón.
+ *  En el hilo de trabajo no puede flotar: allí los mensajes van casi pegados y
+ *  justo debajo de cada respuesta está su traza, así que ocupa su sitio. */
+const BASE_ACCIONES =
+  "flex items-center gap-0.5 transition-opacity focus-within:opacity-100";
+const ACCIONES_FLOTANDO = `absolute top-full mt-0.5 ${BASE_ACCIONES}`;
+const ACCIONES_EN_FLUJO = `mt-0.5 ${BASE_ACCIONES}`;
+
+const FILA_MENU =
+  "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs text-zinc-300 transition-colors hover:bg-base-hover hover:text-zinc-100";
+
+/** La hora relativa vive en la propia fila de acciones: antes solo salía en un
+ *  `title` y nadie la descubría; así se lee de un vistazo al pasar por encima. */
+function Sello({ ms }: { ms: number }) {
+  return (
+    <span
+      title={fmtDate(ms)}
+      className="px-1 text-[11px] tabular-nums text-zinc-600 select-none"
+    >
+      {haceRelativo(ms)}
+    </span>
   );
 }
 
@@ -51,15 +100,27 @@ function MessageBubble({
   onEdit,
   onBranch,
   busy = false,
+  accionesFlotando = true,
 }: Props) {
   // Va memo: sin este suscriptor se quedaría con el idioma del último render,
   // que ya no coincide con el de la app tras cambiarlo en Ajustes.
   useT();
   const isUser = message.role === "user";
+  const acciones = accionesFlotando ? ACCIONES_FLOTANDO : ACCIONES_EN_FLUJO;
+  // Las dos burbujas conviven: la sólida (morado hondo, máximo contraste) y la
+  // tarjeta translúcida. Se elige en Ajustes → Apariencia.
+  const solida = (useChatStore((s) => s.settings?.bubbleStyle) ?? "solida") === "solida";
   const setFeedback = useChatStore((s) => s.setFeedback);
+  /** Motor de voz de nube elegido en Ajustes → API. Vacío = voces del sistema. */
+  const motorDeVoz = useChatStore((s) => s.settings?.audioProvider ?? "");
   const [copied, setCopied] = useState(false);
+  const [verPrompt, setVerPrompt] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.content);
+  const [leyendo, setLeyendo] = useState(false);
+  const leyendoRef = useRef(false);
+  const [menu, setMenu] = useState(false);
+  const menuRef = useRef<HTMLButtonElement>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
 
   const copy = async () => {
@@ -71,6 +132,78 @@ function MessageBubble({
       // portapapeles no disponible: ignorar
     }
   };
+
+  // Lectura en voz alta. Con motor de nube apuntado en Ajustes → API se pide el
+  // audio y se reproduce; sin él, las voces del sistema, que no cuestan ni red.
+  // El ref espeja el estado para que el cleanup al desmontar sepa si lo que
+  // suena ahora es de esta burbuja y no de otra.
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [saliendo, setSaliendo] = useState(false);
+  const [avisoLectura, setAvisoLectura] = useState<string | null>(null);
+
+  const pararLectura = () => {
+    window.speechSynthesis.cancel();
+    audioRef.current?.pause();
+    audioRef.current = null;
+    leyendoRef.current = false;
+    setLeyendo(false);
+  };
+
+  const hablar = () => {
+    if (leyendoRef.current || saliendo) {
+      pararLectura();
+      return;
+    }
+    setAvisoLectura(null);
+    if (!motorDeVoz) {
+      const voz = new SpeechSynthesisUtterance(message.content);
+      voz.lang = currentLanguage() === "en" ? "en-US" : "es-ES";
+      voz.onend = pararLectura;
+      voz.onerror = pararLectura;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(voz);
+      leyendoRef.current = true;
+      setLeyendo(true);
+      return;
+    }
+    // La primera vez cobra; el backend deja el MP3 en disco con el id del
+    // mensaje, así que volver a escuchar la misma respuesta no gasta nada.
+    void (async () => {
+      setSaliendo(true);
+      let uri: string;
+      try {
+        uri = await invoke<string>("speak_message", { messageId: message.id });
+      } catch (e) {
+        setSaliendo(false);
+        setAvisoLectura(String(e));
+        return;
+      }
+      setSaliendo(false);
+      const audio = new Audio(uri);
+      audio.onended = pararLectura;
+      audio.onerror = () => {
+        pararLectura();
+        setAvisoLectura(t("El audio no se pudo reproducir."));
+      };
+      audioRef.current = audio;
+      leyendoRef.current = true;
+      setLeyendo(true);
+      void audio.play().catch(() => {
+        pararLectura();
+        setAvisoLectura(t("El navegador bloqueó la reproducción del audio."));
+      });
+    })();
+  };
+
+  useEffect(
+    () => () => {
+      if (leyendoRef.current) {
+        window.speechSynthesis.cancel();
+        audioRef.current?.pause();
+      }
+    },
+    [],
+  );
 
   const startEdit = () => {
     setDraft(message.content);
@@ -101,13 +234,13 @@ function MessageBubble({
     message.attachments.length > 0 && (
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
         {imageAtts.map((a) => (
-          <AttachmentImage key={a.file} file={a.file} name={a.name} onAccent={isUser} />
+          <AttachmentImage key={a.file} file={a.file} name={a.name} onAccent={isUser && solida} />
         ))}
         {docAtts.map((a, i) => (
           <span
             key={i}
             className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] border ${
-              isUser
+              isUser && solida
                 ? "border-white/25 bg-white/10 text-white"
                 : "border-base-border bg-base-raised text-zinc-300"
             }`}
@@ -122,7 +255,7 @@ function MessageBubble({
 
   if (isUser) {
     return (
-      <div className="group flex animate-rise-in flex-col items-end">
+      <div className="group relative flex animate-rise-in flex-col items-end">
         {editing ? (
           <div className="w-full max-w-2xl rounded-2xl border border-accent/40 bg-base-raised p-3">
             <textarea
@@ -159,7 +292,15 @@ function MessageBubble({
           </div>
         ) : (
           <>
-            <div className="max-w-[85%] rounded-3xl bg-accent px-4 py-2.5 text-white">
+            <div
+              className={`max-w-[85%] px-4 py-2.5 ${
+                solida
+                  ? // Morado hondo sólido: el aro interior le quita el canto vivo
+                    // al accent de marca sin perder contraste.
+                    "rounded-3xl bg-accent-dim text-white ring-1 ring-inset ring-white/5"
+                  : "rounded-xl border border-accent/40 bg-accent/20 text-layer"
+              }`}
+            >
               {chips}
               {message.content && (
                 <div
@@ -170,20 +311,30 @@ function MessageBubble({
                 </div>
               )}
             </div>
-            {onEdit && (
-              <div className="mt-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                <ActionButton title={copied ? "Copiado" : "Copiar"} onClick={() => void copy()}>
-                  {copied ? (
-                    <Check className="w-3.5 h-3.5" />
-                  ) : (
-                    <Copy className="w-3.5 h-3.5" />
-                  )}
+            {/* La fila sale siempre: lleva la hora, que interesa aunque no se
+                pueda editar (en el hilo de trabajo o con una respuesta en curso). */}
+            <div className={`${acciones} right-0 opacity-0 group-hover:opacity-100`}>
+              <Sello ms={message.createdAt} />
+              {/* Reintentar en la pregunta, no solo en la respuesta: si el
+                  proveedor falló, de la respuesta no queda nada que regenerar. */}
+              {onRegenerate && (
+                <ActionButton title={t("Reintentar")} onClick={onRegenerate}>
+                  <RotateCw className="w-3.5 h-3.5" />
                 </ActionButton>
+              )}
+              <ActionButton title={copied ? t("Copiado") : t("Copiar")} onClick={() => void copy()}>
+                {copied ? (
+                  <Check className="w-3.5 h-3.5" />
+                ) : (
+                  <Copy className="w-3.5 h-3.5" />
+                )}
+              </ActionButton>
+              {onEdit && (
                 <ActionButton title={t("Editar mensaje")} onClick={startEdit}>
                   <Pencil className="w-3.5 h-3.5" />
                 </ActionButton>
-              </div>
-            )}
+              )}
+            </div>
           </>
         )}
       </div>
@@ -191,7 +342,22 @@ function MessageBubble({
   }
 
   return (
-    <div className="group animate-rise-in">
+    <div className="group flex animate-rise-in gap-2.5">
+      {/* Avatar de 24 px junto a lo que dice Hatboo: sin él, la respuesta
+          empezaba en el mismo borde que la burbuja morada y no se distinguía
+          quién habla. */}
+      {/* Hatboo lleva su propia cara, fija. Antes copiaba el avatar de la
+          tarjeta de perfil, que es la del USUARIO: con el mismo sombrero en los
+          dos sitios ya no se distinguía quién hablaba. */}
+      <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-accent/20">
+        <img
+          src={mascota}
+          alt="Hatboo"
+          className="h-4 w-4 object-contain"
+          draggable={false}
+        />
+      </span>
+      <div className="relative min-w-0 flex-1">
       {message.reasoning && (
         <ThinkingBlock
           reasoning={message.reasoning}
@@ -204,19 +370,41 @@ function MessageBubble({
       {message.webSources && message.webSources.length > 0 && (
         <SourcesBlock sources={message.webSources} />
       )}
+      {avisoLectura && (
+        <p className="mt-1 text-[12px] leading-snug text-red-400/90">{avisoLectura}</p>
+      )}
       <div
-        className={`mt-1 -ml-1.5 flex items-center gap-0.5 transition-opacity ${
+        className={`${acciones} left-0 -ml-1.5 ${
           message.feedback ? "" : "opacity-0 group-hover:opacity-100"
         }`}
       >
         <ActionButton
-          title={copied ? "Copiado" : t("Copiar respuesta")}
+          title={copied ? t("Copiado") : t("Copiar respuesta")}
           onClick={() => void copy()}
         >
           {copied ? (
             <Check className="w-3.5 h-3.5" />
           ) : (
             <Copy className="w-3.5 h-3.5" />
+          )}
+        </ActionButton>
+        <ActionButton
+          title={
+            saliendo
+              ? t("Poniéndole voz…")
+              : leyendo
+                ? t("Detener la lectura")
+                : motorDeVoz
+                  ? t("Leer en voz alta con la voz de nube")
+                  : t("Leer en voz alta")
+          }
+          active={leyendo}
+          onClick={hablar}
+        >
+          {leyendo ? (
+            <Square className="w-3.5 h-3.5" />
+          ) : (
+            <Volume2 className={`w-3.5 h-3.5 ${saliendo ? "animate-pulse" : ""}`} />
           )}
         </ActionButton>
         <ActionButton
@@ -238,14 +426,60 @@ function MessageBubble({
             <RotateCcw className="w-3.5 h-3.5" />
           </ActionButton>
         )}
+        {/* Bifurcar y ver el prompt son de uso raro: viven en el «…» para que la
+            fila que sí se usa a diario quepa en el hueco del mensaje. El botón
+            sale siempre porque el prompt del sistema se puede ver en cualquier
+            respuesta, haya o haya rama. */}
+        <button
+          ref={menuRef}
+          onClick={() => setMenu((v) => !v)}
+          title={t("Más acciones")}
+          aria-label={t("Más acciones")}
+          aria-expanded={menu}
+          className={`rounded-md p-1 transition-colors hover:bg-layer/8 ${
+            menu ? "text-zinc-100" : "text-zinc-500 hover:text-zinc-100"
+          }`}
+        >
+          <MoreHorizontal className="w-3.5 h-3.5" />
+        </button>
+        <Sello ms={message.createdAt} />
+      </div>
+      <Popover
+        open={menu}
+        anchorRef={menuRef}
+        onClose={() => setMenu(false)}
+        width={224}
+        className="p-1"
+      >
         {onBranch && (
-          <ActionButton
-            title={t("Crear una rama desde aquí")}
-            onClick={() => onBranch(message.id)}
+          <button
+            onClick={() => {
+              setMenu(false);
+              onBranch(message.id);
+            }}
+            className={FILA_MENU}
           >
-            <GitBranch className="w-3.5 h-3.5" />
-          </ActionButton>
+            <GitBranch className="w-3.5 h-3.5 shrink-0 text-zinc-500" />
+            {t("Crear una rama desde aquí")}
+          </button>
         )}
+        <button
+          onClick={() => {
+            setMenu(false);
+            setVerPrompt(true);
+          }}
+          className={FILA_MENU}
+        >
+          <ScrollText className="w-3.5 h-3.5 shrink-0 text-zinc-500" />
+          {t("Ver el prompt del sistema")}
+        </button>
+      </Popover>
+      {verPrompt && (
+        <PromptModal
+          conversationId={message.conversationId}
+          cerrar={() => setVerPrompt(false)}
+        />
+      )}
       </div>
     </div>
   );

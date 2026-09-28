@@ -9,7 +9,18 @@
       // último resultado conocido para que la ventana no abra en negro.
       try {
         var t = localStorage.getItem("hatboo-theme");
-        if (t === "light" || t === "dark") {
+        var TEMAS = [
+          "light",
+          "dark",
+          "space",
+          "tokyo",
+          "nord",
+          "catppuccin",
+          "dracula",
+          "rosepine",
+          "oled",
+        ];
+        if (t && TEMAS.indexOf(t) >= 0) {
           document.documentElement.dataset.theme = t;
         }
         if (localStorage.getItem("hatboo-motion") === "reduced") {
@@ -17,6 +28,42 @@
         }
       } catch (e) {}
     </script>
+    <style>
+      /* El color de la ventana ANTES de que llegue el CSS de la app. Sin esto el
+         primer pintado es blanco —en desarrollo el CSS llega con el módulo JS,
+         siempre después del primer fotograma— y la app parece una página
+         cargando. Son los mismos `--surface` de src/index.css: si se toca uno
+         allí, se toca aquí. */
+      html {
+        background-color: #0b0b10;
+        color-scheme: dark;
+      }
+      html[data-theme="light"] {
+        background-color: #f4f4f7;
+        color-scheme: light;
+      }
+      html[data-theme="space"] {
+        background-color: #070a14;
+      }
+      html[data-theme="tokyo"] {
+        background-color: #1a1b26;
+      }
+      html[data-theme="nord"] {
+        background-color: #2e3440;
+      }
+      html[data-theme="catppuccin"] {
+        background-color: #1e1e2e;
+      }
+      html[data-theme="dracula"] {
+        background-color: #21222c;
+      }
+      html[data-theme="rosepine"] {
+        background-color: #232136;
+      }
+      html[data-theme="oled"] {
+        background-color: #000000;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

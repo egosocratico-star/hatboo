@@ -31,6 +31,32 @@ export interface Skill {
   createdAt: number;
 }
 
+/** Salida de `run_command`, ya con las claves tapadas si tocaba taparlas. */
+export interface CommandData {
+  command: string;
+  exitCode: number | null;
+  stdout: string;
+  stderr: string;
+}
+
+/** Una línea de la traza del agente. `toolName: "razonamiento"` no es una tool:
+ *  es el pensamiento del turno, que viaja en `reasoning`. */
+export interface StepLine {
+  toolName: string;
+  ok: boolean;
+  brief: string;
+  durationMs: number;
+  data?: CommandData | null;
+  /** `write_file` creó el archivo en vez de modificarlo. */
+  creado?: boolean;
+  /** Ruta relativa que escribió o editó ese paso, para la tarjeta del archivo. */
+  ruta?: string | null;
+  /** El diff que aplicó esa escritura, para verlo bajo el paso. */
+  diff?: string | null;
+  /** Razonamiento del turno del agente, cuando el modelo piensa de más. */
+  reasoning?: string;
+}
+
 export interface Message {
   id: string;
   conversationId: string;
@@ -43,33 +69,75 @@ export interface Message {
   thinkingMs?: number | null;
   webSources?: WebSource[];
   feedback?: "up" | "down" | null;
+  /** Los pasos que el agente hizo para cerrar esta respuesta. Vienen de
+   *  `tool_calls`, así que la traza sobrevive a cerrar y abrir la sesión. */
+  steps?: StepLine[];
 }
 
+/** Proveedores que Hatboo sabe hablar. `local` es Ollama / llama.cpp en este
+ *  equipo; el resto son nube y sus respuestas salen de la máquina. La tabla con
+ *  nombres, iconos y campos vive en `proveedores.ts`. */
+export type ProviderId =
+  | "anthropic"
+  | "openai"
+  | "openrouter"
+  | "gemini"
+  | "hf"
+  | "local";
+
 export interface Settings {
-  activeProvider: "anthropic" | "openai" | "local";
+  activeProvider: ProviderId;
   localEndpoint: string;
+  /** Base compatible con OpenAI del router de Hugging Face (`…/v1`). */
+  hfEndpoint: string;
+  hfModel: string;
   anthropicModel: string;
   openaiModel: string;
+  openrouterModel: string;
+  geminiModel: string;
   localModel: string;
   theme: string;
   /** `system` sigue el idioma del navegador (que en Windows es el del sistema). */
   uiLanguage: "system" | "es" | "en";
   /** `system` obedece a `prefers-reduced-motion` del SO; `reduced` lo fuerza. */
   motion: MotionChoice;
-  /** Fondo Mica de Windows detrás del webview. Solo Windows, apagado por defecto. */
-  windowTransparency: boolean;
   runCommandEnabled: boolean;
   assistantName: string;
+  /** Cómo le habla al usuario: `tú` | `usted`. */
+  userAddress: string;
+  /** Idioma en que debe responder el modelo: `auto` | `es` | `en`. */
+  answerLanguage: string;
+  /** Una línea sobre el usuario, solo para el chat. */
+  userNotes: string;
   reasoningEffort: ReasoningEffort;
+  /** Motor de generación de imagen: `""` (apagado) | `openai` | `gemini`. */
+  imageProvider: string;
+  /** Modelo dentro del motor; vacío = el que propone Hatboo. */
+  imageModel: string;
+  /** Tamaño pedido, según los que admite cada motor. */
+  imageSize: string;
+  /** Motor de voz de nube: `""` (apagado) | `openai`. Con las voces del sistema
+   *  no hace falta nada de esto, y es gratis. */
+  audioProvider: string;
+  /** Modelo de voz; vacío = `gpt-4o-mini-tts`. */
+  audioModel: string;
+  /** Voz dentro del modelo (`alloy`, `nova`…). */
+  audioVoice: string;
   defaultApprovalLevel: ApprovalLevel;
   codeMode: boolean;
   webSearch: boolean;
   chatFontSize: ChatFontSize;
+  /** `solida` | `translucida`: cómo se pinta la burbuja de lo que escribes. */
+  bubbleStyle: BubbleStyle;
   chatFontFamily: ChatFontFamily;
   avatarStyle: AvatarStyle;
   avatarColor: string;
   avatarEmoji: string;
   sidebarCompact: boolean;
+  /** Sección de proyectos, plegable desde su encabezado. */
+  projectsSectionOpen: boolean;
+  /** Sección de conversaciones, plegable desde su encabezado. */
+  chatsSectionOpen: boolean;
   filesPanelOpen: boolean;
   tasksPanelOpen: boolean;
   filesPanelWidth: number;
@@ -79,6 +147,10 @@ export interface Settings {
   /** El agente espera a que el usuario revise el plan antes de ejecutarlo. */
   reviewPlan: boolean;
   redactSecrets: boolean;
+  /** Minutos al este de UTC. Rust no tiene forma barata de saber la zona
+   *  horaria local; sin esto la fecha que se le dice al modelo es UTC y a
+   *  partir de medianoche diría «ayer». */
+  tzOffsetMin: number;
 }
 
 /** Límites del arrastre de los paneles del modo trabajo. */
@@ -97,11 +169,33 @@ export const CHAT_FONT_SIZES: { id: ChatFontSize; label: string; px: number }[] 
   { id: "lg", label: "Grande", px: 16.5 },
 ];
 
-export type ReasoningEffort = "off" | "low" | "medium" | "high";
+/**
+ * `none` pide expresamente que no piense (`reasoning_effort: "none"`), que es lo
+ * que hace falta con los que razonan por defecto (DeepSeek, Qwen3). `off` es el
+ * valor viejo de esa misma casilla: quedó en los ajustes guardados, y el backend
+ * lo trata igual (`esfuerzo_efectiva`).
+ */
+export type ReasoningEffort = "off" | "none" | "low" | "medium" | "high";
 
 export type ChatFontFamily = "sans" | "serif" | "mono";
 
 export type AvatarStyle = "mascota" | "inicial" | "emoji";
+
+/** Las dos direcciones que se propusieron para la burbuja del usuario. */
+export type BubbleStyle = "solida" | "translucida";
+
+export const BUBBLE_STYLES: { id: BubbleStyle; label: string; help: string }[] = [
+  {
+    id: "solida",
+    label: "Sólida",
+    help: "Morado hondo con texto blanco: el de más contraste.",
+  },
+  {
+    id: "translucida",
+    label: "Translúcida",
+    help: "Tarjeta con el acento al 15% y esquinas de 12 px: más discreta.",
+  },
+];
 
 export const AVATAR_STYLES: { id: AvatarStyle; label: string }[] = [
   { id: "mascota", label: "Mascota" },
@@ -132,7 +226,7 @@ export const CHAT_FONTS: { id: ChatFontFamily; label: string }[] = [
  *  de mensajes y todo lo de dentro hereda. El código de RichText sigue en mono
  *  por su cuenta, así que elegir "serif" no vuelve ilegible un bloque de código. */
 export const CHAT_FONT_STACKS: Record<ChatFontFamily, string> = {
-  sans: '"Inter", "Segoe UI", system-ui, sans-serif',
+  sans: '"Segoe UI", system-ui, sans-serif',
   serif: 'Georgia, "Times New Roman", serif',
   mono: '"Cascadia Code", "Consolas", ui-monospace, monospace',
 };
@@ -198,18 +292,39 @@ export const REASONING_LEVELS: {
   label: string;
   short: string;
 }[] = [
-  { id: "off", label: "Desactivado", short: "Off" },
+  { id: "none", label: "Sin razonamiento", short: "Off" },
   { id: "low", label: "Bajo", short: "Bajo" },
   { id: "medium", label: "Medio", short: "Medio" },
-  { id: "high", label: "Alto", short: "Alto" },
+  { id: "high", label: "Extra alto", short: "Extra alto" },
 ];
 
+/**
+ * `off` es el valor que guardaron los ajustes anteriores a esta lista. En el
+ * backend vale lo mismo que `none` —ver `esfuerzo_efectiva` en Rust—, así que
+ * aquí también: si no, un ajuste viejo dejaría las cuatro casillas sin marcar.
+ */
+export function esfuerzoVisible(
+  valor: string | null | undefined,
+): ReasoningEffort {
+  if (!valor || valor === "off") return "none";
+  return REASONING_LEVELS.some((l) => l.id === valor)
+    ? (valor as ReasoningEffort)
+    : "none";
+}
+
+/** Ocho posturas, una por cada cosa que puede estar pasando en la app. Cada una
+ *  se usa en un solo sitio concreto: si dos pantallas comparten la misma, la
+ *  mascota deja de contar nada. */
 export type MascotState =
   | "idle"
   | "thinking"
+  | "working"
+  | "running"
   | "confused"
   | "happy"
-  | "surprised";
+  | "surprised"
+  | "sleeping"
+  | "walking";
 
 export type ApprovalLevel =
   | "ask_always"
@@ -227,25 +342,25 @@ export const APPROVAL_LEVELS: Array<{
     id: "ask_always",
     label: "Preguntar siempre",
     short: "Preguntar",
-    help: "Pide aprobación antes de cualquier tool call, incluidas lecturas.",
+    help: "Cada tool, también leer.",
   },
   {
     id: "approve_for_me",
     label: "Aprobar por mí (recomendado)",
     short: "Aprobar por mí",
-    help: "Corre sola las tools de bajo riesgo (leer, listar, buscar, git status/diff/log); pide aprobación para escribir, ejecutar comandos o commitear.",
+    help: "Lee sola; pregunta al escribir, ejecutar o commitear.",
   },
   {
     id: "auto_sandbox",
     label: "Automático en sandbox",
     short: "Automático",
-    help: "Corre todo sin preguntar, siempre dentro de la carpeta del proyecto.",
+    help: "Lee y escribe solo dentro del proyecto.",
   },
   {
     id: "full_access",
     label: "Acceso total",
     short: "Acceso total",
-    help: "Sin aprobaciones. IMPORTANTE: por diseño de Hatboo las tools siguen restringidas a la carpeta del proyecto — el sandbox de rutas NO se relaja.",
+    help: "Sin preguntar. Sigue encerrado en la carpeta del proyecto.",
   },
 ];
 
@@ -257,12 +372,48 @@ export interface Project {
   lastOpenedAt: number;
   approvalLevel: ApprovalLevel;
   pinned: boolean;
+  /**
+   * Derivado del disco al leer el proyecto: `.git`, `package.json`, `Cargo.toml`
+   * y compañía arriba de la carpeta. `false` significa que es una carpeta de
+   * documentos, no que esté vacía.
+   */
+  esCodigo: boolean;
+}
+
+/** Lo que `hardware_info` dice de este equipo: es la firma del comando, así que
+ *  vive aquí y no en la pantalla que lo pinta. */
+export interface Hardware {
+  ramTotalBytes: number;
+  ramLibreBytes: number;
+  gpu: string | null;
+  discoLibreBytes: number;
+  discoTotalBytes: number;
+  cpuUso: number;
+  cpuNombre: string;
+  ollamaOk: boolean;
+  locales: number;
+}
+
+/** Modelo que Ollama tiene en disco, tal como lo devuelve `list_local_models`. */
+export interface LocalModel {
+  name: string;
+  /** Ej. «7.6B»; vacío si Ollama no lo declara. */
+  parameterSize: string;
+  sizeBytes: number;
+  /** Lo que Ollama ≥ 0.5 declara («completion», «vision», «tools»…). Vacío en
+   *  servidores viejos o no-Ollama: toca adivinar por el nombre. */
+  capabilities: string[];
+  /** Tokens que admite, según `/api/show`. Cero si no lo declara: sin número
+   *  propio el medidor de contexto no inventa un porcentaje. */
+  contextTokens: number;
+  /** Si `contextTokens` es el `num_ctx` de ejecución (el techo real del turno) o
+   *  la ventana nativa del modelo, que suele ser más generosa. */
+  contextEsNumCtx: boolean;
 }
 
 export interface Task {
   id: string;
-  conversationId: string;
-  stepOrder: number;
+  conversationId: string;  stepOrder: number;
   description: string;
   status: "pending" | "in_progress" | "done" | "failed";
   createdAt: number;
@@ -272,6 +423,8 @@ export interface FileEntry {
   name: string;
   path: string;
   isDir: boolean;
+  /** Bytes del archivo; 0 en las carpetas (no se suma lo que hay dentro). */
+  size: number;
 }
 
 export interface PendingApproval {

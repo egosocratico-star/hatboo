@@ -1,7 +1,9 @@
 pub mod agent;
+pub mod behavior;
 pub mod backup;
 pub mod commands;
 pub mod db;
+pub mod machine;
 pub mod providers;
 pub mod redact;
 pub mod state;
@@ -29,13 +31,15 @@ pub fn run() {
             commands::list_conversations,
             commands::create_conversation,
             commands::delete_conversation,
+            commands::save_draft,
+            commands::get_drafts,
+            commands::system_prompt_of,
             commands::set_conversation_flags,
+            commands::rename_conversation,
             commands::search_chats,
             commands::list_messages,
             commands::send_message,
             commands::regenerate_response,
-            commands::start_comparison,
-            commands::cancel_comparison,
             commands::edit_user_message,
             commands::set_message_feedback,
             commands::cancel_chat_stream,
@@ -45,10 +49,15 @@ pub fn run() {
             commands::import_all_data,
             commands::factory_reset,
             commands::read_attachment,
-            commands::save_image_attachment,
+            commands::clasifica_soltadas,
             commands::attachment_image,
             commands::list_local_models,
-            commands::pull_model,
+            commands::list_hf_models,
+            commands::list_provider_models,
+            commands::generate_image,
+            commands::regenerate_image,
+            commands::speak_message,
+            commands::unload_local_model,
             commands::test_provider,
             commands::get_settings,
             commands::update_settings,
@@ -61,17 +70,21 @@ pub fn run() {
             commands::delete_skill,
             commands::install_skill,
             commands::export_skill,
+            commands::list_memories,
+            commands::save_memory,
+            commands::delete_memory,
+            commands::file_meta,
             commands::open_project,
             commands::create_project,
             commands::list_projects,
             commands::delete_project,
             commands::list_project_dir,
+            commands::preview_project_file,
             commands::search_project_files,
             commands::get_tasks,
             commands::start_work_task,
             commands::set_project_approval_level,
             commands::set_project_pinned,
-            commands::set_window_transparency,
             commands::test_notification,
             commands::context_usage,
             commands::branch_conversation,
@@ -83,10 +96,13 @@ pub fn run() {
             commands::respond_to_approval,
             commands::respond_plan_review,
             commands::session_changes,
-            commands::read_project_file,
+            commands::deshace_sesion,
+            commands::session_trace,
+            commands::agent_layers,
             commands::check_tool_support,
             commands::project_git_info,
-            commands::get_storage_info
+            commands::get_storage_info,
+            commands::hardware_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Hatboo");

@@ -25,6 +25,11 @@ pub struct OpenAiProvider {
     api_key: String,
     model: String,
     base_url: String,
+    /// Cómo se llama al proveedor en los errores: el mismo código sirve para
+    /// OpenAI, para el router de Hugging Face y para un servidor local.
+    label: String,
+    /// Etiqueta corta que se guarda con el mensaje (`openai`, `hf`, …).
+    id: String,
     /// `low` | `medium` | `high`; `None` = no se manda el campo (comportamiento actual).
     reasoning_effort: Option<String>,
 }
@@ -35,6 +40,8 @@ impl OpenAiProvider {
             api_key,
             model,
             base_url: OPENAI_URL.to_string(),
+            label: "OpenAI".to_string(),
+            id: "openai".to_string(),
             reasoning_effort: None,
         }
     }
@@ -43,9 +50,18 @@ impl OpenAiProvider {
         Self {
             api_key,
             model,
+            label: "OpenAI".to_string(),
+            id: "openai".to_string(),
             base_url,
             reasoning_effort: None,
         }
+    }
+
+    /// Etiqueta para los errores y para la marca que se guarda con el mensaje.
+    pub fn with_label(mut self, label: &str, id: &str) -> Self {
+        self.label = label.to_string();
+        self.id = id.to_string();
+        self
     }
 
     /// Activa el razonamiento extendido. `"off"` o un valor desconocido dejan
@@ -122,12 +138,12 @@ impl OpenAiProvider {
 #[async_trait]
 impl AiProvider for OpenAiProvider {
     fn name(&self) -> &str {
-        "openai"
+        &self.id
     }
 
     async fn send_message(&self, messages: Vec<ChatMessage>) -> Result<String, ProviderError> {
         let response = self
-            .post(self.client_body(&messages, false), "OpenAI")
+            .post(self.client_body(&messages, false), &self.label)
             .await?;
         let value: serde_json::Value = response
             .json()
@@ -146,7 +162,7 @@ impl AiProvider for OpenAiProvider {
         on_chunk: Sender<StreamDelta>,
     ) -> Result<(), ProviderError> {
         let response = self
-            .post(self.client_body(&messages, true), "OpenAI")
+            .post(self.client_body(&messages, true), &self.label)
             .await?;
         read_sse_to_channel(
             response,

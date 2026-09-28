@@ -176,9 +176,21 @@ impl ToolCallingProvider for LocalProvider {
         messages: Vec<AgentMessage>,
         tools: Vec<ToolDefinition>,
     ) -> Result<AgentResponse, ProviderError> {
-        self.openai_inner()
-            .send_with_tools(messages, tools)
+        match self
+            .openai_inner()
+            .send_with_tools(messages.clone(), tools.clone())
             .await
+        {
+            Ok(respuesta) => Ok(respuesta),
+            // El mismo 400 de «no piensa» que en el chat, pero aquí el loop lo
+            // repetiría en cada paso del plan: la tarea entera se caía.
+            Err(error) if LocalProvider::se_reintenta(&error) => self
+                .sin_razonamiento()
+                .send_with_tools(messages, tools)
+                .await
+                .map_err(LocalProvider::explica),
+            Err(error) => Err(LocalProvider::explica(error)),
+        }
     }
 }
 

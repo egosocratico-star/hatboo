@@ -1,0 +1,178 @@
+[
+  {
+    "id": "qwen3.5:0.8b",
+    "nombre": "Qwen 3.5 0.8B",
+    "ollama": "qwen3.5:0.8b",
+    "parametros": "0.8B",
+    "tamanoBytes": 900000000,
+    "caps": ["chat"],
+    "ramMinGb": 4,
+    "agente": false,
+    "nota": "Chat rápido. No lo uses en un proyecto: planea en prosa en vez de llamar a las herramientas."
+  },
+  {
+    "id": "llama3.2:1b",
+    "nombre": "Llama 3.2 1B",
+    "ollama": "llama3.2:1b",
+    "parametros": "1.2B",
+    "tamanoBytes": 1300000000,
+    "caps": ["chat"],
+    "ramMinGb": 4,
+    "agente": false,
+    "nota": "Para charlar y resumir. Se pierde en cuanto le pides archivos."
+  },
+  {
+    "id": "qwen3:1.7b",
+    "nombre": "Qwen3 1.7B",
+    "ollama": "qwen3:1.7b",
+    "parametros": "1.7B",
+    "tamanoBytes": 1360000000,
+    "caps": ["chat", "reasoning"],
+    "ramMinGb": 4,
+    "agente": false,
+    "nota": "Cabe en cualquier portátil y responde enseguida. Como agente da trabajo inventado."
+  },
+  {
+    "id": "qwen2.5:3b",
+    "nombre": "Qwen 2.5 3B",
+    "ollama": "qwen2.5:3b",
+    "parametros": "3.1B",
+    "tamanoBytes": 1900000000,
+    "caps": ["chat"],
+    "ramMinGb": 6,
+    "agente": false,
+    "nota": "El salto mínimo decente para charlar en local sin GPU."
+  },
+  {
+    "id": "gemma3:4b",
+    "nombre": "Gemma 3 4B",
+    "ollama": "gemma3:4b",
+    "parametros": "3.8B",
+    "tamanoBytes": 3300000000,
+    "caps": ["chat", "vision"],
+    "ramMinGb": 8,
+    "agente": false,
+    "nota": "Lee imágenes: es el más pequeño que sirve para adjuntar una captura."
+  },
+  {
+    "id": "qwen3:4b",
+    "nombre": "Qwen3 4B",
+    "ollama": "qwen3:4b",
+    "parametros": "4B",
+    "tamanoBytes": 2500000000,
+    "caps": ["chat", "code", "tools", "reasoning"],
+    "ramMinGb": 8,
+    "agente": false,
+    "nota": "Llama tools, pero se le caen los pasos a mitad de tarea. Prueba, no confianza."
+  },
+  {
+    "id": "phi4-mini",
+    "nombre": "Phi-4 Mini 3.8B",
+    "ollama": "phi4-mini",
+    "parametros": "3.8B",
+    "tamanoBytes": 2300000000,
+    "caps": ["chat", "code", "tools"],
+    "ramMinGb": 8,
+    "agente": false,
+    "nota": "Razona bien para su tamaño. En modo trabajo todavía se lo piensa menos de lo que debería."
+  },
+  {
+    "id": "qwen2.5-coder:3b",
+    "nombre": "Qwen 2.5 Coder 3B",
+    "ollama": "qwen2.5-coder:3b",
+    "parametros": "3.1B",
+    "tamanoBytes": 1900000000,
+    "caps": ["code", "tools"],
+    "ramMinGb": 8,
+    "agente": true,
+    "nota": "El mínimo con el que el modo trabajo deja de fingir. Flojo sin GPU."
+  },
+  {
+    "id": "qwen2.5-coder:7b",
+    "nombre": "Qwen 2.5 Coder 7B",
+    "ollama": "qwen2.5-coder:7b",
+    "parametros": "7.6B",
+    "tamanoBytes": 4700000000,
+    "caps": ["code", "tools"],
+    "ramMinGb": 16,
+    "agente": true,
+    "nota": "Referencia para editar archivos. En 8 GB RAM va justo y lento."
+  },
+  {
+    "id": "qwen3:8b",
+    "nombre": "Qwen3 8B",
+    "ollama": "qwen3:8b",
+    "parametros": "8.2B",
+    "tamanoBytes": 5200000000,
+    "caps": ["chat", "code", "tools", "reasoning"],
+    "ramMinGb": 16,
+    "agente": true,
+    "nota": "Sirve para chat y para agente. Pide un equipo con aire."
+  },
+  {
+    "id": "mistral:7b",
+    "nombre": "Mistral 7B",
+    "ollama": "mistral:7b",
+    "parametros": "7.2B",
+    "tamanoBytes": 4100000000,
+    "caps": ["chat", "tools"],
+    "ramMinGb": 16,
+    "agente": true,
+    "nota": "Generalista rápido. Para código hay opciones mejores del mismo tamaño."
+  },
+  {
+    "id": "llama3.1:8b",
+    "nombre": "Llama 3.1 8B",
+    "ollama": "llama3.1:8b",
+    "parametros": "8B",
+    "tamanoBytes": 4900000000,
+    "caps": ["chat", "tools"],
+    "ramMinGb": 16,
+    "agente": true,
+    "nota": "Sólido charlando y llamando tools. No es un modelo de código."
+  },
+  {
+    "id": "deepseek-r1:8b",
+    "nombre": "DeepSeek R1 8B",
+    "ollama": "deepseek-r1:8b",
+    "parametros": "8B",
+    "tamanoBytes": 5000000000,
+    "caps": ["chat", "reasoning"],
+    "ramMinGb": 16,
+    "agente": false,
+    "nota": "Piensa mucho y escribe poco: no está entrenado para llamar herramientas."
+  },
+  {
+    "id": "qwen2.5-coder:14b",
+    "nombre": "Qwen 2.5 Coder 14B",
+    "ollama": "qwen2.5-coder:14b",
+    "parametros": "14.8B",
+    "tamanoBytes": 8900000000,
+    "caps": ["code", "tools"],
+    "ramMinGb": 24,
+    "agente": true,
+    "nota": "El que de verdad mantiene un plan de varios pasos. En 8 GB ni lo intentes."
+  },
+  {
+    "id": "hf.co/bartowski/Qwen2.5-Coder-7B-Instruct-GGUF",
+    "nombre": "Qwen 2.5 Coder 7B (GGUF del Hub)",
+    "hf": "bartowski/Qwen2.5-Coder-7B-Instruct-GGUF",
+    "parametros": "7.6B",
+    "tamanoBytes": 4700000000,
+    "caps": ["code", "tools"],
+    "ramMinGb": 16,
+    "agente": true,
+    "nota": "El mismo coder de arriba, con quants a elegir. Si ya tienes el de Ollama, no lo bajes dos veces."
+  },
+  {
+    "id": "hf.co/unsloth/Qwen3-8B-GGUF",
+    "nombre": "Qwen3 8B (GGUF del Hub)",
+    "hf": "unsloth/Qwen3-8B-GGUF",
+    "parametros": "8.2B",
+    "tamanoBytes": 5200000000,
+    "caps": ["chat", "code", "tools", "reasoning"],
+    "ramMinGb": 16,
+    "agente": true,
+    "nota": "Quants dinámicos: hay Q2 de 3 GB para equipos cortos de RAM."
+  }
+]

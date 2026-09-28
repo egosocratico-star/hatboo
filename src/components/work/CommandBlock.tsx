@@ -2,6 +2,7 @@ import { t } from "../../i18n";
 import { useState } from "react";
 import { Check, ChevronDown, ChevronRight, Copy } from "lucide-react";
 import type { CommandData } from "../../store/workStore";
+import Insignia from "../Insignia";
 
 function duracion(ms: number): string {
   if (ms < 1000) return `${ms} ms`;
@@ -44,14 +45,10 @@ export default function CommandBlock({ data, ok, durationMs }: Props) {
         <code className="min-w-0 flex-1 break-all font-mono text-xs leading-relaxed text-zinc-100">
           {data.command}
         </code>
-        <span
-          className={`shrink-0 rounded-md px-1.5 py-0.5 font-mono text-[10px] ${
-            codigo === null
-              ? "bg-red-500/15 text-red-300"
-              : exito
-                ? "bg-emerald-500/15 text-emerald-400"
-                : "bg-red-500/15 text-red-300"
-          }`}
+        <Insignia
+          cuadrada
+          mono
+          tipo={codigo !== null && exito ? "ok" : "error"}
           title={
             codigo === null
               ? t("El comando no devolvió código de salida (cancelado o sin permisos)")
@@ -59,7 +56,7 @@ export default function CommandBlock({ data, ok, durationMs }: Props) {
           }
         >
           {codigo === null ? t("sin código") : `exit ${codigo}`}
-        </span>
+        </Insignia>
         {durationMs > 0 && (
           <span className="shrink-0 text-[10px] text-zinc-500 tabular-nums">
             {duracion(durationMs)}

@@ -2,6 +2,7 @@ import { t } from "../../i18n";
 import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { useWorkStore, useActiveTab } from "../../store/workStore";
+import { BOTON_PRIMARIO, BOTON_SECUNDARIO } from "../modalUi";
 
 export default function ToolApprovalModal() {
   const tab = useActiveTab();
@@ -76,14 +77,14 @@ export default function ToolApprovalModal() {
           <button
             onClick={() => void answer(false)}
             disabled={busy}
-            className="px-4 py-2 rounded-lg border border-base-border text-sm text-zinc-300 hover:border-red-500/50 hover:text-red-300 transition-colors disabled:opacity-40"
+            className={`${BOTON_SECUNDARIO} hover:border-red-500/50 hover:text-red-300 disabled:opacity-40`}
           >
             {t("Rechazar")}
           </button>
           <button
             onClick={() => void answer(true)}
             disabled={busy}
-            className="px-4 py-2 rounded-lg bg-accent text-white text-sm hover:bg-accent-dim transition-colors disabled:opacity-40"
+            className={BOTON_PRIMARIO}
           >
             {t("Aprobar")}
           </button>

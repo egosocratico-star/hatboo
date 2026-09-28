@@ -148,7 +148,7 @@ const NAMED_ENTITIES: &[(&str, &str)] = &[
 
 fn decode_entities(input: &str) -> String {
     static NUMERIC: OnceLock<Regex> = OnceLock::new();
-    let re = NUMERIC.get_or_init(|| Regex::new(r"&#(x?)([0-9a-fA-F]+);").unwrap());
+    let re = NUMERIC.get_or_init(|| Regex::new(r"&#(x?)([0-9a-fA-F]+);").expect("regex numérica válida"));
 
     let mut step = input.to_string();
     for (entity, replacement) in NAMED_ENTITIES {
@@ -160,10 +160,13 @@ fn decode_entities(input: &str) -> String {
     let mut out = String::with_capacity(step.len());
     let mut last = 0;
     for caps in re.captures_iter(&step) {
-        let whole = caps.get(0).unwrap();
+        let (Some(whole), Some(g_hex), Some(g_digits)) = (caps.get(0), caps.get(1), caps.get(2))
+        else {
+            continue;
+        };
         out.push_str(&step[last..whole.start()]);
-        let hex = caps[1].eq_ignore_ascii_case("x");
-        let digits = &caps[2];
+        let hex = g_hex.as_str().eq_ignore_ascii_case("x");
+        let digits = g_digits.as_str();
         let code = if hex {
             u32::from_str_radix(digits, 16).ok()
         } else {

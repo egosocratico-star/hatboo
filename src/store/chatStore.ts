@@ -1,8 +1,8 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
-import type { Attachment, Conversation, Message, Settings, Skill } from "../types";
+import type { Attachment, Conversation, LocalModel, Message, Settings, Skill } from "../types";
 
-export type View = "chat" | "settings" | "work";
+export type View = "chat" | "settings" | "work" | "projects";
 export type Status = "idle" | "streaming" | "error";
 
 interface ChatStore {
@@ -21,17 +21,44 @@ interface ChatStore {
   /** Aviso de la búsqueda web (sin resultados / fallo). */
   searchNote: string | null;
   status: Status;
+  /** Se está generando una imagen ahora mismo: el motor de nube tarda segundos. */
+  imageBusy: boolean;
   error: string | null;
   settings: Settings | null;
   /** Fallo al leer los ajustes: Ajustes lo muestra con un reintento. */
   settingsError: string | null;
+  /** Caché de los modelos de Ollama con sus capacidades declaradas. La piden
+   *  el chip del modelo y el gate de visión del menú +; `null` = sin consultar. */
+  localModels: LocalModel[] | null;
+  /** Endpoint del que salió `localModels`; si cambia en Ajustes, hay que repedir. */
+  localModelsEndpoint: string | null;
+  loadLocalModels: () => Promise<void>;
   skills: Skill[];
   /** Se incrementa con Ctrl/Cmd+F; el chat lo mira para abrir su buscador. */
   findNonce: number;
   /** Ventana de búsqueda en TODOS los chats y sesiones (Ctrl/Cmd+K). */
   searchOpen: boolean;
+  /** Sección abierta en Ajustes. En el store para que se pueda saltar a una. */
+  settingsCat: string;
+  /**
+   * Texto sin enviar por hilo. La clave `nueva` es el chat que todavía no es
+   * conversación: `newConversation` no crea fila hasta el primer mensaje.
+   */
+  drafts: Record<string, string>;
+  /** Rutas de archivos soltados sobre la ventana. La vista que esté delante los
+   *  recoge y los adjunta al mensaje en curso; las carpetas no llegan aquí, esas
+   *  siguen abriéndose como proyecto. */
+  soltados: string[];
+  /** Devuelve lo soltado y lo borra de una: si lo leyeran las dos vistas a la vez,
+   *  el archivo se adjuntaría dos veces. */
+  recogeSoltados: () => string[];
+  loadDrafts: () => Promise<void>;
+  setDraft: (key: string, text: string) => void;
+  /** Escribe ya los borradores que aún esperaban el retardo de 500 ms. */
+  flushDrafts: () => Promise<void>;
 
   setView: (view: View) => void;
+  setSettingsCat: (cat: string) => void;
   loadConversations: () => Promise<void>;
   newConversation: () => Promise<void>;
   selectConversation: (id: string) => Promise<void>;
@@ -44,8 +71,12 @@ interface ChatStore {
     id: string,
     flags: { pinned?: boolean; archived?: boolean },
   ) => Promise<void>;
+  /** Cambiar el título de un hilo desde la barra lateral. */
+  renameConversation: (id: string, title: string) => Promise<void>;
   sendMessage: (content: string, attachments?: Attachment[]) => Promise<void>;
   regenerate: () => Promise<void>;
+  /** Pide una imagen al motor de Ajustes → API y la mete en el hilo. */
+  generateImage: (prompt: string) => Promise<void>;
   editMessage: (messageId: string, content: string) => Promise<void>;
   setFeedback: (messageId: string, feedback: "up" | "down" | null) => Promise<void>;
   stopStreaming: () => Promise<void>;
@@ -84,6 +115,9 @@ const BLANK_STREAM = {
   startedAt: 0,
 };
 
+/** Un retardo por hilo: teclear no escribe SQLite en cada pulsación. */
+const temporizadoresBorrador: Record<string, number> = {};
+
 export const useChatStore = create<ChatStore>((set, get) => ({
   view: "chat",
   conversations: [],
@@ -91,14 +125,58 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   messages: [],
   ...BLANK_STREAM,
   status: "idle",
+  imageBusy: false,
   error: null,
   settings: null,
   settingsError: null,
+  localModels: null,
+  localModelsEndpoint: null,
   skills: [],
   findNonce: 0,
   searchOpen: false,
+  settingsCat: "api",
+  drafts: {},
+  soltados: [],
+
+  recogeSoltados: () => {
+    const pendientes = get().soltados;
+    if (pendientes.length > 0) set({ soltados: [] });
+    return pendientes;
+  },
 
   setView: (view) => set({ view }),
+  setSettingsCat: (cat) => set({ settingsCat: cat }),
+
+  loadDrafts: async () => {
+    try {
+      set({ drafts: await invoke<Record<string, string>>("get_drafts") });
+    } catch {
+      // Sin borradores no se pierde nada más que el borrador.
+    }
+  },
+
+  setDraft: (key, text) => {
+    // La memoria va ya, para que cambiar de hilo sea instantáneo; a disco se
+    // escribe al dejar de teclear, no en cada pulsación.
+    set((s) => ({ drafts: { ...s.drafts, [key]: text } }));
+    const pendiente = temporizadoresBorrador[key];
+    if (pendiente) window.clearTimeout(pendiente);
+    temporizadoresBorrador[key] = window.setTimeout(() => {
+      delete temporizadoresBorrador[key];
+      void invoke("save_draft", { conversationId: key, text }).catch(() => {});
+    }, 500);
+  },
+
+  /** Al cerrar es lo que evita perder lo último tecleado: lo que aún esperaba
+   *  su retardo se escribe en disco en ese momento. */
+  flushDrafts: async () => {
+    for (const key of Object.keys(temporizadoresBorrador)) {
+      window.clearTimeout(temporizadoresBorrador[key]);
+      delete temporizadoresBorrador[key];
+      const texto = get().drafts[key] ?? "";
+      await invoke("save_draft", { conversationId: key, text: texto }).catch(() => {});
+    }
+  },
 
   loadConversations: async () => {
     // Solo refresca la lista: al arrancar NO se auto-selecciona ninguna
@@ -163,6 +241,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     await get().loadConversations();
   },
 
+  renameConversation: async (id, title) => {
+    set((s) => ({
+      conversations: s.conversations.map((c) => (c.id === id ? { ...c, title } : c)),
+    }));
+    await invoke("rename_conversation", { conversationId: id, title });
+    await get().loadConversations();
+  },
+
   sendMessage: async (content, attachments) => {
     const { activeId } = get();
     const convId =
@@ -195,8 +281,25 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   regenerate: async () => {
-    const { activeId, status } = get();
-    if (!activeId || status === "streaming") return;
+    const { activeId, status, imageBusy } = get();
+    if (!activeId || status === "streaming" || imageBusy) return;
+    // Qué se repite lo decide la última respuesta: si fue un dibujo, reintentar
+    // es volver a pedírselo al motor. Dejarlo en manos del modelo de texto
+    // borraba la imagen y contestaba sobre algo que no era suyo.
+    const ultimo = [...get().messages].reverse().find((m) => m.role === "assistant");
+    if (ultimo?.provider === "imagen") {
+      set({ imageBusy: true, error: null });
+      let fallo: string | null = null;
+      try {
+        await invoke("regenerate_image", { conversationId: activeId });
+      } catch (e) {
+        fallo = String(e);
+      }
+      await get().loadConversations();
+      await get().selectConversation(activeId);
+      set({ imageBusy: false, ...(fallo ? { status: "error" as const, error: fallo } : {}) });
+      return;
+    }
     // Quitamos localmente la última respuesta; el backend la borra y re-emite.
     const msgs = [...get().messages];
     for (let i = msgs.length - 1; i >= 0; i--) {
@@ -217,6 +320,34 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     } catch (e) {
       set({ ...BLANK_STREAM, status: "error", error: String(e) });
     }
+  },
+
+  generateImage: async (prompt) => {
+    const { imageBusy, status } = get();
+    const text = prompt.trim();
+    // Con una respuesta en curso el hilo está ocupado: mezclar una imagen con
+    // el stream dejaría dos cosas pendientes en la misma conversación.
+    if (!text || imageBusy || status === "streaming") return;
+    const convId =
+      get().activeId ??
+      (await invoke<Conversation>("create_conversation", {
+        title: "Nueva conversación",
+      })).id;
+    set({ activeId: convId, imageBusy: true, error: null });
+    let fallo: string | null = null;
+    try {
+      await invoke("generate_image", { conversationId: convId, prompt: text });
+    } catch (e) {
+      fallo = String(e);
+    }
+    // Se recarga desde SQLite en los dos casos: el comando ya escribió el
+    // mensaje del usuario y, si hubo suerte, también la imagen. Así el hilo
+    // muestra lo que hay de verdad, con los ids reales, y no una copia inventada.
+    await get().loadConversations();
+    await get().selectConversation(convId);
+    // El aviso va DESPUÉS de la recarga: `selectConversation` limpia el error,
+    // y si no el fallo del motor desaparecería antes de que se pueda leer.
+    set({ imageBusy: false, ...(fallo ? { status: "error" as const, error: fallo } : {}) });
   },
 
   /** Edita un mensaje propio: el backend tira lo de después y vuelve a responder. */
@@ -285,9 +416,33 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     try {
       const settings = await invoke<Settings>("get_settings");
       set({ settings, settingsError: null });
+      // La zona horaria la sabe el navegador, no Rust. Se guarda solo cuando
+      // cambió —viajar o el salto de horario de invierno a verano— para no
+      // escribir en la base en cada arranque.
+      const minutos = -new Date().getTimezoneOffset();
+      if (settings.tzOffsetMin !== minutos) {
+        void invoke<Settings>("update_settings", {
+          settings: { ...settings, tzOffsetMin: minutos },
+        })
+          .then((saved) => set({ settings: saved }))
+          .catch(() => {});
+      }
     } catch (e) {
       // Sin esto el modal se quedaba para siempre en "Cargando ajustes…".
       set({ settingsError: String(e) });
+    }
+  },
+
+  loadLocalModels: async () => {
+    const endpoint = get().settings?.localEndpoint;
+    if (!endpoint) return;
+    try {
+      const localModels = await invoke<LocalModel[]>("list_local_models", { endpoint });
+      set({ localModels, localModelsEndpoint: endpoint });
+    } catch {
+      // Ollama apagado o un endpoint que no es Ollama: «no se sabe», y los
+      // gates vuelven a la pista del nombre del modelo.
+      set({ localModels: null, localModelsEndpoint: null });
     }
   },
 

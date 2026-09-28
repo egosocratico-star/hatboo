@@ -30,13 +30,11 @@ regex = "1"
 base64 = "0.22"
 tauri-plugin-dialog = "2"
 tauri-plugin-notification = "2"
+sysinfo = { version = "0.39.6", default-features = false, features = ["system", "disk", "component"] }
 
 # Backend nativo del llavero por plataforma (keyring v3 no trae ninguno por defecto)
 [target.'cfg(target_os = "windows")'.dependencies]
 keyring = { version = "3", features = ["windows-native"] }
-# Fondo translúcido compuesto por Windows, no por el webview (Ajustes → Apariencia).
-# Solo Windows por ahora: en macOS/Linux queda para su propio pase.
-window-vibrancy = "0.6"
 # Captura de pantalla para «Tomar captura» del menú + del chat.
 xcap = { version = "0.9", features = ["image"] }
 # Solo para codificar a PNG lo que devuelve xcap; sin decodificadores.
@@ -47,3 +45,12 @@ keyring = { version = "3", features = ["apple-native"] }
 
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
 keyring = { version = "3", features = ["sync-secret-service", "crypto-rust"] }
+
+# La información de depuración completa de `dev` estaba costando 65 GB: cada
+# arranque del `tauri dev` dejaba otro juego de `.pdb` en `target/debug/deps`
+# (25.786 archivos) y otras unidades en `incremental`. Con solo las tablas de
+# líneas las trazas de pánico siguen diciendo archivo y línea, que es lo único
+# que hemos leído nunca de aquí.
+[profile.dev]
+debug = "line-tables-only"
+incremental = false

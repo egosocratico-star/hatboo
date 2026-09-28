@@ -11,6 +11,12 @@ import { createPortal } from "react-dom";
 
 const MARGIN = 12;
 const GAP = 8;
+/** Lo que tiene que caber debajo para preferir abrir hacia abajo. */
+const MIN_ABAJO = 220;
+/** La barra de título vive DENTRO del viewport, pegada arriba: respetar solo el
+ *  borde de la ventana dejaba que un menú que abre hacia arriba se metiera debajo
+ *  de ella y le comiera la primera opción. Es el alto de `TitleBar` (h-10). */
+const BARRA_TITULO = 40;
 
 interface Props {
   /** Quiere el menú abierto. Al pasar a `false` el panel no se quita de golpe:
@@ -38,6 +44,10 @@ interface Props {
  * borde superior en ventanas bajas: aquí se calcula el hueco libre por encima y
  * por debajo del disparador y el panel se ancla con `top` o con `bottom`, así
  * que nunca desborda el viewport y, si no cabe, se desplaza dentro de él.
+ *
+ * Hacia abajo siempre que quepa: un disparador por encima del centro de la
+ * ventana (el compositor del chat vacío, los filtros del Centro) mandaba el
+ * panel encima de lo que se estaba mirando, porque arriba siempre hay más sitio.
  */
 export default function Popover({
   open,
@@ -71,9 +81,10 @@ export default function Popover({
       const el = anchorRef.current;
       if (!el) return;
       const rect = el.getBoundingClientRect();
-      const above = rect.top - GAP - MARGIN;
+      const above = rect.top - GAP - MARGIN - BARRA_TITULO;
       const below = window.innerHeight - rect.bottom - GAP - MARGIN;
-      const up = above >= below;
+      const haceFalta = cap === undefined ? MIN_ABAJO : Math.min(cap, MIN_ABAJO);
+      const up = below < haceFalta && above >= below;
       const room = up ? above : below;
       const maxHeight = Math.max(140, cap ? Math.min(room, cap) : room);
       const wanted = align === "end" ? rect.right - width : rect.left;

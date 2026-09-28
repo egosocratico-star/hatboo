@@ -1,4 +1,5 @@
 pub mod git;
+pub mod imagen;
 pub mod list_dir;
 pub mod read_file;
 pub mod run_command;
@@ -12,6 +13,7 @@ use serde_json::Value;
 use std::path::{Path, PathBuf};
 
 pub use git::{GitCommitTool, GitDiffTool, GitLogTool, GitStatusTool};
+pub use imagen::GenerateImageTool;
 pub use list_dir::ListDirTool;
 pub use read_file::ReadFileTool;
 pub use run_command::RunCommandTool;
@@ -105,9 +107,11 @@ pub fn resolve_in_project(project_root: &Path, rel: &str) -> Result<PathBuf, Too
     Ok(candidate)
 }
 
-/// Registro de herramientas para una sesión de trabajo. `web_search_enabled` es
-/// el mismo interrupto 🌐 del chat: sin él el agente no puede salir a internet.
-pub fn build_tools(run_command_enabled: bool, web_search_enabled: bool) -> Vec<Box<dyn AgentTool>> {
+/// Registro de herramientas para una sesión de trabajo. `web_search` es el mismo
+/// interrupto 🌐 del chat: sin él el agente no puede salir a internet. Y la de
+/// imagen solo se ofrece si en Ajustes hay un motor elegido, porque ofrecerla
+/// apagada es prometer un dibujo que tiene que fallar.
+pub fn build_tools(s: &crate::state::Settings) -> Vec<Box<dyn AgentTool>> {
     let mut tools: Vec<Box<dyn AgentTool>> = vec![
         Box::new(ReadFileTool),
         Box::new(ListDirTool),
@@ -118,11 +122,14 @@ pub fn build_tools(run_command_enabled: bool, web_search_enabled: bool) -> Vec<B
         Box::new(GitLogTool),
         Box::new(GitCommitTool),
     ];
-    if run_command_enabled {
+    if s.run_command_enabled {
         tools.push(Box::new(RunCommandTool));
     }
-    if web_search_enabled {
+    if s.web_search {
         tools.push(Box::new(WebSearchTool));
+    }
+    if let Some(imagen) = GenerateImageTool::desde_ajustes(s) {
+        tools.push(Box::new(imagen));
     }
     tools
 }
@@ -130,9 +137,14 @@ pub fn build_tools(run_command_enabled: bool, web_search_enabled: bool) -> Vec<B
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::Settings;
 
-    fn names(run_command: bool, web_search: bool) -> Vec<String> {
-        build_tools(run_command, web_search)
+    fn nombres(run_command: bool, web_search: bool, motor: &str) -> Vec<String> {
+        let mut s = Settings::default();
+        s.run_command_enabled = run_command;
+        s.web_search = web_search;
+        s.image_provider = motor.to_string();
+        build_tools(&s)
             .iter()
             .map(|t| t.name().to_string())
             .collect()
@@ -140,10 +152,16 @@ mod tests {
 
     #[test]
     fn las_tools_de_red_y_comandos_solo_aparecen_si_estan_activadas() {
-        let base = names(false, false);
+        let base = nombres(false, false, "");
         assert!(!base.contains(&"run_command".to_string()));
         assert!(!base.contains(&"web_search".to_string()));
-        assert!(names(false, true).contains(&"web_search".to_string()));
-        assert!(names(true, false).contains(&"run_command".to_string()));
+        assert!(nombres(false, true, "").contains(&"web_search".to_string()));
+        assert!(nombres(true, false, "").contains(&"run_command".to_string()));
+    }
+
+    #[test]
+    fn dibujar_solo_se_ofrece_con_motor_apuntado() {
+        assert!(!nombres(false, false, "").contains(&"generate_image".to_string()));
+        assert!(nombres(false, false, "gemini").contains(&"generate_image".to_string()));
     }
 }

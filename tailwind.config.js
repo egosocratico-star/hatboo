@@ -13,6 +13,7 @@ export default {
         base: {
           DEFAULT: v("surface"),
           raised: v("surface-raised"),
+          card: v("surface-card"),
           border: v("surface-border"),
           hover: v("surface-hover"),
           code: v("surface-code"),

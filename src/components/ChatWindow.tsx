@@ -5,8 +5,10 @@ import {
   ArrowUp,
   ChevronDown,
   ChevronUp,
+  Code2,
+  FileText,
+  Mail,
   Paperclip,
-  Scale,
   Search,
   Square,
   X,
@@ -19,20 +21,23 @@ import Mascot from "./mascot/Mascot";
 import ProviderModelPicker from "./ProviderModelPicker";
 import ContextMeter from "./ContextMeter";
 import ChatPlusMenu from "./ChatPlusMenu";
-import PermissionPicker from "./PermissionPicker";
+import Dots from "./Dots";
+import SuggestionGrid, { type Sugerencia } from "./SuggestionGrid";
 import ModeToggles from "./ModeToggles";
-import ComparePanel from "./ComparePanel";
 import ThinkingBlock, { formatDuration } from "./ThinkingBlock";
+import { useSoltados } from "../hooks/useSoltados";
 import type { Attachment, MascotState } from "../types";
 import { CHAT_FONT_SIZES, CHAT_FONT_STACKS } from "../types";
+import { saleDelEquipo } from "../modelo";
+import { modeloActivo } from "../proveedores";
 
 /** En español a pelo: si se tradujeran aquí, el texto quedaría congelado al del
  *  arranque, porque esto se evalúa al importar el módulo. Se traduce al pintar. */
-const SUGGESTIONS = [
-  "Resúmeme un archivo",
-  "Explícame un error",
-  "Escríbeme un email",
-  "Ayúdame con código",
+const SUGERENCIAS: Sugerencia[] = [
+  { texto: "Resúmeme un archivo", icono: FileText },
+  { texto: "Explícame un error", icono: AlertCircle },
+  { texto: "Escríbeme un email", icono: Mail },
+  { texto: "Ayúdame con código", icono: Code2 },
 ];
 
 /** Cuatro franjas; la madrugada tiene la suya porque esta app se usa a deshoras.
@@ -61,7 +66,13 @@ export default function ChatWindow() {
   const activeId = useChatStore((s) => s.activeId);
   const chatFontSize = useChatStore((s) => s.settings?.chatFontSize ?? "md");
   const chatFontFamily = useChatStore((s) => s.settings?.chatFontFamily ?? "sans");
-  const assistantName = useChatStore((s) => s.settings?.assistantName?.trim() || "Hatboo");
+  // Es el nombre del USUARIO (Ajustes → Perfil: «¿Cómo debería llamarte
+  // Hatboo?»), no el del asistente: por eso se saluda con él y no se dice «Soy».
+  const nombre = useChatStore((s) => s.settings?.assistantName?.trim() ?? "");
+  const proveedor = useChatStore((s) => s.settings?.activeProvider ?? "local");
+  const modelo = useChatStore((s) => (s.settings ? modeloActivo(s.settings) : ""));
+  /** Modo código: mientras espera, la etiqueta dice lo que se va a hacer. */
+  const codigo = useChatStore((s) => s.settings?.codeMode ?? false);
   const findNonce = useChatStore((s) => s.findNonce);
   const sendMessage = useChatStore((s) => s.sendMessage);
   const regenerate = useChatStore((s) => s.regenerate);
@@ -69,15 +80,31 @@ export default function ChatWindow() {
   const branchConversation = useChatStore((s) => s.branchConversation);
   const stopStreaming = useChatStore((s) => s.stopStreaming);
   const clearError = useChatStore((s) => s.clearError);
+  /** El motor de imagen está tardando: no hay stream que enseñar, solo espera. */
+  const imageBusy = useChatStore((s) => s.imageBusy);
 
-  const [input, setInput] = useState("");
+  // El texto sin enviar vive en el store, por hilo: cambiar de conversación ya
+  // no deja en blanco lo que se estaba escribiendo.
+  const claveBorrador = activeId ?? "nueva";
+  const input = useChatStore((s) => s.drafts[claveBorrador] ?? "");
+  const setDraft = useChatStore((s) => s.setDraft);
+  const setInput = (value: string) => setDraft(claveBorrador, value);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [happy, setHappy] = useState(false);
-  const [permOpen, setPermOpen] = useState(false);
-  const [comparar, setComparar] = useState(false);
+  /** Lo que falló al adjuntar un archivo soltado sobre la ventana: se dice aquí,
+   *  que es donde se soltó, en vez de perderse en un aviso que pasa volando. */
+  const [avisoSoltada, setAvisoSoltada] = useState<string | null>(null);
+  const adjuntaSoltados = useCallback(
+    (lista: Attachment[]) => setAttachments((prev) => [...prev, ...lista]),
+    [],
+  );
+  const avisaSoltada = useCallback((texto: string) => setAvisoSoltada(texto), []);
+  useSoltados(adjuntaSoltados, avisaSoltada, true);
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [hitIdx, setHitIdx] = useState(0);
+  // Cuánto separa del final la vista: se usa para el botón flotante «Ir al final».
+  const [lejos, setLejos] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -90,7 +117,19 @@ export default function ChatWindow() {
   const onListScroll = () => {
     const el = listRef.current;
     if (!el) return;
-    pinnedRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    const d = el.scrollHeight - el.scrollTop - el.clientHeight;
+    pinnedRef.current = d < 120;
+    setLejos(d > 480);
+  };
+
+  // Al bajar a mano se vuelve a pegar el stream al final, que es lo que espera
+  // quien pulsa el botón.
+  const bajar = () => {
+    const el = listRef.current;
+    if (!el) return;
+    pinnedRef.current = true;
+    setLejos(false);
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   };
 
   // --- Buscar dentro de esta conversación -------------------------------
@@ -204,10 +243,30 @@ export default function ChatWindow() {
     // store deja la duración congelada en `thinkingMs`.
     if (status !== "streaming" || !startedAt || thinkingMs != null) return;
     setElapsed(Date.now() - startedAt);
-    const timer = setInterval(() => setElapsed(Date.now() - startedAt), 250);
+    // De segundo en segundo: lo único que cambia es un dígito, y cada tick
+    // re-renderiza toda la ventana.
+    const timer = setInterval(() => setElapsed(Date.now() - startedAt), 1000);
     return () => clearInterval(timer);
   }, [status, startedAt, thinkingMs]);
   const thinkMs = thinkingMs ?? elapsed;
+
+  // Lo que se dice mientras no llega ni una letra. Cada frase tiene que
+  // corresponder a algo que esté pasando de verdad: «Pensando» salía con el
+  // razonamiento activado aunque el modelo no hubiera devuelto un solo
+  // pensamiento, y eso no lo estaba haciendo nadie. Cuando el pensamiento llega
+  // de verdad ya tiene su propio bloque con su cronómetro.
+  const adjuntos = [...messages].reverse().find((m) => m.role === "user")?.attachments ?? [];
+  const imagenes = adjuntos.filter((a) => a.imageMediaType).length;
+  const espera =
+    imagenes > 1
+      ? t("Viendo las imágenes…")
+      : imagenes === 1
+        ? t("Viendo la imagen…")
+        : adjuntos.length > 0
+          ? t("Leyendo el archivo…")
+          : codigo
+            ? t("Preparando el código…")
+            : t("En espera…");
 
   // "Feliz" breve al completar una respuesta larga.
   useEffect(() => {
@@ -218,8 +277,8 @@ export default function ChatWindow() {
       (messages[messages.length - 1]?.content.length ?? 0) > 200
     ) {
       setHappy(true);
-      const t = setTimeout(() => setHappy(false), 2500);
-      return () => clearTimeout(t);
+      const temporizador = setTimeout(() => setHappy(false), 2500);
+      return () => clearTimeout(temporizador);
     }
     prevLen.current = messages.length;
   }, [messages.length, status, messages]);
@@ -227,7 +286,7 @@ export default function ChatWindow() {
   const mascotState: MascotState =
     status === "error"
       ? "confused"
-      : status === "streaming"
+      : status === "streaming" || imageBusy
         ? "thinking"
         : happy
           ? "happy"
@@ -239,6 +298,7 @@ export default function ChatWindow() {
     const sent = attachments;
     setInput("");
     setAttachments([]);
+    setAvisoSoltada(null);
     clearError();
     pinnedRef.current = true;
     try {
@@ -251,6 +311,8 @@ export default function ChatWindow() {
   // Identidades estables: sin esto cada fragmento del stream re-renderizaba
   // también todas las burbujas ya cerradas.
   const handleRegenerate = useCallback(() => void regenerate(), [regenerate]);
+  // Índice de la última pregunta, para el reintento de su burbuja.
+  const ultimoUsuario = messages.map((m) => m.role).lastIndexOf("user");
   const handleEdit = useCallback(
     (messageId: string, content: string) => void editMessage(messageId, content),
     [editMessage],
@@ -262,8 +324,9 @@ export default function ChatWindow() {
 
   const busy = status === "streaming";
   // Con una respuesta en curso ya no es un chat vacío: hay que mostrar el
-  // indicador de búsqueda/pensamiento, aunque aún no haya mensajes.
-  const empty = messages.length === 0 && !busy;
+  // indicador de búsqueda/pensamiento, aunque aún no haya mensajes. Lo mismo con
+  // una imagen pidiéndose: el hilo lleva segundos sin nada escrito.
+  const empty = messages.length === 0 && !busy && !imageBusy;
 
   const errorBanner = error && (
     <div className="mb-2 flex items-start gap-2 rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
@@ -276,8 +339,10 @@ export default function ChatWindow() {
   );
 
   const composer = (
-    <>
-    <div className="rounded-2xl border border-base-border bg-base-raised/70 shadow-xl shadow-shade/30 px-3 pt-3 pb-2.5 transition-colors focus-within:border-accent/50">
+    <div className="rounded-2xl border border-base-border bg-base-card shadow-xl shadow-shade/30 px-3 pt-3 pb-2.5 transition-colors focus-within:border-accent/50">
+      {avisoSoltada && (
+        <p className="pb-2 pl-1 text-[11px] leading-snug text-red-400/90">{avisoSoltada}</p>
+      )}
       {attachments.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 pb-2 pl-0.5">
           {attachments.map((a, i) => (
@@ -328,17 +393,7 @@ export default function ChatWindow() {
           onInsertTemplate={insertTemplate}
           disabled={busy}
         />
-        <PermissionPicker open={permOpen} onOpenChange={setPermOpen} />
         <ModeToggles />
-        <button
-          onClick={() => setComparar(true)}
-          disabled={busy}
-          title={t("Comparar la misma pregunta en 2-3 modelos a la vez")}
-          className="flex items-center gap-1.5 rounded-full border border-base-border px-2.5 py-1.5 text-xs text-zinc-400 transition-colors hover:border-accent/50 hover:text-zinc-100 disabled:opacity-40"
-        >
-          <Scale className="w-3.5 h-3.5 shrink-0" />
-          <span className="hidden sm:inline">{t("Comparar")}</span>
-        </button>
         <div className="flex-1 min-w-0" />
         <ContextMeter conversationId={activeId} tick={messages.length} />
         <ProviderModelPicker />
@@ -362,10 +417,6 @@ export default function ChatWindow() {
         )}
       </div>
     </div>
-      {comparar && (
-        <ComparePanel conversationId={activeId} onCerrar={() => setComparar(false)} />
-      )}
-    </>
   );
 
   if (empty) {
@@ -373,28 +424,41 @@ export default function ChatWindow() {
       <div className="flex-1 flex flex-col h-full min-w-0">
         <div className="flex-1 flex flex-col items-center justify-center gap-6 px-6 pb-20">
           <div className="flex flex-col items-center gap-3">
-            <Mascot state={mascotState} size={120} />
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {saludo(new Date().getHours())}. {t("Soy")}{" "}
-              <span className="text-accent-soft">{assistantName}</span>
-            </h1>
+            <Mascot state={mascotState} size={132} />
+            <div className="flex flex-col items-center gap-1.5">
+              <h1 className="text-[28px] font-semibold leading-tight tracking-tight">
+                {nombre ? (
+                  <>
+                    {saludo(new Date().getHours())},{" "}
+                    <span className="text-accent-soft">{nombre}</span>
+                  </>
+                ) : (
+                  <>
+                    {saludo(new Date().getHours())}. {t("Soy")}{" "}
+                    <span className="text-accent-soft">Hatboo</span>
+                  </>
+                )}
+              </h1>
+              <p className="text-sm text-zinc-400">
+                {saleDelEquipo(proveedor, modelo)
+                  ? t("El historial se queda aquí. Esta respuesta la genera {m} fuera de tu equipo.", {
+                      m: modelo || t("el proveedor elegido"),
+                    })
+                  : t("Local-first: nada sale de tu equipo salvo lo que mandes al proveedor que elijas.")}
+              </p>
+            </div>
           </div>
           <div className="w-full max-w-3xl space-y-3">
             {errorBanner}
             {composer}
-            <div className="flex flex-wrap gap-2 justify-center pt-1">
-              {SUGGESTIONS.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => {
-                    setInput(s);
-                    inputRef.current?.focus();
-                  }}
-                  className="rounded-full border border-base-border bg-base-raised/60 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-100 hover:border-accent/50 transition-colors"
-                >
-                  {t(s)}
-                </button>
-              ))}
+            <div className="pt-1">
+              <SuggestionGrid
+                items={SUGERENCIAS}
+                onPick={(s) => {
+                  setInput(s);
+                  inputRef.current?.focus();
+                }}
+              />
             </div>
           </div>
         </div>
@@ -467,18 +531,26 @@ export default function ChatWindow() {
         )}
       </header>
 
-      <div
-        ref={listRef}
-        onScroll={onListScroll}
-        style={fontVars}
-        className="flex-1 overflow-y-auto"
-      >
+      {/* El hilo va dentro de un relativo para que «Ir al final» flote sobre la
+          lista y no sobre el compositor; `min-h-0` mantiene el reparto del flex. */}
+      <div className="relative min-h-0 flex-1">
+        <div
+          ref={listRef}
+          onScroll={onListScroll}
+          style={fontVars}
+          className="h-full overflow-y-auto"
+        >
         <div className="max-w-3xl mx-auto px-6 py-6 space-y-6">
           {messages.map((m, i) => {
             const isLastAssistant =
               m.role === "assistant" &&
               i === messages.length - 1 &&
               status === "idle";
+            // El reintento también va en la última pregunta: cuando la respuesta
+            // falla no queda burbuja que regenerar, y sin esto tocaba reescribir
+            // el mensaje. Con el fallo en pantalla tampoco hay que quitarlo.
+            const esUltimaPregunta =
+              m.role === "user" && i === ultimoUsuario && status !== "streaming";
             const isHit = hitIds.includes(m.id);
             const isCurrent = isHit && hitIds[hitIdx] === m.id;
             return (
@@ -494,7 +566,7 @@ export default function ChatWindow() {
                 <MessageBubble
                   message={m}
                   busy={busy}
-                  onRegenerate={isLastAssistant ? handleRegenerate : undefined}
+                  onRegenerate={isLastAssistant || esUltimaPregunta ? handleRegenerate : undefined}
                   onEdit={m.role === "user" && !busy ? handleEdit : undefined}
                   onBranch={activeId && !busy ? handleBranch : undefined}
                 />
@@ -505,43 +577,63 @@ export default function ChatWindow() {
             <div className="flex justify-start">
               <div className="min-w-0">
                 {searching && (
-                  <span className="text-sm text-zinc-500 animate-pulse">
+                  <span className="flex items-center gap-2 text-sm text-zinc-500">
+                    <Dots />
                     {t("Buscando en la web…")}
                   </span>
                 )}
                 {searchNote && !searching && (
                   <p className="mb-1 text-[12px] text-amber-400/80">{searchNote}</p>
                 )}
-                {!streamingText && streamingReasoning && (
+                {/* El bloque de razonamiento ocupa SIEMPRE el mismo sitio del
+                    árbol. Estaba montado en dos huecos distintos —uno mientras no
+                    había texto, otro cuando lo había—, y al llegar la primera
+                    letra React lo desmontaba y lo volvía a crear: el bloque abierto
+                    se cerraba solo justo cuando interesa leerlo. */}
+                {streamingReasoning && (
                   <ThinkingBlock
                     reasoning={streamingReasoning}
                     ms={thinkMs}
-                    streaming
+                    streaming={!streamingText}
                   />
                 )}
                 {streamingText ? (
-                  <div>
-                    {streamingReasoning && (
-                      <ThinkingBlock reasoning={streamingReasoning} ms={thinkMs} />
-                    )}
-                    <RichText text={streamingText} />
-                    <span className="inline-block w-2 h-4 ml-0.5 align-text-bottom bg-accent-soft animate-caret" />
-                  </div>
+                  <RichText text={streamingText} />
                 ) : (
                   // Con razonamiento en vivo el encabezado del bloque ya cronometra.
                   !searching &&
                   !streamingReasoning && (
-                    <span className="text-sm text-zinc-500 animate-pulse">
-                      {thinkMs >= 1000
-                        ? `Pensando… ${formatDuration(thinkMs)}`
-                        : t("Pensando…")}
+                    <span className="flex items-center gap-2 text-sm text-zinc-500">
+                      <Dots />
+                      {thinkMs >= 1000 ? `${espera} ${formatDuration(thinkMs)}` : espera}
                     </span>
                   )
                 )}
               </div>
             </div>
           )}
+          {imageBusy && (
+            // Sin stream que enseñar: el motor de nube está devolviendo los
+            // bytes. El hilo se ve quieto unos segundos y luego llega la imagen.
+            <div className="flex justify-start">
+              <span className="flex items-center gap-2 text-sm text-zinc-500">
+                <Dots />
+                {t("Dibujando…")}
+              </span>
+            </div>
+          )}
         </div>
+        </div>
+        {lejos && (
+          <button
+            onClick={bajar}
+            title={t("Ir al final")}
+            aria-label={t("Ir al final")}
+            className="absolute bottom-4 right-5 rounded-full border border-base-border bg-base-raised p-2 text-zinc-400 shadow-lg shadow-shade/40 transition-colors hover:text-zinc-100"
+          >
+            <ChevronDown className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       <div className="px-6 pb-5 pt-2">

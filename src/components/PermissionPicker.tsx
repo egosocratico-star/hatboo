@@ -78,7 +78,11 @@ export default function PermissionPicker({ open, onOpenChange }: Props) {
       <button
         ref={triggerRef}
         onClick={() => (open ? close() : onOpenChange(true))}
-        title={t("Permisos de herramientas — {l}", { l: t(current.label) })}
+        title={
+          projectId
+            ? t("Este proyecto · {l}", { l: t(current.label) })
+            : t("Nivel por defecto para lo que abras · {l}", { l: t(current.label) })
+        }
         className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs transition-colors ${
           level === "full_access"
             ? "border-red-500/60 text-red-300 hover:border-red-400"
@@ -109,33 +113,27 @@ export default function PermissionPicker({ open, onOpenChange }: Props) {
                 <button
                   key={l.id}
                   onClick={() => choose(l.id)}
-                  className={`w-full text-left rounded-lg px-2.5 py-2 transition-colors ${
+                  title={t(l.help)}
+                  className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${
                     l.id === level ? "bg-base-hover" : "hover:bg-base-hover/60"
                   }`}
                 >
-                  <span className="flex items-center gap-2.5">
-                    <LevelIcon
-                      level={l.id}
-                      className={`w-4 h-4 shrink-0 ${
-                        l.id === "full_access" ? "text-red-400" : "text-zinc-400"
-                      }`}
-                    />
-                    <span
-                      className={`flex-1 text-sm ${
-                        l.id === "full_access"
-                          ? "text-red-300"
-                          : "text-zinc-100"
-                      }`}
-                    >
-                      {t(l.label)}
-                    </span>
-                    {l.id === level && (
-                      <Check className="w-4 h-4 shrink-0 text-accent-soft" />
-                    )}
+                  <LevelIcon
+                    level={l.id}
+                    className={`w-4 h-4 shrink-0 ${
+                      l.id === "full_access" ? "text-red-400" : "text-zinc-400"
+                    }`}
+                  />
+                  <span
+                    className={`flex-1 truncate text-sm ${
+                      l.id === "full_access" ? "text-red-300" : "text-zinc-100"
+                    }`}
+                  >
+                    {t(l.label)}
                   </span>
-                  <span className="block pl-[26px] pt-1 text-[11px] leading-snug text-zinc-500">
-                    {t(l.help)}
-                  </span>
+                  {l.id === level && (
+                    <Check className="w-4 h-4 shrink-0 text-accent-soft" />
+                  )}
                 </button>
               ))}
               <p className="px-2.5 pt-1.5 pb-1 text-[11px] text-zinc-600">

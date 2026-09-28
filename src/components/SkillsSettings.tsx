@@ -5,6 +5,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { Download, Pencil, Plus, Sparkles, Trash2, Upload, X } from "lucide-react";
 import { useChatStore } from "../store/chatStore";
 import type { Skill } from "../types";
+import { CAMPO } from "./modalUi";
 
 const NAME_MAX = 60;
 const PROMPT_MAX = 2000;
@@ -115,8 +116,7 @@ export default function SkillsSettings() {
     }
   };
 
-  const field =
-    "w-full rounded-lg border border-base-border bg-base px-3 py-2 text-sm outline-none focus:border-accent/70";
+  const field = CAMPO;
 
   return (
     <section className="space-y-3">
@@ -319,7 +319,7 @@ export default function SkillsSettings() {
                   })
                 }
                 title={t(ex.prompt)}
-                className="rounded-full border border-base-border bg-base-raised/60 px-2.5 py-1 text-[11px] text-zinc-400 hover:text-zinc-100 hover:border-accent/50 transition-colors"
+                className="rounded-full border border-base-border bg-base-card px-2.5 py-1 text-[11px] text-zinc-400 hover:text-zinc-100 hover:border-accent/50 transition-colors"
               >
                 + {t(ex.name)}
               </button>

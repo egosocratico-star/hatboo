@@ -1,5 +1,7 @@
 import { t } from "../i18n";
-import { Fragment, type ReactNode } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
+import { Check, Copy } from "lucide-react";
+import { resaltar } from "../highlight";
 
 const CODE_FENCE = /```(\w*)\n?([\s\S]*?)```/g;
 const INLINE = /(\*\*[^*]+\*\*|`[^`]+`)/g;
@@ -17,7 +19,7 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
       return (
         <code
           key={`${keyPrefix}-${i}`}
-          className="rounded px-1.5 py-0.5 bg-base-code border border-base-border font-mono text-accent-soft"
+          className="rounded-md border border-base-border bg-base-raised px-1.5 py-0.5 font-mono text-zinc-100"
           style={{ fontSize: "calc(var(--chat-fs, 15px) - 2.5px)" }}
         >
           {part.slice(1, -1)}
@@ -29,16 +31,70 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
 }
 
 function CodeBlock({ lang, code }: { lang: string; code: string }) {
+  const [copiado, setCopiado] = useState(false);
+  const lineas = useMemo(() => resaltar(code, lang), [code, lang]);
+  const copia = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 1500);
+    } catch {
+      // portapapeles no disponible: el botón simplemente no hace nada
+    }
+  };
   return (
-    <pre
-      className="my-2.5 p-3 rounded-lg bg-base-code border border-base-border overflow-x-auto leading-relaxed font-mono text-zinc-200"
-      style={{ fontSize: "calc(var(--chat-fs, 15px) - 2px)" }}
-    >
-      <div className="text-[10px] uppercase tracking-wider text-accent-soft mb-1.5">
-        {lang}
+    // La cabecera va FUERA del <pre> que hace scroll: si no, en un bloque ancho
+    // el botón se sale de la caja y desaparece con el desplazamiento.
+    <div className="group my-2.5 rounded-lg border border-base-border bg-base-code">
+      <div className="flex items-center gap-2 px-3 pt-2">
+        <span className="text-[10px] uppercase tracking-wider text-accent-soft">
+          {lang}
+        </span>
+        <button
+          onClick={() => void copia()}
+          title={copiado ? t("Copiado") : t("Copiar código")}
+          className="ml-auto inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-zinc-500 opacity-0 transition-opacity hover:text-zinc-200 focus:opacity-100 group-hover:opacity-100"
+        >
+          {copiado ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+          {t("Copiar")}
+        </button>
       </div>
-      <code>{code}</code>
-    </pre>
+      <pre
+        className="px-3 pb-3 pt-1 overflow-x-auto leading-relaxed font-mono text-zinc-200"
+        style={{ fontSize: "calc(var(--chat-fs, 15px) - 2px)" }}
+      >
+        {/* Una línea por div: el resaltador ya partió el código, y así la
+            numeración de la izquierda cae en la misma altura que cada línea. */}
+        <div className="flex">
+          {lineas.length > 1 && (
+            <div
+              aria-hidden
+              className="mr-3 shrink-0 select-none text-right tabular-nums text-zinc-600"
+            >
+              {lineas.map((_, i) => (
+                <div key={i}>{i + 1}</div>
+              ))}
+            </div>
+          )}
+          <code className="min-w-0">
+            {lineas.map((piezas, i) => (
+              <div key={i} className="whitespace-pre">
+                {piezas.map((p, j) =>
+                  p.clase ? (
+                    <span key={j} className={p.clase}>
+                      {p.texto}
+                    </span>
+                  ) : (
+                    <span key={j}>{p.texto}</span>
+                  ),
+                )}
+                {piezas.length === 0 && " "}
+              </div>
+            ))}
+          </code>
+        </div>
+      </pre>
+    </div>
   );
 }
 

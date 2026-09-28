@@ -2,6 +2,7 @@ import { t } from "../../i18n";
 import { useEffect, useState } from "react";
 import { ListChecks, Plus, Trash2 } from "lucide-react";
 import { useWorkStore, useActiveTab } from "../../store/workStore";
+import { BOTON_PRIMARIO, BOTON_SECUNDARIO, CAMPO } from "../modalUi";
 
 /**
  * El agente propuso un plan y espera aquí hasta que se confirme. Los pasos se
@@ -47,7 +48,7 @@ export default function PlanReviewModal() {
                 onChange={(e) =>
                   setPasos((prev) => prev.map((p, j) => (j === i ? e.target.value : p)))
                 }
-                className="flex-1 rounded-lg border border-base-border bg-base px-2.5 py-1.5 text-sm outline-none focus:border-accent/70"
+                className={`${CAMPO} flex-1 px-2.5 py-1.5`}
               />
               <button
                 onClick={() => setPasos((prev) => prev.filter((_, j) => j !== i))}
@@ -69,14 +70,14 @@ export default function PlanReviewModal() {
         <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-base-border">
           <button
             onClick={() => void cancelar()}
-            className="px-3 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-layer hover:bg-base-hover transition-colors"
+            className={`${BOTON_SECUNDARIO} text-zinc-400`}
           >
             {t("Cancelar la tarea")}
           </button>
           <button
             onClick={() => void confirmPlan(validos)}
             disabled={validos.length === 0}
-            className="px-3.5 py-1.5 rounded-lg bg-accent text-white text-xs font-medium hover:bg-accent-dim disabled:opacity-40 transition-colors"
+            className={BOTON_PRIMARIO}
           >
             Ejecutar {validos.length > 0 ? `${validos.length} paso${validos.length > 1 ? "s" : ""}` : t("el plan")}
           </button>

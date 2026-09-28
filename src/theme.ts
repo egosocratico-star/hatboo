@@ -1,6 +1,7 @@
-import { invoke } from "@tauri-apps/api/core";
 
-export type ThemeChoice = "dark" | "light" | "system";
+import type { ThemeId } from "./temas";
+
+export type { ThemeId as ThemeChoice };
 
 const STORED = "hatboo-theme";
 const STORED_MOTION = "hatboo-motion";
@@ -10,10 +11,14 @@ function prefersLight(): boolean {
   return typeof window !== "undefined" && window.matchMedia(LIGHT).matches;
 }
 
-function resolve(choice: string): "dark" | "light" {
-  if (choice === "light") return "light";
+/**
+ * `system` es el único que se resuelve a otro: el resto de identificadores son
+ * paletas que existen tal cual en `index.css`. Antes esta función solo devolvía
+ * `dark` o `light`, así que cualquier paleta nueva se venía abajo al oscuro.
+ */
+function resolve(choice: string): string {
   if (choice === "system") return prefersLight() ? "light" : "dark";
-  return "dark";
+  return choice || "dark";
 }
 
 /**
@@ -54,27 +59,4 @@ export function applyMotion(choice: string): void {
   } catch {
     // Sin almacenamiento la preferencia de esta sesión sigue aplicándose.
   }
-}
-
-/**
- * Pide a Windows que componga Mica detrás del webview y pone el gancho CSS que
- * deja de pintar fondo opaco para que se vea. El tinte se lee del tema ya
- * resuelto en el DOM, no de la elección: Hatboo en claro con Windows en oscuro
- * tiene que recibir el tinte claro.
- *
- * Si el backend falla (otros sistemas, o Windows sin soporte para Mica) se quita
- * el gancho y la app vuelve a su fondo opaco normal.
- */
-export function applyVibrancy(enabled: boolean): void {
-  const root = document.documentElement;
-  if (!enabled) {
-    delete root.dataset.vibrancy;
-    void invoke("set_window_transparency", { enabled: false, dark: null }).catch(() => {});
-    return;
-  }
-  root.dataset.vibrancy = "on";
-  const dark = root.dataset.theme === "dark" ? true : root.dataset.theme === "light" ? false : null;
-  void invoke("set_window_transparency", { enabled: true, dark }).catch(() => {
-    delete root.dataset.vibrancy;
-  });
 }

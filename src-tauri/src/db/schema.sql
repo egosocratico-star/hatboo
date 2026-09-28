@@ -55,6 +55,11 @@ CREATE TABLE IF NOT EXISTS tool_calls (
     output TEXT,                   -- JSON, null hasta completar
     status TEXT NOT NULL,          -- 'pending_approval' | 'approved' | 'rejected' | 'completed' | 'failed'
     created_at INTEGER NOT NULL,
+    -- Lo que tardó y el resumen de una línea. Sin esto la traza del agente no
+    -- puede reconstruirse al reabrir la sesión: el frontend la pintaba solo en
+    -- memoria y al salir se quedaba en nada.
+    duration_ms INTEGER NOT NULL DEFAULT 0,
+    brief TEXT,
     FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
 );
 
@@ -68,4 +73,25 @@ CREATE TABLE IF NOT EXISTS skills (
     prompt TEXT NOT NULL,
     enabled INTEGER NOT NULL DEFAULT 1,
     created_at INTEGER NOT NULL
+);
+
+-- Texto sin enviar del compositor, uno por conversación. Sin esto, escribir
+-- medio mensaje largo y cambiar de hilo (o cerrar la app) lo borraba. La clave
+-- es libre a propósito —«nueva» guarda el borrador de cuando todavía no existe
+-- conversación—, así que no hay clave ajena: `delete_thread` limpia los suyos.
+
+CREATE TABLE IF NOT EXISTS drafts (
+    conversation_id TEXT PRIMARY KEY,
+    text TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+
+-- Notas de memoria escritas a mano por el usuario. Viajan en el system prompt
+-- de chat y de agente; no se deducen de los chats, así que no hay nada que
+-- generar ni que apagar.
+
+CREATE TABLE IF NOT EXISTS memories (
+    id TEXT PRIMARY KEY,
+    content TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
 );

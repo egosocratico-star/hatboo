@@ -1,5 +1,6 @@
 use crate::backup;
 use crate::db;
+use crate::machine;
 use crate::providers::{self, ChatMessage, StreamDelta};
 use crate::state::{self, AppState, Settings};
 use crate::web;
@@ -77,6 +78,90 @@ pub fn delete_conversation(app: State<AppState>, conversation_id: String) -> Res
     db::delete_conversation(&conn, &conversation_id)?;
     remove_image_files(images);
     Ok(())
+}
+
+/// El prompt con el que se manda cada respuesta. No se guarda en ninguna parte:
+/// se vuelve a armar con las mismas funciones que lo envían, para que lo que se
+/// lee aquí sea literalmente lo que lee el modelo.
+#[tauri::command]
+pub fn system_prompt_of(app: State<AppState>, conversation_id: String) -> Result<String, String> {
+    let aj = state::load_settings(&app);
+    let skills = {
+        let conn = app.db.lock().map_err(|e| e.to_string())?;
+        let texto = db::enabled_skills_prompt(&conn)?;
+        let memoria = db::memoria_prompt(&conn)?;
+        match db::get_conversation(&conn, &conversation_id)
+            .map_err(|_| "Esta conversación ya no existe.".to_string())?
+            .project_id
+        {
+            None => return Ok(chat_system_prompt(&aj, &texto, &memoria)),
+            Some(pid) => {
+                let proyecto = db::get_project(&conn, &pid)?;
+                (texto, memoria, PathBuf::from(proyecto.root_path), proyecto.approval_level)
+            }
+        }
+    };
+    Ok(crate::agent::loop_runner::system_prompt(
+        &skills.2,
+        &skills.3,
+        &aj.assistant_name,
+        &skills.0,
+        aj.code_mode,
+        &project_rules_for_prompt(&skills.2),
+        &skills.1,
+        aj.tz_offset_min,
+    ))
+}
+
+/// Guarda el texto sin enviar de un hilo. La clave `nueva` es la del chat que
+/// todavía no existe como conversación.
+#[tauri::command]
+pub fn save_draft(app: State<AppState>, conversation_id: String, text: String) -> Result<(), String> {
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    db::set_draft(&conn, &conversation_id, &text)
+}
+
+#[tauri::command]
+pub fn get_drafts(app: State<AppState>) -> Result<std::collections::HashMap<String, String>, String> {
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    Ok(db::list_drafts(&conn)?.into_iter().collect())
+}
+
+/// Título corto a partir del primer mensaje. Cortar por caracteres dejaba
+/// «lee a.txt y luego b.txt y dime…» partido a media palabra.
+fn titulo_breve(texto: &str) -> String {
+    let limpio: String = texto.split_whitespace().collect::<Vec<_>>().join(" ");
+    if limpio.chars().count() <= 34 {
+        return limpio;
+    }
+    let corte = limpio
+        .char_indices()
+        .take_while(|(i, _)| *i < 34)
+        .last()
+        .map(|(i, c)| i + c.len_utf8())
+        .unwrap_or(34);
+    let mut cabeza = &limpio[..corte];
+    if let Some((ultimo, _)) = cabeza.match_indices(' ').last() {
+        // Solo se queda con la palabra anterior si no deja un título ridículo.
+        if ultimo > 12 {
+            cabeza = &cabeza[..ultimo];
+        }
+    }
+    format!("{}…", cabeza.trim_end())
+}
+
+#[tauri::command]
+pub fn rename_conversation(
+    app: State<AppState>,
+    conversation_id: String,
+    title: String,
+) -> Result<(), String> {
+    let titulo = titulo_breve(&title);
+    if titulo.is_empty() {
+        return Err("El título no puede quedar vacío.".into());
+    }
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    db::rename_conversation(&conn, &conversation_id, &titulo)
 }
 
 /// Fijar y archivar comparten comando porque salen del mismo menú y cada opción
@@ -302,103 +387,345 @@ pub fn export_skill(app: State<AppState>, id: String, path: String) -> Result<()
         .map_err(|e| format!("No se pudo escribir «{path}»: {e}"))
 }
 
+// ---------- Memoria escrita por el usuario ----------
+
+#[tauri::command]
+pub fn list_memories(app: State<AppState>) -> Result<Vec<db::Memoria>, String> {
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    db::list_memories(&conn)
+}
+
+#[tauri::command]
+pub fn save_memory(
+    app: State<AppState>,
+    id: String,
+    content: String,
+) -> Result<db::Memoria, String> {
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    db::save_memory(&conn, &id, &content)
+}
+
+#[tauri::command]
+pub fn delete_memory(app: State<AppState>, id: String) -> Result<(), String> {
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    db::delete_memory(&conn, &id)
+}
+
+// ---------- Metadatos de archivos del proyecto ----------
+
+#[derive(serde::Serialize)]
+pub struct FileMeta {
+    pub size: i64,
+    pub mtime: i64,
+}
+
+/// Tamaño y fecha de un archivo del proyecto, para la tarjeta que sale bajo la
+/// respuesta que lo escribió. La ruta llega RELATIVA y se valida contra la raíz
+/// del proyecto como cualquier otra ruta del agente: un «../» que salga fuera
+/// se rechaza sin tocar disco.
+#[tauri::command]
+pub fn file_meta(
+    app: State<AppState>,
+    project_id: String,
+    ruta: String,
+) -> Result<FileMeta, String> {
+    let root = {
+        let conn = app.db.lock().map_err(|e| e.to_string())?;
+        PathBuf::from(db::get_project(&conn, &project_id)?.root_path)
+    };
+    let canon = root.canonicalize().map_err(|e| e.to_string())?;
+    let junta = canon.join(ruta.replace('/', std::path::MAIN_SEPARATOR_STR));
+    let destino = junta
+        .canonicalize()
+        .map_err(|_| "Ese archivo ya no existe.".to_string())?;
+    if !destino.starts_with(&canon) {
+        return Err("La ruta queda fuera del proyecto.".into());
+    }
+    let md = std::fs::metadata(&destino).map_err(|e| e.to_string())?;
+    let mtime = md
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0);
+    Ok(FileMeta {
+        size: md.len() as i64,
+        mtime,
+    })
+}
+
 /// Lista los modelos instalados en un servidor Ollama para el selector de Ajustes.
 #[tauri::command]
-pub async fn list_local_models(endpoint: String) -> Result<Vec<String>, String> {
+pub async fn list_local_models(endpoint: String) -> Result<Vec<providers::OllamaModel>, String> {
     providers::list_ollama_models(&endpoint).await
 }
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct PullProgress {
-    model: String,
-    estado: String,
-    /// 0..100; Ollama manda `total` y `completed` en bytes.
-    porcentaje: u8,
-    terminado: bool,
-    error: Option<String>,
+/// Tope de una imagen generada: los motores de nube sueltan PNGs de varios MB,
+/// y el límite de las adjuntas a mano (4 MB) se quedaría corto.
+const IMAGEN_GENERADA_MAX_BYTES: usize = 12 * 1024 * 1024;
+
+/// Pide una imagen al motor elegido en Ajustes → API y la deja en el hilo como
+/// respuesta del asistente.
+///
+/// Se guarda en `attachments` en vez de viajar como data URI: así vuelve a
+/// aparecer al reabrir la conversación, pesa lo justo en el historial y un
+/// modelo con visión la puede volver a mirar como cualquier adjunto.
+#[tauri::command]
+pub async fn generate_image(
+    app: State<'_, AppState>,
+    conversation_id: String,
+    prompt: String,
+) -> Result<db::Message, String> {
+    let prompt = prompt.trim().to_string();
+    if prompt.is_empty() {
+        return Err("Escribe primero qué quieres en la imagen.".into());
+    }
+    // El pedido se guarda como mensaje del usuario ANTES de llamar al motor: sin
+    // esa fila la imagen caería en el hilo sin contexto, y en las vueltas
+    // siguientes el modelo no sabría qué se le pidió. Si la generación falla, la
+    // fila se queda igual que en el chat normal: un mensaje sin respuesta.
+    {
+        let conn = app.db.lock().map_err(|e| e.to_string())?;
+        db::add_message(&conn, &conversation_id, "user", &prompt, None)?;
+    }
+    imagen_al_hilo(&app, &conversation_id, &prompt).await
 }
 
-/// Descarga un modelo de Ollama y va contando el progreso por evento.
-/// `/api/pull` responde NDJSON y cierra al terminar, así que no hace falta
-/// sondear: lo que llega aquí es literalmente lo que Ollama va diciendo.
-#[tauri::command]
-pub async fn pull_model(
-    app: tauri::AppHandle,
-    endpoint: String,
-    name: String,
-) -> Result<(), String> {
-    use futures_util::StreamExt;
-    use tauri::Emitter;
-
-    let nombre = name.trim().to_string();
-    if nombre.is_empty() || nombre.len() > 120 {
-        return Err("Ese nombre de modelo no vale.".into());
+/// Llama al motor, escribe el archivo en disco y deja la respuesta en el hilo.
+/// Es la parte que comparten el pedido nuevo y el reintento; el mensaje del
+/// usuario se escribe fuera, porque al repetir ya está puesto.
+async fn imagen_al_hilo(
+    app: &State<'_, AppState>,
+    conversation_id: &str,
+    prompt: &str,
+) -> Result<db::Message, String> {
+    let settings = state::load_settings(app);
+    let (motor, modelo, tamano) = (
+        settings.image_provider.clone(),
+        settings.image_model.clone(),
+        settings.image_size.clone(),
+    );
+    let imagen = providers::imagen::generar(&motor, &modelo, prompt, &tamano).await?;
+    if imagen.bytes.len() > IMAGEN_GENERADA_MAX_BYTES {
+        return Err(format!(
+            "La imagen generada pesa {} MB y pasa del límite de 12 MB.",
+            imagen.bytes.len() / 1_048_576
+        ));
     }
-    let url = format!("{}/api/pull", endpoint.trim_end_matches('/'));
-    let cliente = reqwest::Client::builder()
-        // Sin timeout global: una descarga de varios GB puede tardar lo que tarde.
-        .connect_timeout(std::time::Duration::from_secs(6))
+    let ext = match imagen.media_type.as_str() {
+        "image/jpeg" => "jpg",
+        "image/webp" => "webp",
+        "image/gif" => "gif",
+        _ => "png",
+    };
+    let dir = app.data_dir.join("attachments");
+    std::fs::create_dir_all(&dir).map_err(|e| format!("No se pudo crear la carpeta: {e}"))?;
+    let dest = dir.join(format!("{}.{}", uuid::Uuid::new_v4(), ext));
+    std::fs::write(&dest, &imagen.bytes).map_err(|e| format!("No se pudo guardar: {e}"))?;
+
+    // La descripción se recorta al escribirla en el hilo: el prompt completo ya
+    // no hace falta en cada turno siguiente, y sin límite un prompt largo se
+    // queda comiendo contexto conversación tras conversación.
+    let corto: String = prompt.trim().chars().take(180).collect();
+    let texto = format!(
+        "Imagen generada con {motor} a partir de: «{corto}»",
+        motor = if motor.is_empty() { "el motor" } else { &motor }
+    );
+    let meta = db::AssistantMeta {
+        attachments: vec![db::Attachment {
+            // El nombre sale del prompt, pero solo con letras y números: es lo
+            // que se usa para nombrar el archivo en el disco.
+            name: format!(
+                "{}.{}",
+                corto
+                    .chars()
+                    .filter(|c| c.is_alphanumeric())
+                    .take(20)
+                    .collect::<String>()
+                    .to_lowercase(),
+                ext
+            ),
+            text: String::new(),
+            image_media_type: Some(imagen.media_type.clone()),
+            image_file: Some(dest.display().to_string()),
+        }],
+        ..Default::default()
+    };
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    db::add_message_detailed(&conn, conversation_id, "assistant", &texto, Some("imagen"), &meta)
+}
+
+/// Reintenta un dibujo: quita la última imagen del hilo y la vuelve a pedir con
+/// el mismo texto. Sin esto el «Reintentar» de una imagen borraba el dibujo y
+/// dejaba al modelo de texto contestando sobre algo que no era suyo.
+#[tauri::command]
+pub async fn regenerate_image(
+    app: State<'_, AppState>,
+    conversation_id: String,
+) -> Result<db::Message, String> {
+    let (prompt, archivos_viejos) = {
+        let conn = app.db.lock().map_err(|e| e.to_string())?;
+        let msgs = db::list_messages(&conn, &conversation_id)?;
+        let ultimo = msgs
+            .iter()
+            .rev()
+            .find(|m| m.role == "assistant")
+            .ok_or("No hay dibujo que repetir.")?;
+        if ultimo.provider.as_deref() != Some("imagen") {
+            return Err("La última respuesta no es un dibujo.".into());
+        }
+        let pedido = msgs
+            .iter()
+            .rev()
+            .find(|m| m.role == "user")
+            .map(|m| m.content.clone())
+            .ok_or("No encuentro el pedido original.")?;
+        let archivos: Vec<String> = ultimo
+            .attachments
+            .iter()
+            .filter_map(|a| a.image_file.clone())
+            .collect();
+        db::delete_last_assistant_message(&conn, &conversation_id)?;
+        (pedido, archivos)
+    };
+    let nuevo = imagen_al_hilo(&app, &conversation_id, &prompt).await?;
+    // Los archivos del dibujo descartado se quitan después de tener el nuevo: si
+    // la generación falla, lo que había en disco sigue sirviendo.
+    remove_image_files(archivos_viejos);
+    Ok(nuevo)
+}
+
+/// Tope de un audio sintetizado: unos veinte minutos de MP3. Si el motor
+/// devolviera otra cosa, se corta aquí en vez de escribirlo.
+const AUDIO_MAX_BYTES: usize = 20 * 1024 * 1024;
+
+/// Devuelve un archivo de audio de `attachments/` como data URI. Mismo candado
+/// que las imágenes: la ruta se canonicaliza y tiene que seguir dentro de la
+/// carpeta de Hatboo.
+fn audio_data_uri(attachments_dir: &Path, file: &str) -> Result<String, String> {
+    use base64::{engine::general_purpose, Engine as _};
+    let root = attachments_dir
+        .canonicalize()
+        .map_err(|_| "La carpeta de adjuntos no existe.".to_string())?;
+    let path = Path::new(file)
+        .canonicalize()
+        .map_err(|_| "El audio ya no está disponible.".to_string())?;
+    if !path.starts_with(&root) {
+        return Err("Ese archivo no está en la carpeta de adjuntos de Hatboo.".into());
+    }
+    let media_type = match path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .unwrap_or_default()
+        .as_str()
+    {
+        "mp3" => "audio/mpeg",
+        "wav" => "audio/wav",
+        "ogg" => "audio/ogg",
+        "aac" => "audio/aac",
+        "flac" => "audio/flac",
+        _ => return Err("Formato de audio no soportado.".into()),
+    };
+    let bytes = std::fs::read(&path).map_err(|e| format!("No se pudo leer: {e}"))?;
+    Ok(format!(
+        "data:{media_type};base64,{}",
+        general_purpose::STANDARD.encode(&bytes)
+    ))
+}
+
+/// Lee un mensaje del hilo en voz alta con el motor de Ajustes → API y devuelve
+/// un data URI listo para meter en un `<audio>`.
+///
+/// El archivo se guarda como `attachments/voz-<id del mensaje>.mp3`, así que al
+/// segundo clic no se vuelve a llamar al motor: cobrar dos veces por escuchar lo
+/// mismo no tiene defensa. Si mañana se pide otro `response_format`, el nombre
+/// de aquí abajo tiene que cambiar con él.
+#[tauri::command]
+pub async fn speak_message(
+    app: State<'_, AppState>,
+    message_id: String,
+) -> Result<String, String> {
+    // El id viene del frontend y acaba en un nombre de archivo: los uuid son
+    // alfanuméricos con guiones, y cualquier otra cosa se rechaza antes.
+    if message_id.is_empty()
+        || !message_id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-')
+    {
+        return Err("Ese identificador de mensaje no es válido.".into());
+    }
+    let settings = state::load_settings(&app);
+    let dir = app.data_dir.join("attachments");
+    let cached = dir.join(format!("voz-{message_id}.mp3"));
+    if cached.is_file() {
+        return audio_data_uri(&dir, &cached.display().to_string());
+    }
+    let (motor, modelo, voz) = (
+        settings.audio_provider.clone(),
+        settings.audio_model.clone(),
+        settings.audio_voice.clone(),
+    );
+    // Se lee lo que hay en la base de datos, no lo que el frontend mande: si el
+    // mensaje se editó entre medias, se escucha la versión guardada.
+    let texto = {
+        let conn = app.db.lock().map_err(|e| e.to_string())?;
+        db::message_text(&conn, &message_id)?
+    };
+    let audio = providers::audio::sintetizar(&motor, &modelo, &voz, &texto).await?;
+    if audio.bytes.len() > AUDIO_MAX_BYTES {
+        return Err(format!(
+            "El audio pesa {} MB y no se guarda.",
+            audio.bytes.len() / 1_048_576
+        ));
+    }
+    std::fs::create_dir_all(&dir).map_err(|e| format!("No se pudo crear la carpeta: {e}"))?;
+    std::fs::write(&cached, &audio.bytes).map_err(|e| format!("No se pudo guardar el audio: {e}"))?;
+    audio_data_uri(&dir, &cached.display().to_string())
+}
+
+/// Ids que ofrece el router de Hugging Face, para el buscador del selector.
+#[tauri::command]
+pub async fn list_hf_models(endpoint: String) -> Result<Vec<String>, String> {
+    providers::list_hf_models(&endpoint).await
+}
+
+/// Los modelos que deja usar la clave guardada de un proveedor. La lista la da
+/// el propio proveedor: Hatboo no sabe ni adivina qué puede cada cuenta.
+#[tauri::command]
+pub async fn list_provider_models(
+    provider: String,
+    endpoint: String,
+) -> Result<Vec<String>, String> {
+    providers::list_provider_models(&provider, &endpoint).await
+}
+
+/// Suelta un modelo de la memoria de Ollama. Es lo que hace `ollama stop`:
+/// `POST /api/generate` con `keep_alive: 0` y sin prompt, que responde
+/// `done_reason: "unload"` sin generar nada.
+#[tauri::command]
+pub async fn unload_local_model(endpoint: String, model: String) -> Result<(), String> {
+    let model = model.trim().to_string();
+    if model.is_empty() {
+        return Err("Falta el nombre del modelo.".into());
+    }
+    let url = format!("{}/api/generate", endpoint.trim_end_matches('/'));
+    let client = reqwest::Client::builder()
+        // Un modelo grande puede tardar en soltarse más de lo que tarda en responder.
+        .timeout(std::time::Duration::from_secs(60))
         .build()
         .map_err(|e| e.to_string())?;
-
-    let respuesta = cliente
+    let response = client
         .post(&url)
-        .json(&serde_json::json!({ "name": nombre }))
+        .json(&serde_json::json!({ "model": model, "keep_alive": 0 }))
         .send()
         .await
         .map_err(|e| format!("No se pudo conectar con Ollama: {e}"))?;
-    let estado = respuesta.status();
-    if !estado.is_success() {
-        return Err(format!("Ollama respondió {estado}."));
+    let estado = response.status().as_u16();
+    if estado >= 400 {
+        let cuerpo = response.text().await.unwrap_or_default();
+        return Err(format!("Ollama respondió {estado}: {cuerpo}"));
     }
-
-    let emitir = |modelo: &str, estado: &str, porcentaje: u8, terminado: bool, error: Option<String>| {
-        let _ = app.emit(
-            "ollama:pull",
-            PullProgress {
-                model: modelo.to_string(),
-                estado: estado.to_string(),
-                porcentaje,
-                terminado,
-                error,
-            },
-        );
-    };
-
-    let mut resto = Vec::new();
-    let mut flujo = respuesta.bytes_stream();
-    while let Some(trozo) = flujo.next().await {
-        let trozo = match trozo {
-            Ok(b) => b,
-            Err(e) => {
-                emitir(&nombre, "error", 0, true, Some(format!("La descarga se cortó: {e}")));
-                return Err(format!("La descarga se cortó: {e}"));
-            }
-        };
-        resto.extend_from_slice(&trozo);
-        while let Some(pos) = resto.iter().position(|b| *b == b'\n') {
-            let linea: Vec<u8> = resto.drain(..=pos).collect();
-            let Ok(valor) = serde_json::from_slice::<serde_json::Value>(&linea) else {
-                continue;
-            };
-            if let Some(err) = valor["error"].as_str() {
-                emitir(&nombre, "error", 0, true, Some(err.to_string()));
-                return Err(err.to_string());
-            }
-            let estado = valor["status"].as_str().unwrap_or("").to_string();
-            let total = valor["total"].as_i64().unwrap_or(0);
-            let hecho = valor["completed"].as_i64().unwrap_or(0);
-            let porcentaje = if total > 0 {
-                ((hecho as f64 / total as f64) * 100.0).round().clamp(0.0, 100.0) as u8
-            } else {
-                0
-            };
-            let fin = estado.eq_ignore_ascii_case("success");
-            emitir(&nombre, &estado, porcentaje, fin, None);
-        }
-    }
-    emitir(&nombre, "success", 100, true, None);
     Ok(())
 }
 
@@ -492,8 +819,7 @@ pub async fn send_message(
             )
             .unwrap_or_default();
         if conv_title == "Nueva conversación" {
-            let short: String = content.chars().take(48).collect();
-            let _ = db::rename_conversation(&conn, &conversation_id, short.trim());
+            let _ = db::rename_conversation(&conn, &conversation_id, &titulo_breve(&content));
         }
         msg
     };
@@ -518,167 +844,6 @@ pub async fn regenerate_response(
     spawn_chat_stream(app, conversation_id)
 }
 
-/// Un modelo dentro de una comparación. El `id` lo inventa el frontend y es la
-/// clave con la que luego llegan los deltas de ese modelo.
-#[derive(Debug, Clone, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CompareTarget {
-    pub id: String,
-    pub provider: String,
-    pub model: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ComparePayload {
-    id: String,
-    delta: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct CompareEndPayload {
-    id: String,
-    message: Option<String>,
-}
-
-/// Manda la misma pregunta a 2-3 modelos a la vez y va contando cada respuesta
-/// por su cuenta. No se guarda nada en la conversación: una comparación es un
-/// borrón y cuenta nueva, y mezclarla con el historial contaminaría las
-/// respuestas siguientes.
-#[tauri::command]
-pub async fn start_comparison(
-    app: tauri::AppHandle,
-    conversation_id: String,
-    prompt: String,
-    targets: Vec<CompareTarget>,
-) -> Result<(), String> {
-    let prompt = prompt.trim().to_string();
-    if prompt.is_empty() {
-        return Err("Escribe primero la pregunta que quieres comparar.".into());
-    }
-    if targets.is_empty() || targets.len() > 3 {
-        return Err("Se comparan entre 1 y 3 modelos.".into());
-    }
-    let state = app.state::<AppState>();
-    let mut base = history(&state, &conversation_id)?;
-    base.push(ChatMessage {
-        role: "user".into(),
-        content: prompt,
-        images: Vec::new(),
-    });
-    let settings = state::load_settings(&state);
-    let skills = state
-        .db
-        .lock()
-        .ok()
-        .and_then(|conn| db::enabled_skills_prompt(&conn).ok())
-        .unwrap_or_default();
-    let system = chat_system_prompt(&settings, &skills);
-    let system = system.trim();
-    if !system.is_empty() {
-        base.insert(
-            0,
-            ChatMessage {
-                role: "system".into(),
-                content: system.to_string(),
-                images: Vec::new(),
-            },
-        );
-    }
-
-    let mut cancelantes = Vec::new();
-    for target in targets {
-        let app_task = app.clone();
-        let messages = base.clone();
-        let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel::<()>();
-        cancelantes.push(cancel_tx);
-        tauri::async_runtime::spawn(async move {
-            let id = target.id.clone();
-            let state = app_task.state::<AppState>();
-            let proveedor = match state::provider_for(&state, &target.provider, &target.model) {
-                Ok(p) => p,
-                Err(e) => {
-                    let _ = app_task.emit(
-                        "compare:error",
-                        CompareEndPayload { id, message: Some(e) },
-                    );
-                    return;
-                }
-            };
-            let etiqueta = proveedor.name().to_string();
-            let (tx, mut rx) = tokio::sync::mpsc::channel::<StreamDelta>(64);
-            let stream = tauri::async_runtime::spawn(async move {
-                proveedor.stream_response(messages, tx).await
-            });
-            let mut cancel_rx = cancel_rx;
-            let mut cortado = false;
-            loop {
-                tokio::select! {
-                    next = rx.recv() => match next {
-                        Some(StreamDelta::Text(delta)) => {
-                            let _ = app_task.emit("compare:chunk", ComparePayload { id: id.clone(), delta });
-                        }
-                        Some(StreamDelta::Reasoning(delta)) => {
-                            let _ = app_task.emit("compare:reasoning", ComparePayload { id: id.clone(), delta });
-                        }
-                        None => break,
-                    },
-                    Ok(()) = &mut cancel_rx => {
-                        cortado = true;
-                        break;
-                    }
-                }
-            }
-            // Soltar el receptor es lo que corta la generación en el servidor.
-            drop(rx);
-            let resultado: Result<(), String> = if cortado {
-                Ok(())
-            } else {
-                match stream.await {
-                    Ok(Ok(())) => Ok(()),
-                    Ok(Err(e)) => Err(e.to_string()),
-                    Err(e) => Err(format!("la tarea de streaming se cayó: {e}")),
-                }
-            };
-            match resultado {
-                Ok(()) => {
-                    let _ = app_task.emit("compare:done", CompareEndPayload { id, message: None });
-                }
-                Err(e) => {
-                    let _ = app_task.emit(
-                        "compare:error",
-                        CompareEndPayload {
-                            id,
-                            message: Some(format!("{etiqueta}: {e}")),
-                        },
-                    );
-                }
-            }
-        });
-    }
-    state
-        .compare_runs
-        .lock()
-        .map_err(|e| e.to_string())?
-        .insert(conversation_id, cancelantes);
-    Ok(())
-}
-
-/// Detiene las comparaciones en curso de esa conversación.
-#[tauri::command]
-pub fn cancel_comparison(app: State<AppState>, conversation_id: String) -> Result<(), String> {
-    let canales: Vec<tokio::sync::oneshot::Sender<()>> = app
-        .compare_runs
-        .lock()
-        .map_err(|e| e.to_string())?
-        .remove(&conversation_id)
-        .unwrap_or_default();
-    for c in canales {
-        let _ = c.send(());
-    }
-    Ok(())
-}
 /// Edita un mensaje ya enviado por el usuario: se corta todo lo posterior y se
 /// vuelve a generar la respuesta desde ahí (como en ChatGPT).
 #[tauri::command]
@@ -792,11 +957,15 @@ const ATTACHMENT_MAX_BYTES: usize = 200_000;
 const ATTACHMENT_IMAGE_EXTS: [&str; 7] =
     ["png", "jpg", "jpeg", "gif", "webp", "bmp", "ico"];
 
-/// Lee un archivo elegido por el usuario como texto para adjuntarlo a un mensaje.
-/// Solo texto: las imágenes (payload multimodal) y los binarios se rechazan con
-/// un aviso explícito. El contenido se trunca para no comerse la ventana de contexto.
+/// Lee un archivo elegido por el usuario para adjuntarlo a un mensaje. Es la
+/// puerta única del «+»: una imagen se guarda y se referencia como payload de
+/// visión; lo demás se lee como texto, con truncado para no comerse la ventana de
+/// contexto. Antes había dos opciones en el menú y dos comandos para lo mismo.
 #[tauri::command]
-pub fn read_attachment(path: String) -> Result<db::Attachment, String> {
+pub fn read_attachment(
+    app: State<'_, AppState>,
+    path: String,
+) -> Result<db::Attachment, String> {
     let canonical = std::path::Path::new(&path)
         .canonicalize()
         .map_err(|_| "No se encontró el archivo.".to_string())?;
@@ -812,10 +981,7 @@ pub fn read_attachment(path: String) -> Result<db::Attachment, String> {
         .map(|e| e.to_string_lossy().to_ascii_lowercase())
         .unwrap_or_default();
     if ATTACHMENT_IMAGE_EXTS.contains(&ext.as_str()) {
-        return Err(format!(
-            "«{name}» es una imagen y esta ruta solo lee texto. Para adjuntar una \
-             imagen usa la opción «Imagen» del menú, que va por otro camino."
-        ));
+        return guardar_imagen(app.inner(), &canonical);
     }
     let bytes = std::fs::read(&canonical).map_err(|e| format!("No se pudo leer: {e}"))?;
     if bytes.contains(&0) {
@@ -830,6 +996,31 @@ pub fn read_attachment(path: String) -> Result<db::Attachment, String> {
         text.push_str("\n\n[... el archivo se truncó por tamaño ...]");
     }
     Ok(db::Attachment::text(name, text))
+}
+
+/// Lo que se soltó encima de la ventana, repartido: las carpetas son proyectos (el
+/// gesto de siempre) y los archivos van al mensaje que se está escribiendo. Sin
+/// este reparto, soltar un .png intentaba abrirlo como proyecto y contestaba un
+/// error.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Soltadas {
+    pub carpetas: Vec<String>,
+    pub archivos: Vec<String>,
+}
+
+#[tauri::command]
+pub fn clasifica_soltadas(paths: Vec<String>) -> Soltadas {
+    let mut carpetas = Vec::new();
+    let mut archivos = Vec::new();
+    for p in paths {
+        if std::path::Path::new(&p).is_dir() {
+            carpetas.push(p);
+        } else {
+            archivos.push(p);
+        }
+    }
+    Soltadas { carpetas, archivos }
 }
 
 /// Hosts de los que se puede leer. Lista cerrada a propósito: la URL la pega el
@@ -951,20 +1142,15 @@ pub async fn fetch_github(url: String) -> Result<db::Attachment, String> {
 
 /// Máximo de bytes de una imagen adjunta (M3), antes de copiarla a disco.
 const IMAGE_MAX_BYTES: usize = 4 * 1024 * 1024;
-/// Guarda una imagen elegida por el usuario en `data_dir/attachments` y devuelve
-/// la referencia (no el binario) para adjuntarla al mensaje. Solo formatos de
-/// visión comunes y tamaño acotado; el base64 se genera al construir el payload.
-#[tauri::command]
-pub fn save_image_attachment(
-    app: State<AppState>,
-    path: String,
+/// Guarda una imagen en `data_dir/attachments` y devuelve la referencia (no el
+/// binario) para adjuntarla al mensaje. Es el ramo de imagen de `read_attachment`:
+/// tenerlo en una función es lo que permite que un solo «+» acepte cualquier
+/// archivo. Solo formatos de visión comunes y tamaño acotado; el base64 se
+/// genera al construir el payload.
+fn guardar_imagen(
+    app: &AppState,
+    canonical: &std::path::Path,
 ) -> Result<db::Attachment, String> {
-    let canonical = std::path::Path::new(&path)
-        .canonicalize()
-        .map_err(|_| "No se encontró el archivo.".to_string())?;
-    if !canonical.is_file() {
-        return Err("La ruta seleccionada no es un archivo.".into());
-    }
     let ext = canonical
         .extension()
         .map(|e| e.to_string_lossy().to_ascii_lowercase())
@@ -1295,14 +1481,67 @@ pub fn save_project_rules(
 /// y eso era el parón que se veía entre pulsar Enviar y ver el mensaje en pantalla.
 /// El *system prompt* del chat normal, sin efectos secundarios: lo arma
 /// `spawn_chat_stream` y lo mide `context_usage` para el indicador de contexto.
-/// Los bloques van en este orden fijo y las plantillas activas al final, de modo
-/// que si chocan con el modo código gane lo que el usuario escribió a mano.
-fn chat_system_prompt(settings: &state::Settings, skills: &str) -> String {
-    let mut system = String::new();
-    let name = settings.assistant_name.trim();
-    if !name.is_empty() {
-        system.push_str(&format!("El usuario prefiere que lo llames «{name}».\n"));
-    }
+///
+/// Tres bloques con las cabeceras siempre iguales. Antes de esta estructura el
+/// prompt podía quedarse vacío, y la única frase que mencionaba un nombre era
+/// «el usuario prefiere que lo llames Azrael»: un modelo de 0,8B se presentaba
+/// como Azrael porque no había nada que le dijera quién era él. Por eso el
+/// nombre del usuario va en su propio bloque, lejos de la identidad.
+/// Las plantillas activas van al final: si chocan con el modo código, gana lo
+/// que el usuario escribió a mano.
+fn chat_system_prompt(settings: &state::Settings, skills: &str, memoria: &str) -> String {
+    let nombre = settings.assistant_name.trim();
+    let trato = if settings.user_address.trim().eq_ignore_ascii_case("usted") {
+        "usted"
+    } else {
+        "tú"
+    };
+    let idioma = match settings.answer_language.as_str() {
+        "es" => "español",
+        "en" => "inglés",
+        _ => "el mismo idioma en que te escriba",
+    };
+    let quien = if nombre.is_empty() {
+        "Es el usuario de esta máquina; no tiene nombre guardado.".to_string()
+    } else {
+        format!("Se llama «{nombre}»: úsalo para dirigirte a él, nunca para presentarte.")
+    };
+    let notas = if settings.user_notes.trim().is_empty() {
+        String::new()
+    } else {
+        format!("Nota del usuario: {}\n", settings.user_notes.trim())
+    };
+    // Lo que puede mirar: la búsqueda es un prerrecorrido que se inyecta arriba
+    // como mensaje de sistema, no una tool que llama él. Decirlo tal cual evita
+    // que prometa «déjame buscar» cuando la búsqueda está apagada.
+    let busqueda = if settings.web_search {
+        "Búsqueda web: activada. Cuando la pregunta pide un dato actual, Hatboo ya \
+         busca antes de responderte y te pasa los resultados en un bloque de sistema \
+         con sus direcciones: úsalos y cítalos."
+    } else {
+        "Búsqueda web: apagada por el usuario. No tienes cómo mirar en internet ahora \
+         mismo, así que lo que digas de actualidad sale de memoria y conviene decirlo."
+    };
+    let hoy = crate::behavior::hoy(settings.tz_offset_min);
+    let mut system = format!(
+        "## Asistente\n\
+         Eres Hatboo, el asistente de escritorio del usuario. Tu nombre es Hatboo y no \
+         cambia nunca; el nombre de abajo es el del usuario, no el tuyo. Si te preguntan \
+         cómo te llamas, respondes «Soy Hatboo».\n\n\
+         {conducta}\n\n\
+         {chat}\n\n\
+         ## Usuario\n\
+         {quien}\n\
+         Trátalo de {trato}.\n\
+         Responde en {idioma}.\n\
+         {notas}{memoria}\
+         \n## Esta sesión\n\
+         Hoy es {hoy}.\n\
+         Tipo: chat (sin proyecto abierto).\n\
+         {busqueda}\n",
+        conducta = crate::behavior::CONDUCTA,
+        chat = crate::behavior::CONDUCTA_CHAT,
+    );
     if settings.code_mode {
         system.push_str(CODE_MODE_PROMPT);
     }
@@ -1310,7 +1549,20 @@ fn chat_system_prompt(settings: &state::Settings, skills: &str) -> String {
     system
 }
 
-fn spawn_chat_stream(app: tauri::AppHandle, conversation_id: String) -> Result<(), String> {    let state = app.state::<AppState>();
+/// Si lo último que escribió el usuario es un saludo. El chat lo usa para
+/// quitarse el razonamiento de encima: pensar cuatro minutos un «hola» no lo
+/// vuelve más listo, solo más lento.
+fn ultimo_mensaje_es_saludo(prompt: &[ChatMessage]) -> bool {
+    prompt
+        .iter()
+        .rev()
+        .find(|m| m.role == "user")
+        .map(|m| crate::agent::loop_runner::es_saludo(&m.content))
+        .unwrap_or(false)
+}
+
+fn spawn_chat_stream(app: tauri::AppHandle, conversation_id: String) -> Result<(), String> {
+    let state = app.state::<AppState>();
     let (tx, mut rx) = tokio::sync::mpsc::channel::<StreamDelta>(64);
     let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel::<()>();
     state
@@ -1325,9 +1577,14 @@ fn spawn_chat_stream(app: tauri::AppHandle, conversation_id: String) -> Result<(
     tauri::async_runtime::spawn(async move {
         let state = app_for_task.state::<AppState>();
 
-        let (provider, prompt) = match state::build_provider(&state)
-            .and_then(|provider| history(&state, &conv_id).map(|prompt| (provider, prompt)))
-        {
+        let (provider, prompt) = match history(&state, &conv_id).and_then(|prompt| {
+            let esfuerzo = if ultimo_mensaje_es_saludo(&prompt) {
+                "off".to_string()
+            } else {
+                state::load_settings(&state).reasoning_effort.clone()
+            };
+            state::build_provider(&state, &esfuerzo).map(|provider| (provider, prompt))
+        }) {
             Ok(prepared) => prepared,
             Err(e) => {
                 state.chat_runs.lock().ok().and_then(|mut r| r.remove(&conv_id));
@@ -1351,7 +1608,13 @@ fn spawn_chat_stream(app: tauri::AppHandle, conversation_id: String) -> Result<(
             .ok()
             .and_then(|conn| db::enabled_skills_prompt(&conn).ok())
             .unwrap_or_default();
-        let system = chat_system_prompt(&settings, &skills);
+        let memoria = state
+            .db
+            .lock()
+            .ok()
+            .and_then(|conn| db::memoria_prompt(&conn).ok())
+            .unwrap_or_default();
+        let system = chat_system_prompt(&settings, &skills, &memoria);
         let system = system.trim();
         if !system.is_empty() {
             messages.insert(
@@ -1610,7 +1873,7 @@ pub fn factory_reset(app: State<AppState>, token: String) -> Result<(), String> 
     }
     // Las claves viven en el llavero del sistema, no en la base de datos: hay
     // que borrarlas aquí para que el restablecimiento sea de verdad completo.
-    for provider in ["anthropic", "openai"] {
+    for provider in ["anthropic", "openai", "openrouter", "gemini", "hf"] {
         let _ = providers::delete_api_key(provider);
     }
     Ok(())
@@ -1642,6 +1905,9 @@ pub struct FileEntry {
     pub name: String,
     pub path: String,
     pub is_dir: bool,
+    /// Bytes del archivo. En las carpetas vale 0: sumar lo que hay dentro
+    /// costaría un recorrido completo por cada nivel que se abre en el árbol.
+    pub size: u64,
 }
 
 fn register_project(app: &AppState, path: &str) -> Result<db::Project, String> {
@@ -1713,7 +1979,10 @@ pub fn list_projects(app: State<AppState>) -> Result<Vec<db::Project>, String> {
 #[tauri::command]
 pub fn delete_project(app: State<AppState>, project_id: String) -> Result<(), String> {
     let conn = app.db.lock().map_err(|e| e.to_string())?;
-    db::delete_project(&conn, &project_id)
+    let images = db::project_image_files(&conn, &project_id)?;
+    db::delete_project(&conn, &project_id)?;
+    remove_image_files(images);
+    Ok(())
 }
 
 /// Lista un nivel del árbol de archivos del proyecto (ruta relativa; "" = raíz).
@@ -1730,23 +1999,96 @@ pub fn list_project_dir(
     let resolved = crate::agent::tools::resolve_in_project(&root, &relative_path)
         .map_err(|e| e.to_string())?;
     let entries = std::fs::read_dir(&resolved).map_err(|e| e.to_string())?;
-    let root_str = root.display().to_string();
+    // La raíz se recorta ya canonicalizada. `resolve_in_project` canónica la del
+    // proyecto, y si aquí se recorta contra la cadena tal como está en la base de
+    // datos —otra letra, otro separador, uno de esos caminos redirigidos por
+    // OneDrive— el recorte no acierta y el supuesto «relativo» sale ABSOLUTO. El
+    // frontend lo devuelve al mismo comando, ese lo rechaza con razón por
+    // seguridad, y el resultado es un árbol de carpetas que no enseñan nada.
+    let raiz = root.canonicalize().unwrap_or_else(|_| root.clone());
     let mut out: Vec<FileEntry> = entries
         .flatten()
         .map(|e| {
             let is_dir = e.file_type().map(|t| t.is_dir()).unwrap_or(false);
-            let full = e.path().display().to_string();
-            let rel = full.strip_prefix(&root_str).unwrap_or(&full).trim_start_matches(['\\', '/']).to_string();
+            let rel = e
+                .path()
+                .strip_prefix(&raiz)
+                .unwrap_or(e.path().as_path())
+                .to_string_lossy()
+                .replace('\\', "/");
+            let size = if is_dir {
+                0
+            } else {
+                e.metadata().map(|m| m.len()).unwrap_or(0)
+            };
             FileEntry {
                 name: e.file_name().to_string_lossy().into_owned(),
                 path: rel,
                 is_dir,
+                size,
             }
         })
         .collect();
     out.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then(a.name.to_lowercase().cmp(&b.name.to_lowercase())));
     out.truncate(500);
     Ok(out)
+}
+
+/// Cuánto se lee para la vista previa del panel de archivos. No es el tope de un
+/// adjunto: aquí solo hay que ver de qué va el archivo, y 64 KB ya son más de mil
+/// líneas en pantalla.
+const PREVIEW_MAX_BYTES: usize = 64_000;
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VistaPrevia {
+    pub texto: String,
+    /// Tamaño real del archivo, no lo que se llegó a leer.
+    pub bytes: u64,
+    pub lineas: usize,
+    pub truncado: bool,
+}
+
+/// El texto de un archivo del proyecto para verlo en el panel, sin añadirlo al
+/// mensaje. Pasa por el mismo candado de rutas que las herramientas del agente.
+#[tauri::command]
+pub fn preview_project_file(
+    app: State<AppState>,
+    project_id: String,
+    relative_path: String,
+) -> Result<VistaPrevia, String> {
+    let root = {
+        let conn = app.db.lock().map_err(|e| e.to_string())?;
+        PathBuf::from(db::get_project(&conn, &project_id)?.root_path)
+    };
+    let resuelta = crate::agent::tools::resolve_in_project(&root, &relative_path)
+        .map_err(|e| e.to_string())?;
+    leer_vista_previa(&resuelta)
+}
+
+/// Fuera del comando para poder probarla con un archivo temporal: el comando
+/// necesita `AppState` y la base de datos abierta.
+fn leer_vista_previa(ruta: &Path) -> Result<VistaPrevia, String> {
+    let nombre = ruta
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "archivo".to_string());
+    let bytes = std::fs::read(ruta).map_err(|e| format!("No se pudo leer: {e}"))?;
+    if bytes.contains(&0) {
+        return Err(format!(
+            "«{nombre}» no es texto: es una imagen o un binario."
+        ));
+    }
+    let truncado = bytes.len() > PREVIEW_MAX_BYTES;
+    let texto =
+        String::from_utf8_lossy(&bytes[..bytes.len().min(PREVIEW_MAX_BYTES)]).into_owned();
+    let lineas = texto.lines().count();
+    Ok(VistaPrevia {
+        texto,
+        bytes: bytes.len() as u64,
+        lineas,
+        truncado,
+    })
 }
 
 /// Busca archivos por nombre (sin distinguir mayúsculas) dentro del proyecto.
@@ -1765,39 +2107,68 @@ pub async fn search_project_files(
         return Ok(Vec::new());
     }
     tauri::async_runtime::spawn_blocking(move || {
-        const SKIP_DIRS: [&str; 5] = ["node_modules", "target", "dist", "build", ".git"];
-        let mut out: Vec<String> = Vec::new();
-        let mut stack = vec![root.clone()];
-        let mut visited = 0usize;
-        while let Some(dir) = stack.pop() {
-            if out.len() >= 100 || visited >= 20_000 {
-                break;
-            }
-            let Ok(read_dir) = std::fs::read_dir(&dir) else { continue };
-            for entry in read_dir.flatten() {
-                visited += 1;
-                let name = entry.file_name().to_string_lossy().into_owned();
-                let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
-                if is_dir {
-                    if name.starts_with('.') || SKIP_DIRS.contains(&name.as_str()) {
-                        continue;
-                    }
-                    stack.push(entry.path());
-                } else if name.to_lowercase().contains(&needle) {
-                    if let Ok(rel) = entry.path().strip_prefix(&root) {
-                        out.push(rel.to_string_lossy().replace('\\', "/"));
-                    }
-                    if out.len() >= 100 {
-                        break;
-                    }
-                }
-            }
-        }
-        out.sort();
-        Ok(out)
+        Ok(buscar_por_niveles(
+            &root,
+            &needle,
+            &Presupuesto {
+                total: 20_000,
+                por_carpeta: 500,
+            },
+        ))
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+/// Cuánto se mira antes de rendirse. Va aparte del recorrido para poder
+/// comprobarlo con carpetas de prueba pequeñas.
+struct Presupuesto {
+    total: usize,
+    por_carpeta: usize,
+}
+
+/// Nombres que contienen `needle`, recorriendo el proyecto **por niveles** y con
+/// tope de entradas por carpeta.
+///
+/// Antes era en profundidad y con un único tope global: en una carpeta tipo
+/// `Documentos` (una bóveda de Obsidian, la sincronización de OneDrive) la
+/// primera subcarpeta grande se comía el presupuesto entero y ni se miraban las
+/// vecinas, así que el buscador decía «sin coincidencias» de archivos que están
+/// a la vista. Por niveles, con un techo de entradas por carpeta, ninguna puede
+/// tapar al resto.
+fn buscar_por_niveles(raiz: &Path, needle: &str, p: &Presupuesto) -> Vec<String> {
+    const SKIP_DIRS: [&str; 5] = ["node_modules", "target", "dist", "build", ".git"];
+    const MAX_RESULTADOS: usize = 100;
+    let mut out: Vec<String> = Vec::new();
+    let mut por_procesar: std::collections::VecDeque<PathBuf> = std::collections::VecDeque::new();
+    por_procesar.push_back(raiz.to_path_buf());
+    let mut visitadas = 0usize;
+    while let Some(dir) = por_procesar.pop_front() {
+        if out.len() >= MAX_RESULTADOS || visitadas >= p.total {
+            break;
+        }
+        let Ok(read_dir) = std::fs::read_dir(&dir) else { continue };
+        for entry in read_dir.flatten().take(p.por_carpeta) {
+            visitadas += 1;
+            let nombre = entry.file_name().to_string_lossy().into_owned();
+            let es_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
+            if es_dir {
+                if nombre.starts_with('.') || SKIP_DIRS.contains(&nombre.as_str()) {
+                    continue;
+                }
+                por_procesar.push_back(entry.path());
+            } else if nombre.to_lowercase().contains(needle) {
+                if let Ok(rel) = entry.path().strip_prefix(raiz) {
+                    out.push(rel.to_string_lossy().replace('\\', "/"));
+                }
+                if out.len() >= MAX_RESULTADOS {
+                    break;
+                }
+            }
+        }
+    }
+    out.sort();
+    out
 }
 
 #[tauri::command]
@@ -1827,8 +2198,7 @@ pub async fn start_work_task(
             )
             .unwrap_or_default();
         if title == "Sesión de trabajo" {
-            let short: String = request.chars().take(48).collect();
-            let _ = db::rename_conversation(&conn, &conversation_id, short.trim());
+            let _ = db::rename_conversation(&conn, &conversation_id, &titulo_breve(&request));
         }
         db::touch_project(&conn, &project_id)?;
         (PathBuf::from(project.root_path), project.approval_level)
@@ -1908,26 +2278,174 @@ pub fn session_changes(
         .collect())
 }
 
-/// Lee un archivo del proyecto como texto, para el preview de HTML. Pasa por el
-/// mismo `resolve_in_project` que las herramientas del agente, así que una ruta
-/// que intente salirse de la carpeta se rechaza igual.
-#[tauri::command]
-pub fn read_project_file(
-    app: State<AppState>,
-    project_id: String,
-    path: String,
-) -> Result<String, String> {
-    use crate::agent::tools::resolve_in_project;
-    let root = {
-        let conn = app.db.lock().map_err(|e| e.to_string())?;
-        PathBuf::from(db::get_project(&conn, &project_id)?.root_path)
-    };
-    let dentro = resolve_in_project(&root, &path).map_err(|e| e.to_string())?;
-    let bytes = std::fs::read(&dentro).map_err(|e| format!("No se pudo leer: {e}"))?;
-    if bytes.len() > ATTACHMENT_MAX_BYTES {
-        return Err("El archivo es demasiado grande para previsualizarlo.".into());
+/// Una línea de la traza, con la forma que el frontend ya usa en vivo.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Paso {
+    pub tool_name: String,
+    pub ok: bool,
+    pub brief: String,
+    pub duration_ms: i64,
+    /// Lo que creó `write_file`, no solo lo que tocó: la traza lo distingue.
+    pub creado: bool,
+    /// La salida de `run_command` para pintar su bloque.
+    pub data: Option<serde_json::Value>,
+    /// El diff que aplicó `write_file`, para enseñarlo bajo el paso.
+    pub diff: Option<String>,
+    /// Ruta relativa que escribió o editó `write_file`: con ella la respuesta
+    /// puede enseñar la tarjeta del archivo (tamaño, abrir, copiar ruta).
+    pub ruta: Option<String>,
+    pub reasoning: Option<String>,
+}
+
+/// Los pasos de una respuesta del agente, para que el hilo se vea igual al
+/// reabrir la sesión que mientras se estaba ejecutando.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrazaMensaje {
+    pub message_id: String,
+    pub pasos: Vec<Paso>,
+}
+
+fn paso_desde(tc: &db::ToolCall) -> Paso {
+    let es_pensamiento = tc.tool_name == "razonamiento";
+    let texto = tc.brief.clone().unwrap_or_default();
+    let salida = tc
+        .output
+        .as_deref()
+        .and_then(|o| serde_json::from_str::<serde_json::Value>(o).ok());
+    Paso {
+        tool_name: tc.tool_name.clone(),
+        ok: tc.status == "completed",
+        brief: if es_pensamiento { String::new() } else { texto.clone() },
+        duration_ms: tc.duration_ms,
+        // `created` lo escribió `write_file` en su salida desde el principio, así
+        // que las sesiones viejas también saben si crearon o modificaron.
+        creado: salida
+            .as_ref()
+            .and_then(|v| v.get("created").and_then(serde_json::Value::as_bool))
+            .unwrap_or(false),
+        data: if tc.tool_name == "run_command" { salida } else { None },
+        diff: if tc.tool_name == "write_file" {
+            tc.output
+                .as_deref()
+                .and_then(|o| serde_json::from_str::<serde_json::Value>(o).ok())
+                .and_then(|v| v.get("diff").and_then(serde_json::Value::as_str).map(str::to_string))
+        } else {
+            None
+        },
+        ruta: if tc.tool_name == "write_file" {
+            serde_json::from_str::<serde_json::Value>(&tc.input)
+                .ok()
+                .and_then(|v| {
+                    v.get("path")
+                        .and_then(serde_json::Value::as_str)
+                        .map(str::to_string)
+                })
+        } else {
+            None
+        },
+        reasoning: es_pensamiento.then_some(texto),
     }
-    Ok(String::from_utf8_lossy(&bytes).into_owned())
+}
+
+/// Traza de la sesión repartida entre las respuestas del agente.
+#[tauri::command]
+pub fn session_trace(
+    app: State<AppState>,
+    conversation_id: String,
+) -> Result<Vec<TrazaMensaje>, String> {
+    let filas = {
+        let conn = app.db.lock().map_err(|e| e.to_string())?;
+        db::session_trace(&conn, &conversation_id)?
+    };
+    // Se conserva el orden de aparición de cada mensaje y de sus pasos.
+    let mut orden: Vec<String> = Vec::new();
+    let mut por_mensaje: std::collections::HashMap<String, Vec<Paso>> =
+        std::collections::HashMap::new();
+    for (mensaje, tc) in filas {
+        if !por_mensaje.contains_key(&mensaje) {
+            orden.push(mensaje.clone());
+        }
+        por_mensaje.entry(mensaje).or_default().push(paso_desde(&tc));
+    }
+    Ok(orden
+        .into_iter()
+        .map(|id| TrazaMensaje {
+            message_id: id.clone(),
+            pasos: por_mensaje.remove(&id).unwrap_or_default(),
+        })
+        .collect())
+}
+
+/// Devuelve los archivos que esta sesión tocó a como estaban antes de tocarlos.
+/// Se recorre en orden inverso: es la única forma de que dos escrituras del
+/// mismo archivo terminen en el original y no en el penúltimo estado. Un
+/// deshacer dos veces seguidas no borra nada más, porque los respaldos se van.
+#[tauri::command]
+pub fn deshace_sesion(
+    app: State<AppState>,
+    conversation_id: String,
+) -> Result<Vec<String>, String> {
+    let (raiz, registros) = {
+        let conn = app.db.lock().map_err(|e| e.to_string())?;
+        let conv = db::get_conversation(&conn, &conversation_id)
+            .map_err(|_| "Esta sesión ya no existe.".to_string())?;
+        let Some(proyecto_id) = conv.project_id else {
+            return Err("Esta conversación no es de un proyecto".to_string());
+        };
+        (
+            PathBuf::from(db::get_project(&conn, &proyecto_id)?.root_path),
+            db::session_writes(&conn, &conversation_id)?,
+        )
+    };
+    let respaldos = crate::agent::loop_runner::respaldos_de(&app.data_dir, &conversation_id);
+    let devueltos = revierte(&raiz, &respaldos, &registros)?;
+    let _ = std::fs::remove_dir_all(&respaldos);
+    Ok(devueltos)
+}
+
+/// El cuerpo de `deshace_sesion`, aparte para poder probarlo sin Tauri ni BD.
+fn revierte(
+    raiz: &Path,
+    respaldos: &Path,
+    registros: &[db::ToolCall],
+) -> Result<Vec<String>, String> {
+    let mut devueltos: Vec<String> = Vec::new();
+    for r in registros.iter().rev() {
+        let Some(salida) = &r.output else { continue };
+        let Ok(valor) = serde_json::from_str::<serde_json::Value>(salida) else {
+            continue;
+        };
+        let Some(rel) = valor["path"].as_str() else { continue };
+        // La ruta la escribió el modelo, así que se vuelve a validar contra el
+        // proyecto antes de pisar o borrar, igual que al ejecutar la tool.
+        let Ok(destino) = crate::agent::tools::resolve_in_project(raiz, rel) else {
+            continue;
+        };
+        let novedad = valor["created"].as_bool().unwrap_or(false);
+        let hecho = if novedad {
+            // Lo que la sesión creó no existía antes: deshacer es borrarlo.
+            match std::fs::remove_file(&destino) {
+                Ok(_) => true,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => false,
+                Err(e) => return Err(format!("No se pudo borrar {rel}: {e}")),
+            }
+        } else {
+            let original = crate::agent::loop_runner::respaldo_de(respaldos, &r.id);
+            if original.exists() {
+                std::fs::copy(&original, &destino)
+                    .map_err(|e| format!("No se pudo devolver {rel}: {e}"))?;
+                true
+            } else {
+                false
+            }
+        };
+        if hecho && !devueltos.iter().any(|d| d == rel) {
+            devueltos.push(rel.to_string());
+        }
+    }
+    Ok(devueltos)
 }
 
 /// Cambia el nivel de aprobación de un proyecto (config por proyecto).
@@ -1950,37 +2468,6 @@ pub fn set_project_approval_level(
 pub fn set_project_pinned(app: State<AppState>, project_id: String, pinned: bool) -> Result<(), String> {
     let conn = app.db.lock().map_err(|e| e.to_string())?;
     db::set_project_pinned(&conn, &project_id, pinned)
-}
-
-/// Fondo translúcido compuesto por el sistema, no por el webview: Mica en la
-/// ventana principal, que es lo que Microsoft recomienda para superficies de
-/// larga duración (el blur/Acrylic se deja para menús y modales).
-///
-/// Apagado por defecto y a propósito: la propia documentación de
-/// `window-vibrancy` avisa de que va mal al redimensionar o arrastrar la ventana
-/// en Windows 11 build 22621+, así que lo decide el usuario viéndolo.
-#[tauri::command]
-pub fn set_window_transparency(
-    window: tauri::Window,
-    enabled: bool,
-    dark: Option<bool>,
-) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    {
-        if enabled {
-            // `dark` es el tinte de Mica. Se pasa desde la app porque Hatboo puede
-            // estar en claro con Windows en oscuro, y al revés.
-            window_vibrancy::apply_mica(&window, dark)
-        } else {
-            window_vibrancy::clear_mica(&window)
-        }
-        .map_err(|e| format!("Windows no pudo aplicar el fondo translúcido: {e}"))
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        let _ = (window, enabled, dark);
-        Err("El fondo translúcido solo está hecho para Windows por ahora.".into())
-    }
 }
 
 /// Pide cancelar una tarea del agente en curso.
@@ -2041,7 +2528,12 @@ pub fn respond_plan_review(
 pub async fn check_tool_support(app: State<'_, AppState>) -> Result<bool, String> {
     let settings = state::load_settings(&app);
     match settings.active_provider.as_str() {
-        "anthropic" | "openai" => Ok(true),
+        "anthropic" | "openai" | "openrouter" => Ok(true),
+        // Quién atiende cada id lo decide otro (el router de Hugging Face, la capa
+        // compatible de Gemini), así que no se puede saber aquí sin una llamada
+        // más: se da por bueno y el loop falla a la vista si el modelo no llama a
+        // las tools.
+        "hf" | "gemini" => Ok(true),
         "local" => Ok(crate::providers::tool_calling::local_supports_tools(
             &settings.local_endpoint,
             &settings.local_model,
@@ -2049,6 +2541,39 @@ pub async fn check_tool_support(app: State<'_, AppState>) -> Result<bool, String
         .await),
         other => Err(format!("Proveedor desconocido: {other}")),
     }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Capas {
+    /// Las tools que el bucle le pasa al modelo ahora mismo.
+    pub herramientas: usize,
+    /// `run_command` vive apagado hasta que se activa en Ajustes → Agente.
+    pub comandos: bool,
+    pub web: bool,
+    /// Plantillas activas, que son las que se inyectan en el prompt.
+    pub plantillas: usize,
+}
+
+/// Lo que el agente tiene puesto en este momento. Se lee de los mismos sitios
+/// que lee el bucle, para que la cabecera no prometa ninguna tool que el loop
+/// no vaya a recibir de verdad.
+#[tauri::command]
+pub fn agent_layers(app: State<AppState>) -> Result<Capas, String> {
+    let aj = state::load_settings(&app);
+    let plantillas = {
+        let conn = app.db.lock().map_err(|e| e.to_string())?;
+        db::list_skills(&conn)?
+            .iter()
+            .filter(|s| s.enabled)
+            .count()
+    };
+    Ok(Capas {
+        herramientas: crate::agent::tools::build_tools(&aj).len(),
+        comandos: aj.run_command_enabled,
+        web: aj.web_search,
+        plantillas,
+    })
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -2149,6 +2674,10 @@ pub struct ContextUsage {
     /// Las imágenes viajan en base64 y dominan el costo real; se cuentan aparte
     /// para que el número de texto no parezca mentira.
     pub images: usize,
+    /// De dónde salen esos caracteres. Separar el traje fijo de la conversación
+    /// es lo que permite decir «esto no lo puedes quitar» y «esto sí».
+    pub system_chars: usize,
+    pub history_chars: usize,
 }
 
 /// Lo que ocuparía el prompt del próximo turno de esta conversación. Cuenta el
@@ -2160,26 +2689,28 @@ pub fn context_usage(app: State<AppState>, conversation_id: String) -> Result<Co
     let settings = state::load_settings(&app);
     let conn = app.db.lock().map_err(|e| e.to_string())?;
     let skills = db::enabled_skills_prompt(&conn)?;
+    let memoria = db::memoria_prompt(&conn)?;
     drop(conn);
-    let system = chat_system_prompt(&settings, &skills);
+    let system = chat_system_prompt(&settings, &skills, &memoria);
 
-    let mut chars = system.trim().chars().count();
-    let mut images = 0usize;
-    for m in &messages {
-        chars += m.content.chars().count();
-        images += m.images.len();
-    }
+    let system_chars = system.trim().chars().count();
+    let history_chars: usize = messages.iter().map(|m| m.content.chars().count()).sum();
+    let images: usize = messages.iter().map(|m| m.images.len()).sum();
+    let chars = system_chars + history_chars;
     Ok(ContextUsage {
         chars,
         est_tokens: chars / 4,
         messages: messages.len(),
         images,
+        system_chars,
+        history_chars,
     })
 }
 
 /// Dónde vive lo que Hatboo guarda en este PC y cuánto ocupa.
 #[tauri::command]
-pub fn get_storage_info(app: State<AppState>) -> Result<StorageInfo, String> {    let db_path = app.data_dir.join("hatboo.db");
+pub fn get_storage_info(app: State<AppState>) -> Result<StorageInfo, String> {
+    let db_path = app.data_dir.join("hatboo.db");
     let db_size_bytes = db_path
         .metadata()
         .map(|m| m.len())
@@ -2200,10 +2731,159 @@ pub fn get_storage_info(app: State<AppState>) -> Result<StorageInfo, String> {  
     })
 }
 
+/// Lo que hay en este PC y si Ollama está despierto. El Centro de modelos decide
+/// con esto qué se puede bajar: una tienda que no conoce la máquina del usuario
+/// solo sabe vender humo.
+#[tauri::command]
+pub async fn hardware_info(app: tauri::AppHandle) -> machine::HardwareInfo {
+    let endpoint = {
+        let state = app.state::<AppState>();
+        state::load_settings(&state).local_endpoint.clone()
+    };
+    let locales = providers::list_ollama_models(&endpoint).await;
+    machine::HardwareInfo {
+        locales: locales.as_ref().map(Vec::len).unwrap_or_default(),
+        ollama_ok: locales.is_ok(),
+        base: machine::lee_hardware(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::io::Write;
+
+    #[test]
+    fn deshacer_devuelve_el_original_y_borra_lo_creado() {
+        let base = std::env::temp_dir().join(format!(
+            "hatboo-deshacer-{}-{}",
+            std::process::id(),
+            std::time::UNIX_EPOCH
+                .elapsed()
+                .map(|d| d.subsec_nanos())
+                .unwrap_or(0)
+        ));
+        let proyecto = base.join("proyecto");
+        let respaldos = base.join("respaldos");
+        std::fs::create_dir_all(&proyecto).unwrap();
+        std::fs::create_dir_all(&respaldos).unwrap();
+        std::fs::write(proyecto.join("leido.txt"), "lo de hoy").unwrap();
+        std::fs::write(proyecto.join("nuevo.txt"), "creado por el agente").unwrap();
+        // El respaldo lo escribe el nombre que usa `write_file` al guardar: si
+        // las dos mitades del deshacer discreparan, esta prueba lo vería.
+        std::fs::write(
+            crate::agent::loop_runner::respaldo_de(&respaldos, "tc1"),
+            "el original",
+        )
+        .unwrap();
+
+        let tc = |id: &str, salida: &str| db::ToolCall {
+            id: id.to_string(),
+            conversation_id: "c1".to_string(),
+            tool_name: "write_file".to_string(),
+            input: format!(r#"{{"path":"{}"}}"#, id),
+            output: Some(salida.to_string()),
+            status: "completed".to_string(),
+            created_at: 1,
+            duration_ms: 0,
+            brief: None,
+        };
+        let registros = vec![
+            tc("tc1", r#"{"path":"leido.txt","created":false}"#),
+            tc("tc2", r#"{"path":"nuevo.txt","created":true}"#),
+        ];
+
+        let devueltos = revierte(&proyecto, &respaldos, &registros).unwrap();
+        assert_eq!(devueltos, vec!["nuevo.txt".to_string(), "leido.txt".to_string()]);
+        assert_eq!(
+            std::fs::read_to_string(proyecto.join("leido.txt")).unwrap(),
+            "el original"
+        );
+        assert!(!proyecto.join("nuevo.txt").exists());
+        // Repetirlo no inventa nada: deshace_sesion se lleva los respaldos al
+        // terminar, y sin respaldo ni archivo no hay acción que tomar.
+        std::fs::remove_dir_all(&respaldos).unwrap();
+        assert!(revierte(&proyecto, &respaldos, &registros).unwrap().is_empty());
+
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn el_nombre_del_usuario_no_es_el_del_asistente() {
+        let mut aj = state::Settings::default();
+        aj.assistant_name = "Azrael".into();
+        let p = chat_system_prompt(&aj, "", "");
+        assert!(p.contains("Eres Hatboo"));
+        assert!(p.contains("Se llama «Azrael»"));
+        assert!(p.contains("«Soy Hatboo»"));
+        assert!(p.contains("## Esta sesión"));
+        // El nombre del usuario no puede aparecer en su propio bloque de identidad.
+        let asistente = p.split("## Usuario").next().unwrap();
+        assert!(!asistente.contains("Azrael"), "{asistente}");
+    }
+
+    #[test]
+    fn el_chat_pide_responder_corto_y_sin_relleno() {
+        let p = chat_system_prompt(&state::Settings::default(), "", "");
+        assert!(p.contains("Cómo hablas:"), "{p}");
+        assert!(p.contains("sin preámbulos"));
+        assert!(p.contains("Breve por defecto"));
+        // El estilo va en el bloque del asistente: si cayera debajo de «## Usuario»,
+        // un modelo pequeño lo leería como una preferencia del usuario y lo negocia.
+        let asistente = p.split("## Usuario").next().unwrap();
+        assert!(asistente.contains("Cómo hablas:"), "{asistente}");
+    }
+
+    #[test]
+    fn el_chat_sabe_la_fecha_y_lo_que_puede_mirar() {
+        let por_defecto = chat_system_prompt(&state::Settings::default(), "", "");
+        // Sin fecha no hay forma de contestar a «ayer» ni de buscar con el año
+        // bien: es lo que hacía alucinar fechas a los modelos locales.
+        assert!(por_defecto.contains("Hoy es "), "{por_defecto}");
+        assert!(por_defecto.contains("Búsqueda web: apagada"), "{por_defecto}");
+        // Y deja claro que aquí no toca archivos, para que no lo finja.
+        assert!(
+            por_defecto.contains("no tienes herramientas de disco"),
+            "{por_defecto}"
+        );
+
+        let mut aj = state::Settings::default();
+        aj.web_search = true;
+        let con_busqueda = chat_system_prompt(&aj, "", "");
+        assert!(con_busqueda.contains("Búsqueda web: activada"));
+        assert!(!con_busqueda.contains("Búsqueda web: apagada"));
+    }
+
+    #[test]
+    fn trato_idioma_y_nota_llegan_al_bloque_de_usuario() {
+        let mut aj = state::Settings::default();
+        aj.user_address = "usted".into();
+        aj.answer_language = "en".into();
+        aj.user_notes = "Estudio programación.".into();
+        let p = chat_system_prompt(&aj, "", "");
+        assert!(p.contains("Trátalo de usted."));
+        assert!(p.contains("Responde en inglés."));
+        assert!(p.contains("Nota del usuario: Estudio programación."));
+
+        let por_defecto = chat_system_prompt(&state::Settings::default(), "", "");
+        assert!(por_defecto.contains("Trátalo de tú."));
+        assert!(!por_defecto.contains("Nota del usuario"));
+        // Sin nombre guardado tampoco queda un hueco raro.
+        assert!(por_defecto.contains("no tiene nombre guardado"));
+    }
+
+    #[test]
+    fn el_titulo_corta_por_palabra_y_sin_saltos() {
+        assert_eq!(titulo_breve("hola\n\t¿qué tal?"), "hola ¿qué tal?");
+        assert_eq!(titulo_breve("   espaciado   sucio   "), "espaciado sucio");
+        assert_eq!(
+            titulo_breve("lee a.txt y luego b.txt y dime cuántas líneas tiene cada uno"),
+            "lee a.txt y luego b.txt y dime…"
+        );
+        // Un texto sin espacios no se puede partir por palabra: se corta igual.
+        assert_eq!(titulo_breve(&"x".repeat(80)).chars().count(), 35);
+        assert_eq!(titulo_breve(""), "");
+    }
 
     #[test]
     fn una_skill_con_cabecera_se_instala_con_su_nombre_y_su_texto() {
@@ -2324,6 +3004,68 @@ mod tests {
     }
 
     #[test]
+    fn lo_soltado_reparte_carpetas_y_archivos() {
+        // Soltar una carpeta abre un proyecto; soltar un archivo va al mensaje.
+        // Si las dos cosas siguen el mismo camino, la segunda contesta un error
+        // que no significa nada.
+        let raiz = std::env::temp_dir().join(format!("hatboo-soltar-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&raiz).unwrap();
+        let archivo = raiz.join("nota.md");
+        std::fs::write(&archivo, b"hola").unwrap();
+
+        let repartidas = clasifica_soltadas(vec![
+            raiz.display().to_string(),
+            archivo.display().to_string(),
+        ]);
+        assert_eq!(repartidas.carpetas, vec![raiz.display().to_string()]);
+        assert_eq!(repartidas.archivos, vec![archivo.display().to_string()]);
+
+        // Una ruta que ya no existe cuenta como archivo, no como carpeta: el
+        // lector dirá lo que pasa en vez de abrir un proyecto a medias.
+        let ido = clasifica_soltadas(vec![raiz.join("borrado.md").display().to_string()]);
+        assert!(ido.carpetas.is_empty() && ido.archivos.len() == 1);
+
+        let _ = std::fs::remove_dir_all(&raiz);
+    }
+
+    #[test]
+    fn una_carpeta_enorme_no_le_roba_el_presupuesto_a_sus_vecinas() {
+        // El fallo real en `Documentos`: 200 notas en la primera subcarpeta
+        // bastaban para que el recorrido no llegara a mirar la del lado.
+        let raiz = std::env::temp_dir().join(format!("hatboo-busca-{}", uuid::Uuid::new_v4()));
+        let vault = raiz.join("aaa-vault");
+        let facturas = raiz.join("b-facturas");
+        std::fs::create_dir_all(&vault).unwrap();
+        std::fs::create_dir_all(&facturas).unwrap();
+        for i in 0..200 {
+            std::fs::write(vault.join(format!("nota-{i}.md")), b"x").unwrap();
+        }
+        std::fs::write(facturas.join("factura-2026.pdf"), b"x").unwrap();
+
+        let hits = buscar_por_niveles(
+            &raiz,
+            "factura",
+            &Presupuesto {
+                total: 40,
+                por_carpeta: 5,
+            },
+        );
+        assert_eq!(hits, vec!["b-facturas/factura-2026.pdf".to_string()]);
+
+        // Y lo que se salta a propósito no vuelve: el presupuesto se nota.
+        assert!(buscar_por_niveles(
+            &raiz,
+            "nota-199",
+            &Presupuesto {
+                total: 40,
+                por_carpeta: 5,
+            }
+        )
+        .is_empty());
+        std::fs::remove_dir_all(&raiz).ok();
+    }
+
+    #[test]
     fn el_markdown_del_export_trae_razonamiento_y_fuentes() {
         let mut m = db::Message {
             id: "m1".into(),
@@ -2356,5 +3098,41 @@ mod tests {
         let limpio = render_markdown("Título", &[m]);
         assert!(!limpio.contains("<details>"));
         assert!(!limpio.contains("Fuentes:"));
+    }
+
+    #[test]
+    fn la_vista_previa_corta_y_no_muerde_binarios() {
+        let dir = std::env::temp_dir().join(format!(
+            "hatboo-previa-{}-{}",
+            std::process::id(),
+            std::time::UNIX_EPOCH
+                .elapsed()
+                .map(|d| d.subsec_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let grande = dir.join("grande.txt");
+        let mut f = std::fs::File::create(&grande).unwrap();
+        f.write_all(&vec![b'x'; PREVIEW_MAX_BYTES + 10]).unwrap();
+        drop(f);
+        let v = leer_vista_previa(&grande).unwrap();
+        assert!(v.truncado, "un archivo mayor que el tope debe decirlo");
+        assert_eq!(v.texto.len(), PREVIEW_MAX_BYTES);
+        assert_eq!(v.bytes as usize, PREVIEW_MAX_BYTES + 10);
+        assert_eq!(v.lineas, 1);
+
+        let corto = dir.join("corto.txt");
+        std::fs::write(&corto, "uno\ndos\n").unwrap();
+        let c = leer_vista_previa(&corto).unwrap();
+        assert!(!c.truncado);
+        assert_eq!(c.lineas, 2);
+        assert_eq!(c.bytes, 8);
+
+        let binario = dir.join("foto.bin");
+        std::fs::write(&binario, [0xFF_u8, 0x00, 0x10]).unwrap();
+        assert!(leer_vista_previa(&binario).is_err());
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 }

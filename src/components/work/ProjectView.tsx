@@ -1,10 +1,18 @@
 import { t } from "../../i18n";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
   AlertCircle,
+  AlertTriangle,
   ArrowUp,
-  Eye,
+  BookOpen,
+  ChevronDown,
+  FlaskConical,
+  FolderOpen,
+  GitCompare,
   Paperclip,
+  Search,
   Square,
   X,
   FolderTree,
@@ -12,13 +20,20 @@ import {
   ListChecks,
   Maximize2,
   Minimize2,
+  PanelLeftClose,
+  Plus,
+  type LucideIcon,
 } from "lucide-react";
 import { useWorkStore, useActiveTab, type StepLine } from "../../store/workStore";
+import { nivelPorNombre } from "../../modelo";
 import { useChatStore } from "../../store/chatStore";
 import MessageBubble from "../MessageBubble";
 import Mascot from "../mascot/Mascot";
+import Dots from "../Dots";
+import SuggestionGrid, { type Sugerencia } from "../SuggestionGrid";
 import FileTree from "./FileTree";
-import CommandBlock from "./CommandBlock";
+import AgentTrace from "./AgentTrace";
+import FileCards from "./FileCards";
 import ResizeHandle from "./ResizeHandle";
 import TaskList from "./TaskList";
 import ToolApprovalModal from "./ToolApprovalModal";
@@ -26,27 +41,115 @@ import PlanReviewModal from "./PlanReviewModal";
 import ApprovalLevelPicker from "./ApprovalLevelPicker";
 import ProjectRules from "./ProjectRules";
 import SessionChanges from "./SessionChanges";
-import ThinkingBlock from "../ThinkingBlock";
-import HtmlPreview from "./HtmlPreview";
+import { ProyectoSwitcher, SesionSwitcher } from "./Switchers";
+import LayerChips from "./LayerChips";
 import WorkPlusMenu from "./WorkPlusMenu";
 import ModeToggles from "../ModeToggles";
+import { useSoltados } from "../../hooks/useSoltados";
 import ProviderModelPicker from "../ProviderModelPicker";
 import { PANEL_WIDTHS, type Attachment, type MascotState, type Message, type Task } from "../../types";
+
+/** OneDrive no es un sitio malo para tener un proyecto: es un sitio donde otro
+ *  programa mueve archivos mientras el agente escribe. Se avisa, no se prohíbe. */
+function estaEnOneDrive(ruta: string) {
+  return /onedrive/i.test(ruta);
+}
+
+/** Panel oculto a mano. Deja un riel de 26 px con el icono para que volver a
+ *  abrirlo no dependa de los botones de la cabecera, que es lo que hacía que
+ *  «Ocultar los archivos» pareciera un botón roto: el panel se iba y no quedaba
+ *  nada donde antes estaba. Llevaba el nombre escrito en vertical; en un riel así
+ *  se leía como un fallo de maquetación, así que el nombre se queda en el tooltip. */
+function Riel({
+  Icono,
+  etiqueta,
+  lado,
+  onAbrir,
+}: {
+  Icono: LucideIcon;
+  etiqueta: string;
+  lado: "izquierda" | "derecha";
+  onAbrir: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onAbrir}
+      title={t("Mostrar {e}", { e: etiqueta })}
+      aria-label={t("Mostrar {e}", { e: etiqueta })}
+      className={`flex w-[26px] shrink-0 items-start justify-center bg-base-raised pt-2.5 text-zinc-600 transition-colors hover:bg-base-hover hover:text-accent-soft ${
+        lado === "izquierda" ? "border-r" : "border-l"
+      } border-base-border`}
+    >
+      <Icono className="h-3.5 w-3.5 shrink-0" />
+    </button>
+  );
+}
+
+/** Cinta de aviso: una línea, no una caja. Antes había hasta tres cajas
+ *  apiladas bajo la cabecera, cada una con su borde y su fondo, y pesaban más
+ *  que el proyecto. */
+function Cinta({
+  tono,
+  children,
+}: {
+  tono: "aviso" | "peligro";
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={`flex shrink-0 items-start gap-2 border-b px-4 py-1.5 text-[11px] leading-snug ${
+        tono === "peligro"
+          ? "border-red-500/20 bg-red-500/[0.06] text-red-300/90"
+          : "border-amber-500/20 bg-amber-500/[0.05] text-amber-300/90"
+      }`}
+    >
+      {children}
+    </div>
+  );
+}
 
 /** Constantes estables: si no hay pestaña, devolver un array nuevo en cada render
  *  re-renderizaría las listas hijas sin motivo. */
 const NO_MESSAGES: Message[] = [];
 const NO_TASKS: Task[] = [];
 const NO_STEPS: StepLine[] = [];
+const NO_COLA: string[] = [];
 
-/** El botón del panel abierto queda teñido: es la única pista de qué tapa cada
- *  icono de la cabecera cuando el panel ya no se ve. */
+/** En español a pelo y traducidas al pintar: una constante de módulo se evalúa al
+ *  importar, antes de conocer el idioma guardado. */
+const TASK_SUGGESTIONS: Sugerencia[] = [
+  { texto: "Explícame qué hace este proyecto", icono: BookOpen },
+  { texto: "Busca en los archivos dónde se define X", icono: Search },
+  { texto: "Resume los cambios sin commitear", icono: GitCompare },
+  { texto: "Añade pruebas a lo último que toqué", icono: FlaskConical },
+];
+
+/** Los cinco iconos de la derecha y los tres toggles miden lo mismo (26 px): en
+ *  la misma fila, cualquier diferencia de alto se ve como un desalineado. */
 const panelToggle = (open: boolean) =>
-  `p-1.5 rounded-lg transition-colors ${
+  `grid h-[26px] w-[26px] shrink-0 place-items-center rounded-md transition-colors ${
     open
       ? "text-accent-soft bg-accent/10 hover:bg-accent/20"
       : "text-zinc-500 hover:bg-base-hover hover:text-zinc-200"
   }`;
+
+/**
+ * Segundos de tarea en marcha. Va en un componente aparte, con su propio
+ * intervalo: dejando el cronómetro en el panel, cada segundo re-renderizaba el
+ * árbol de archivos y la lista de tareas entera. Se monta con la tarea y se va
+ * con ella.
+ */
+function Cronometro() {
+  const inicio = useRef(Date.now());
+  const [seg, setSeg] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setSeg(Math.floor((Date.now() - inicio.current) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, []);
+  if (seg <= 0) return null;
+  return <span className="tabular-nums text-zinc-500">{seg} s</span>;
+}
 
 export default function ProjectView() {
   const project = useWorkStore((s) =>
@@ -56,37 +159,48 @@ export default function ProjectView() {
   const messages = tab?.messages ?? NO_MESSAGES;
   const tasks = tab?.tasks ?? NO_TASKS;
   const stepLines = tab?.stepLines ?? NO_STEPS;
+  const cola = tab?.cola ?? NO_COLA;
+  const colaEnPausa = tab?.colaEnPausa ?? false;
   const agentStatus = tab?.agentStatus ?? "idle";
   const toolSupport = useWorkStore((s) => s.toolSupport);
   const error = tab?.error ?? null;
-  const newProjectDraft = useWorkStore((s) => s.newProjectDraft);
   const treeVersion = useWorkStore((s) => s.treeVersion);
   const git = tab?.git ?? null;
   const approvalLevel = tab?.approvalLevel ?? "approve_for_me";
   const busy = agentStatus === "running" || agentStatus === "awaiting";
   const startTask = useWorkStore((s) => s.startTask);
+  const encolarTarea = useWorkStore((s) => s.encolarTarea);
+  const quitarDeCola = useWorkStore((s) => s.quitarDeCola);
+  const reanudarCola = useWorkStore((s) => s.reanudarCola);
+  const openProjectPicker = useWorkStore((s) => s.openProjectPicker);
+  const startCreateProject = useWorkStore((s) => s.startCreateProject);
   const cancelTask = useWorkStore((s) => s.cancelTask);
   const clearError = useWorkStore((s) => s.clearError);
-  const confirmCreateProject = useWorkStore((s) => s.confirmCreateProject);
-  const cancelCreateProject = useWorkStore((s) => s.cancelCreateProject);
-  const selectProject = useWorkStore((s) => s.selectProject);
-  const closeTab = useWorkStore((s) => s.closeTab);
   const refreshGit = useWorkStore((s) => s.refreshGit);
 
   const activeProjectId = useWorkStore((s) => s.activeProjectId);
   const tabs = useWorkStore((s) => s.tabs);
-  const openProjectIds = Object.keys(tabs);
 
-  const [inputByProject, setInputByProject] = useState<Record<string, string>>({});
-  const input = activeProjectId ? (inputByProject[activeProjectId] ?? "") : "";
-  const setInput = (value: string) =>
-    setInputByProject((m) => ({ ...m, [activeProjectId ?? ""]: value }));
+  // Borrador por sesión de trabajo, en el store y en disco: cambiar de pestaña
+  // o cerrar la ventana ya no deja en blanco lo escrito a medias.
+  const claveBorrador =
+    tabs[activeProjectId ?? ""]?.sessionId ?? activeProjectId ?? "nueva";
+  const input = useChatStore((s) => s.drafts[claveBorrador] ?? "");
+  const setDraft = useChatStore((s) => s.setDraft);
+  const setInput = (value: string) => setDraft(claveBorrador, value);
   const focus = useChatStore((s) => s.settings?.focusMode ?? false);
   const storedFilesOpen = useChatStore((s) => s.settings?.filesPanelOpen ?? true);
   const storedTasksOpen = useChatStore((s) => s.settings?.tasksPanelOpen ?? true);
   const filesWidth = useChatStore((s) => s.settings?.filesPanelWidth ?? PANEL_WIDTHS.files.def);
   const tasksWidth = useChatStore((s) => s.settings?.tasksPanelWidth ?? PANEL_WIDTHS.tasks.def);
   const patchSettings = useChatStore((s) => s.patchSettings);
+  const proveedor = useChatStore((s) => s.settings?.activeProvider ?? "local");
+  const modeloLocal = useChatStore((s) => s.settings?.localModel ?? "");
+  const setSettingsCat = useChatStore((s) => s.setSettingsCat);
+  const setView = useChatStore((s) => s.setView);
+  /** Un modelo de chat no sostiene el modo trabajo: mejor decirlo antes de que
+   *  la tarea «se haga» inventando el archivo en el chat. */
+  const modeloCorto = proveedor === "local" && nivelPorNombre(modeloLocal) === "chat";
   // El ancho se mueve en estado local durante el arrastre y se guarda al soltar:
   // escribir en SQLite en cada pointermove saldría carísimo.
   const [dragFiles, setDragFiles] = useState<number | null>(null);
@@ -97,13 +211,58 @@ export default function ProjectView() {
   const tasksOpen = !focus && storedTasksOpen;
   const filesPx = dragFiles ?? filesWidth;
   const tasksPx = dragTasks ?? tasksWidth;
-  const [newName, setNewName] = useState("");
   const [happy, setHappy] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [preview, setPreview] = useState(false);
+  /** Lo que falló al meter un archivo del árbol en el mensaje. Se dice aquí, que
+   *  es donde se pulsó, en vez de perderse en un aviso que pasa. */
+  const [avisoAdjunto, setAvisoAdjunto] = useState<string | null>(null);
+
+  /** Pinchar un archivo del árbol lo añade al mensaje por la misma vía que los
+   *  adjuntos del «+»: `read_attachment` con la ruta absoluta del proyecto. */
+  const anadirAlContexto = async (ruta: string, nombre: string) => {
+    if (!project) return;
+    setAvisoAdjunto(null);
+    const absoluta = `${project.rootPath.replace(/[\\/]+$/, "")}/${ruta}`;
+    try {
+      const adjunto = await invoke<Attachment>("read_attachment", { path: absoluta });
+      setAttachments((prev) =>
+        prev.some((a) => a.name === nombre && a.text.length === adjunto.text.length)
+          ? prev
+          : [...prev, adjunto],
+      );
+    } catch (e) {
+      setAvisoAdjunto(String(e));
+    }
+  };
   const bottomRef = useRef<HTMLDivElement>(null);
+  // Lo que se suelta sobre la ventana llega al mensaje, igual que en el chat. Con
+  // `false`: el agente trabaja con archivos, las imágenes se descartan con aviso.
+  useSoltados(
+    (lista) => setAttachments((prev) => [...prev, ...lista]),
+    (texto) => setAvisoAdjunto(texto),
+    false,
+  );
   const taskRef = useRef<HTMLTextAreaElement>(null);
   const prevStatus = useRef(agentStatus);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const [lejos, setLejos] = useState(false);
+  const pinnedRef = useRef(true);
+
+  const onScrollHilo = () => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const d = el.scrollHeight - el.scrollTop - el.clientHeight;
+    pinnedRef.current = d < 140;
+    setLejos(d > 480);
+  };
+
+  const bajar = () => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    pinnedRef.current = true;
+    setLejos(false);
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  };
 
   /** Inserta una plantilla en el cursor, no al final del texto ya escrito. */
   const insertTemplate = (text: string) => {
@@ -122,8 +281,16 @@ export default function ProjectView() {
   };
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    // Solo sigue el final si el usuario no ha subido a leer la traza.
+    if (pinnedRef.current) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, tasks, stepLines]);
+
+  // Al cambiar de pestaña la lista vuelve arriba: seguir el final vuelve a tener
+  // sentido y el botón de bajar no pinta nada ahí.
+  useEffect(() => {
+    pinnedRef.current = true;
+    setLejos(false);
+  }, [activeProjectId]);
 
   // Al terminar una tarea (o escribir archivos), refrescamos el estado git.
   useEffect(() => {
@@ -133,9 +300,9 @@ export default function ProjectView() {
   useEffect(() => {
     if (prevStatus.current === "running" && agentStatus === "idle") {
       setHappy(true);
-      const t = setTimeout(() => setHappy(false), 3000);
+      const temporizador = setTimeout(() => setHappy(false), 3000);
       prevStatus.current = agentStatus;
-      return () => clearTimeout(t);
+      return () => clearTimeout(temporizador);
     }
     prevStatus.current = agentStatus;
   }, [agentStatus]);
@@ -146,26 +313,23 @@ export default function ProjectView() {
       : agentStatus === "awaiting"
         ? "surprised"
         : agentStatus === "running"
-          ? "thinking"
+          ? // El agente no está pensando quieto: está moviéndose por la carpeta.
+            "running"
           : happy
             ? "happy"
             : "idle";
 
-  const submit = async () => {
-    const text = input.trim();
-    if ((!text && attachments.length === 0) || agentStatus === "running" || agentStatus === "awaiting") return;
-    const sent = attachments;
-    setInput("");
-    setAttachments([]);
+  /** Lanza un pedido: a la cola si hay una tarea en curso, al agente si no. Es
+   *  el mismo camino para lo que se escribe abajo y para el «Reintentar» del
+   *  panel de tareas, que antes no tenía forma de pedir nada. */
+  const lanzar = async (pedido: string) => {
+    if (agentStatus === "running" || agentStatus === "awaiting") {
+      encolarTarea(pedido);
+      return;
+    }
     clearError();
-    // El agente no tiene adjuntos como el chat: el texto de los archivos se
-    // antepone a la petición, que es lo que recibe igual que en el chat.
-    const prefix = sent
-      .filter((a) => !a.imageFile)
-      .map((a) => `[Archivo adjunto: ${a.name}]\n${a.text}\n\n`)
-      .join("");
     try {
-      await startTask(`${prefix}${text}`);
+      await startTask(pedido);
     } catch (e) {
       useWorkStore.getState().onError(
         useWorkStore.getState().tabs[activeProjectId ?? ""]?.sessionId ?? "",
@@ -174,64 +338,49 @@ export default function ProjectView() {
     }
   };
 
-  const TabBar = (
-    <div className="shrink-0 flex items-center gap-1 px-2 pt-2 overflow-x-auto">
-      {openProjectIds.map((id) => {
-        const p = useWorkStore.getState().projects.find((pr) => pr.id === id);
-        const status = tabs[id]?.agentStatus ?? "idle";
-        const isActive = id === activeProjectId;
-        return (
-          <div
-            key={id}
-            className={`group flex items-center gap-1.5 max-w-44 rounded-t-lg border border-b-0 px-3 py-1.5 text-xs cursor-pointer transition-colors ${
-              isActive
-                ? "bg-base-raised border-base-border text-zinc-100"
-                : "bg-transparent border-transparent text-zinc-500 hover:bg-base-hover hover:text-zinc-300"
-            }`}
-            onClick={() => void selectProject(id)}
-            title={p?.rootPath}
-          >
-            <span
-              className={`w-1.5 h-1.5 shrink-0 rounded-full ${
-                status === "running"
-                  ? "bg-accent-soft animate-pulse"
-                  : status === "awaiting"
-                    ? "bg-amber-400"
-                    : status === "error"
-                      ? "bg-red-400"
-                      : "bg-zinc-600"
-              }`}
-            />
-            <span className="truncate">{p?.name ?? "Proyecto"}</span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                closeTab(id);
-              }}
-              disabled={status === "running" || status === "awaiting"}
-              className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-base text-zinc-500 hover:text-layer transition-all disabled:cursor-not-allowed"
-              title={t("Cerrar pestaña")}
-            >
-              <X className="w-3 h-3" />
-            </button>
-          </div>
-        );
-      })}
-    </div>
-  );
+  const submit = async () => {
+    const text = input.trim();
+    if (!text && attachments.length === 0) return;
+    const sent = attachments;
+    setInput("");
+    setAttachments([]);
+    setAvisoAdjunto(null);
+    // El agente no tiene adjuntos como el chat: el texto de los archivos se
+    // antepone a la petición, que es lo que recibe igual que en el chat.
+    const prefix = sent
+      .filter((a) => !a.imageFile)
+      .map((a) => `[Archivo adjunto: ${a.name}]\n${a.text}\n\n`)
+      .join("");
+    await lanzar(`${prefix}${text}`);
+  };
 
   if (!project) {
     return (
       <div className="flex-1 flex flex-col min-h-0">
-        {openProjectIds.length > 0 && TabBar}
         <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6">
           <Mascot state="idle" size={140} />
           <h1 className="text-2xl font-semibold tracking-tight">
             <span className="text-accent-soft">{t("Modo Trabajo")}</span>
           </h1>
           <p className="text-sm text-zinc-500 max-w-md text-center">
-            {t("Abre una carpeta existente o crea un proyecto nuevo desde la barra lateral para que Hatboo pueda leer, escribir y ejecutar dentro de él.")}
+            {t("Hatboo lee, escribe y ejecuta dentro de una carpeta. Elige una que ya exista o crea un proyecto nuevo.")}
           </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => void openProjectPicker()}
+              className="flex items-center gap-2 rounded-full border border-base-border bg-base-card px-3.5 py-2 text-sm text-zinc-300 transition-colors hover:border-accent/50 hover:text-zinc-100"
+            >
+              <FolderOpen className="h-4 w-4" />
+              {t("Abrir carpeta")}
+            </button>
+            <button
+              onClick={startCreateProject}
+              className="flex items-center gap-2 rounded-full border border-accent/40 bg-accent/[0.08] px-3.5 py-2 text-sm text-accent-soft transition-colors hover:bg-accent/[0.16]"
+            >
+              <Plus className="h-4 w-4" />
+              {t("Nuevo proyecto")}
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -239,7 +388,6 @@ export default function ProjectView() {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      {openProjectIds.length > 0 && TabBar}
       <div className="flex-1 flex min-h-0">
       {/* Desviación deliberada de la guía de visual, que dice "anima translateX,
        *  no width". Eso vale para un cajón que se superpone; aquí los paneles son
@@ -248,18 +396,45 @@ export default function ProjectView() {
        *  con transform dejaría el ancho saltando al final: peor. Lo que sí se hace
        *  es recortar el coste: 200 ms justos, y `hatboo-resizing` mata la
        *  transición mientras se arrastra el ancho a mano. */}
+      {/* Ocultado a mano deja un riel para volver a abrirlo desde el mismo sitio.
+          Con el modo foco activado no sale: ahí lo que se pidió era no ver paneles,
+          y un riel en pantalla sería justo lo que el foco quiere quitar. */}
+      {!focus && !storedFilesOpen && (
+        <Riel
+          Icono={FolderTree}
+          etiqueta={t("Archivos")}
+          lado="izquierda"
+          onAbrir={() => patchSettings({ filesPanelOpen: true })}
+        />
+      )}
       <div
-        className={`shrink-0 overflow-clip bg-base-raised/40 transition-[width] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] ${
+        className={`shrink-0 overflow-clip bg-base-raised transition-[width] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] ${
           filesOpen ? "border-r border-base-border" : "w-0"
         }`}
         style={{ width: filesOpen ? filesPx : 0 }}
       >
         <div className="h-full flex flex-col" style={{ width: filesPx }}>
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-base-border text-xs font-medium text-zinc-400 uppercase tracking-wider">
-            <FolderTree className="w-4 h-4 text-accent-soft" />
-            {t("Archivos")}
+          <div className="flex items-center gap-2 border-b border-base-border px-2.5 py-2">
+            <FolderTree className="w-3.5 h-3.5 shrink-0 text-accent-soft" />
+            <span className="min-w-0 flex-1 truncate text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+              {t("Archivos")}
+            </span>
+            {/* Sin botón de Explorador aquí: la ruta de la cabecera ya hace eso y
+                tenerlo en dos sitios era de lo que sobraba. */}
+            <button
+              onClick={() => patchSettings({ filesPanelOpen: false })}
+              title={t("Ocultar los archivos")}
+              className="shrink-0 rounded p-1 text-zinc-600 transition-colors hover:bg-base-hover hover:text-zinc-200"
+            >
+              <PanelLeftClose className="w-3.5 h-3.5" />
+            </button>
           </div>
-          <FileTree projectId={project.id} version={treeVersion} />
+          <FileTree
+            projectId={project.id}
+            raiz={project.rootPath}
+            version={treeVersion}
+            onAddFile={anadirAlContexto}
+          />
         </div>
       </div>
       {filesOpen && (
@@ -278,122 +453,182 @@ export default function ProjectView() {
       )}
 
       <div className="flex-1 min-w-0 flex flex-col">
-        <header className="h-12 shrink-0 flex items-center gap-3 px-4 border-b border-base-border">
-          <button
-            onClick={() => patchSettings({ focusMode: false, filesPanelOpen: !filesOpen })}
-            className={panelToggle(filesOpen)}
-            title={filesOpen ? t("Ocultar los archivos") : t("Mostrar los archivos")}
-            aria-pressed={filesOpen}
-          >
-            <FolderTree className="w-4 h-4" />
-          </button>
-          <div className="min-w-0">
-            <div className="text-sm font-medium truncate">{project.name}</div>
-            <div className="text-[10px] text-zinc-600 truncate">{project.rootPath}</div>
-          </div>
-          {git?.isRepo && git.branch && (
-            <button
-              onClick={() => void refreshGit(project.id)}
-              className="shrink-0 flex items-center gap-1.5 rounded-lg border border-base-border bg-base-raised px-2 py-1 text-[11px] text-zinc-400 hover:border-accent/50 hover:text-zinc-200 transition-colors"
-              title={t("Rama {r} · {n} archivo(s) con cambios", { r: git.branch, n: git.dirtyCount })}
-            >
-              <GitBranch className="w-3.5 h-3.5 text-accent-soft" />
-              <span className="font-mono max-w-28 truncate">{git.branch}</span>
-              {git.dirtyCount > 0 && (
-                <span className="rounded-full bg-amber-500/20 text-amber-300 px-1.5 text-[10px] font-medium">
-                  {git.dirtyCount}
-                </span>
+        {/* Una sola línea con la identidad arriba: el proyecto manda, la sesión
+            se abre con un clic, y el resto son mandos. La ruta salió de aquí —
+            está en el `title` del proyecto y en el botón del Explorador — porque
+            era lo más largo y lo menos mirado. */}
+        <header className="shrink-0 flex items-center gap-1 px-3 py-1.5 border-b border-base-border">
+          <ProyectoSwitcher project={project} />
+          <span aria-hidden className="shrink-0 text-zinc-700">
+            /
+          </span>
+          <SesionSwitcher projectId={project.id} />
+          {/* El aviso de OneDrive se queda aquí: es un riesgo real mientras
+              trabaja. El badge Código/Docs se fue al menú del proyecto, que es
+              donde ya está la ruta y se mira antes de pedir la primera tarea. */}
+          {estaEnOneDrive(project.rootPath) && (
+            <span
+              className="shrink-0 text-[10px] uppercase tracking-wider text-amber-300/80"
+              title={t(
+                "OneDrive sube y baja archivos por su cuenta: puede tener bloqueado justo el que escriba el agente, o pisar un cambio al sincronizar. Si se repite, mueve el proyecto fuera de OneDrive.",
               )}
-            </button>
+            >
+              {t("en OneDrive")}
+            </span>
           )}
-          <div className="ml-auto flex items-center gap-2">
+
+          <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1">
             <button
-              onClick={() => patchSettings({ focusMode: false, tasksPanelOpen: !tasksOpen })}
-              className={panelToggle(tasksOpen)}
-              title={tasksOpen ? t("Ocultar las tareas") : t("Mostrar las tareas")}
-              aria-pressed={tasksOpen}
+              onClick={() => void revealItemInDir(project.rootPath).catch(() => {})}
+              title={t("Mostrar la carpeta del proyecto en el Explorador")}
+              className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-md text-zinc-500 transition-colors hover:bg-base-hover hover:text-zinc-200"
             >
-              <ListChecks className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => patchSettings({ focusMode: !focus })}
-              className={panelToggle(focus)}
-              title={
-                focus
-                  ? t("Salir del modo foco (Ctrl+.)")
-                  : t("Modo foco: solo el chat, sin barra lateral ni paneles (Ctrl+.)")
-              }
-              aria-pressed={focus}
-            >
-              {focus ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              <FolderOpen className="h-3.5 w-3.5" />
             </button>
             <ProjectRules projectId={project.id} />
             <SessionChanges conversationId={tab?.sessionId ?? null} recargarCon={stepLines.length} />
-            <button
-              onClick={() => {
-                setPreview((v) => !v);
-                // Como con los otros paneles: en modo foco el botón tiene que
-                // poder verse y hacer algo, no quedar apagado.
-                if (focus) patchSettings({ focusMode: false });
-              }}
-              className={panelToggle(preview && !focus)}
-              title={preview ? t("Ocultar la vista previa") : t("Vista previa del HTML del proyecto")}
-              aria-pressed={preview}
-            >
-              <Eye className="w-4 h-4" />
-            </button>
             <ApprovalLevelPicker projectId={project.id} />
-            <Mascot state={mascotState} size={32} />
+            <span aria-hidden className="mx-1 h-4 w-px shrink-0 bg-base-border" />
+            {/* Los tres juntos: son «qué se ve», no acciones sobre el proyecto. */}
+            <div className="flex shrink-0 items-center gap-0.5">
+              <button
+                onClick={() => patchSettings({ focusMode: false, filesPanelOpen: !filesOpen })}
+                className={panelToggle(filesOpen)}
+                title={filesOpen ? t("Ocultar los archivos") : t("Mostrar los archivos")}
+                aria-pressed={filesOpen}
+              >
+                <FolderTree className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => patchSettings({ focusMode: false, tasksPanelOpen: !tasksOpen })}
+                className={panelToggle(tasksOpen)}
+                title={tasksOpen ? t("Ocultar las tareas") : t("Mostrar las tareas")}
+                aria-pressed={tasksOpen}
+              >
+                <ListChecks className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => patchSettings({ focusMode: !focus })}
+                className={panelToggle(focus)}
+                title={
+                  focus
+                    ? t("Salir del modo foco (Ctrl+.)")
+                    : t("Modo foco: solo el chat, sin barra lateral ni paneles (Ctrl+.)")
+                }
+                aria-pressed={focus}
+              >
+                {focus ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
         </header>
 
         {approvalLevel === "full_access" && (
-          <div className="mx-4 mt-3 rounded-lg border border-red-500/50 bg-red-500/10 px-3 py-2 text-xs text-red-300">
-            <span className="font-semibold">{t("Acceso total activo:")}</span>{" "}
-            {t(
-              "el agente ejecuta todas las acciones sin pedir aprobación, incluida escritura de archivos y comandos. Las rutas siguen limitadas a la carpeta del proyecto.",
-            )}
-          </div>
+          <Cinta tono="peligro">
+            <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
+            <span className="min-w-0">
+              <span className="font-semibold">{t("Acceso total activo:")}</span>{" "}
+              {t(
+                "el agente ejecuta todas las acciones sin pedir aprobación, incluida escritura de archivos y comandos. Las rutas siguen limitadas a la carpeta del proyecto.",
+              )}
+            </span>
+          </Cinta>
         )}
 
         {toolSupport === false && (
-          <div className="mx-4 mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
-            {t(
-              "Este modelo no soporta tool calling — cambia de proveedor o modelo en Ajustes para usar el modo trabajo.",
-            )}
-          </div>
+          <Cinta tono="aviso">
+            <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
+            <span className="min-w-0">
+              {t(
+                "Este modelo no soporta tool calling — cambia de proveedor o modelo en Ajustes para usar el modo trabajo.",
+              )}
+            </span>
+          </Cinta>
         )}
 
         {/* `key` por proyecto: al cambiar de pestaña el contenido entra con el
             fundido corto en vez de sustituirse de golpe, y la lista vuelve arriba. */}
-        <div key={project.id} className="flex-1 overflow-y-auto animate-rise-in">
+        <div key={project.id} className="relative min-h-0 flex-1 animate-rise-in">
+        <div ref={scrollerRef} onScroll={onScrollHilo} className="h-full overflow-y-auto">
           {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center gap-2 px-6 text-center">
-              <p className="text-sm text-zinc-500 max-w-sm">
-                {t("Pide una tarea sobre este proyecto. Hatboo hará un plan, leerá archivos y pedirá aprobación antes de escribir o ejecutar.")}
-              </p>
+            <div className="h-full flex flex-col items-center justify-center gap-4 px-6">
+              {/* Pose propia: el chat vacío enseña al fantasma quieto; aquí ya
+                  tiene proyecto bajo los pies. */}
+              <Mascot
+                state={mascotState === "idle" ? "working" : mascotState}
+                size={80}
+              />
+              <div className="text-center space-y-2">
+                {/* Sin título: el nombre del proyecto está en la cabecera, y la
+                    sesión debajo. Repetirlo aquí era la tercera vez. */}
+                <p className="max-w-sm text-[13px] leading-relaxed text-zinc-500">
+                  {t("Pide una tarea sobre este proyecto. Hatboo hará un plan, leerá archivos y pedirá aprobación antes de escribir o ejecutar.")}
+                </p>
+                {/* Las capas del agente bajaron de la cabecera: son un dato para
+                    decidir la primera tarea, no algo que haya que tener delante
+                    mientras se trabaja. */}
+                <span className="flex flex-wrap items-center justify-center gap-1.5">
+                  <LayerChips />
+                </span>
+              </div>
+              <SuggestionGrid
+                items={TASK_SUGGESTIONS}
+                disabled={toolSupport === false}
+                onPick={(texto) => {
+                  setInput(t(texto));
+                  requestAnimationFrame(() => taskRef.current?.focus());
+                }}
+              />
             </div>
           ) : (
-            <div className="max-w-3xl mx-auto px-6 py-6 space-y-4">
+            <div className="max-w-3xl mx-auto px-6 py-4 space-y-2.5">
               {messages
                 .filter((m) => m.role === "user" || m.content.trim() !== "")
                 .map((m) => (
-                  <MessageBubble key={m.id} message={m} />
+                  <div key={m.id} className="space-y-1.5">
+                    <MessageBubble message={m} accionesFlotando={false} />
+                    {/* La traza va debajo de la respuesta que la cerró, y sigue
+                        ahí al reabrir la sesión: viene de `tool_calls`. */}
+                    {m.steps && m.steps.length > 0 && <AgentTrace lines={m.steps} />}
+                    {/* Los archivos que escribió la tarea, con tamaño real de disco. */}
+                    {m.steps && m.steps.length > 0 && (
+                      <FileCards
+                        steps={m.steps}
+                        projectId={project.id}
+                        rootPath={project.rootPath}
+                      />
+                    )}
+                  </div>
                 ))}
-              {/* Se deja visible también al terminar: lo que hizo el agente y el
-                  output de sus comandos tiene que poder leerse y copiarse despues. */}
-              <ActivityLine lines={stepLines} />
+              {/* Mientras se trabaja (o se espera una aprobación, o la tarea
+                  reventó) la traza en curso es la de la pestaña: la respuesta
+                  todavía no está escrita y sus pasos tampoco. */}
+              {stepLines.length > 0 && agentStatus !== "idle" && (
+                <AgentTrace lines={stepLines} running={agentStatus === "running"} />
+              )}
               {agentStatus === "running" && (
                 <div className="flex justify-start">
-                  <div className="rounded-2xl rounded-bl-md px-4 py-2.5 text-sm bg-base-raised border border-base-border text-zinc-400">
-                    <span className="inline-block w-2 h-2 mr-1 rounded-full bg-accent-soft animate-bounce" />
+                  <div className="flex items-center gap-2 rounded-2xl rounded-bl-md border border-base-border bg-base-raised px-4 py-2.5 text-sm text-zinc-400">
+                    <Dots />
                     {t("Trabajando en la tarea…")}
+                    <Cronometro />
                   </div>
                 </div>
               )}
               <div ref={bottomRef} />
             </div>
           )}
+        </div>
+        {lejos && (
+          <button
+            onClick={bajar}
+            title={t("Ir al final")}
+            aria-label={t("Ir al final")}
+            className="absolute bottom-4 right-5 rounded-full border border-base-border bg-base-raised p-2 text-zinc-400 shadow-lg shadow-shade/40 transition-colors hover:text-zinc-100"
+          >
+            <ChevronDown className="h-4 w-4" />
+          </button>
+        )}
         </div>
 
         {error && (
@@ -409,7 +644,15 @@ export default function ProjectView() {
         )}
 
         <div className="shrink-0 px-6 pb-5 pt-2">
-          <div className="mx-auto max-w-3xl rounded-2xl border border-base-border bg-base-raised/70 px-3 pb-2.5 pt-3 shadow-xl shadow-shade/30 transition-colors focus-within:border-accent/50">
+          <div className="mx-auto flex max-w-3xl items-end gap-3">
+            {/* Como en el chat: la mascota solo sale cuando hay algo en curso, y
+                ya no pelea sitio en la cabecera. */}
+            {agentStatus !== "idle" && (
+              <div className="hidden sm:block shrink-0 pb-1">
+                <Mascot state={mascotState} size={36} />
+              </div>
+            )}
+            <div className="flex-1 min-w-0 rounded-2xl border border-base-border bg-base-card px-3 pb-2.5 pt-3 shadow-xl shadow-shade/30 transition-colors focus-within:border-accent/50">
             {attachments.length > 0 && (
               <div className="flex flex-wrap items-center gap-1.5 pb-2 pl-0.5">
                 {attachments.map((a, i) => (
@@ -432,6 +675,45 @@ export default function ProjectView() {
               </div>
             )}
 
+            {avisoAdjunto && (
+              <p className="pb-2 pl-1 text-[11px] leading-snug text-red-400/90">
+                {avisoAdjunto}
+              </p>
+            )}
+
+            {modeloCorto && (
+              <button
+                onClick={() => {
+                  setSettingsCat("api");
+                  setView("settings");
+                }}
+                className="mb-1 flex w-full items-start gap-1.5 px-1 text-left text-[11px] leading-snug text-amber-300/90 transition-colors hover:text-amber-200"
+                title={t("Abrir Ajustes → API y modelos")}
+              >
+                <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
+                {/* Una línea, no una caja: el aviso vive dentro del compositor,
+                    que ya tiene su propio borde, y otra pastilla dentro de otra
+                    era ruido. La acción va escrita dentro de la frase. */}
+                <span className="min-w-0 flex-1">
+                  {t("{m} sirve para charlar; para crear o editar archivos hace falta uno de 7B o más.", { m: modeloLocal })}{" "}
+                  <span className="whitespace-nowrap underline decoration-amber-400/40 underline-offset-2">
+                    {t("Cambiar modelo")}
+                  </span>
+                </span>
+              </button>
+            )}
+
+            {/* Con una tarea en curso el compositor no se congela: lo que se
+                escriba se apunta y sale cuando esta termine. */}
+            {busy && (
+              <p className="flex items-center gap-1.5 pb-1.5 pl-1 text-[11px] text-zinc-500">
+                <ListChecks className="h-3 w-3 shrink-0 text-accent-soft" />
+                {cola.length > 0
+                  ? t("En cola: {n} · se lanzan al terminar esta", { n: cola.length })
+                  : t("Escribe otra si quieres: queda en cola hasta que termine esta.")}
+              </p>
+            )}
+
             <textarea
               ref={taskRef}
               id="work-task-input"
@@ -444,7 +726,9 @@ export default function ProjectView() {
                 }
               }}
               rows={Math.min(6, Math.max(1, input.split("\n").length))}
-              placeholder={t("¿Qué quieres hacer en este proyecto?")}
+              placeholder={
+                busy ? t("Añadir a la cola de tareas…") : t("¿Qué quieres hacer en este proyecto?")
+              }
               disabled={toolSupport === false}
               className="max-h-48 w-full resize-none bg-transparent px-1 pb-2 text-sm leading-relaxed outline-none placeholder:text-zinc-600 disabled:cursor-not-allowed"
             />
@@ -455,17 +739,32 @@ export default function ProjectView() {
                 onInsertTemplate={insertTemplate}
                 disabled={busy || toolSupport === false}
               />
-              <ModeToggles disabled={busy} />
+              {/* Sin `disabled`: los dos chips afectan al MENSAJE SIGUIENTE, no al
+                  que está en curso. Apagarlos mientras trabaja los dejaba muertos
+                  justo cuando se decide buscar en la web después de esta tarea. */}
+              <ModeToggles />
               <div className="flex-1 min-w-0" />
               <ProviderModelPicker />
               {busy ? (
-                <button
-                  onClick={() => void cancelTask()}
-                  className="grid place-items-center w-8 h-8 shrink-0 rounded-full bg-accent text-white hover:bg-accent-dim transition-colors"
-                  title={t("Detener la tarea en curso")}
-                >
-                  <Square className="w-3 h-3 fill-current" />
-                </button>
+                <>
+                  <button
+                    onClick={() => void cancelTask()}
+                    className="grid place-items-center w-8 h-8 shrink-0 rounded-full bg-accent text-white hover:bg-accent-dim transition-colors"
+                    title={t("Detener la tarea en curso")}
+                  >
+                    <Square className="w-3 h-3 fill-current" />
+                  </button>
+                  {/* Detener sigue siendo el botón principal mientras trabaja;
+                      encolar es el secundario, y Enter en el campo hace lo mismo. */}
+                  <button
+                    onClick={() => void submit()}
+                    disabled={(!input.trim() && attachments.length === 0) || toolSupport === false}
+                    className="grid place-items-center w-8 h-8 shrink-0 rounded-full border border-base-border text-zinc-400 disabled:opacity-35 disabled:cursor-not-allowed hover:border-accent/50 hover:text-zinc-100 transition-colors"
+                    title={t("Añadir a la cola de tareas")}
+                  >
+                    <ArrowUp className="w-4 h-4" />
+                  </button>
+                </>
               ) : (
                 <button
                   onClick={() => void submit()}
@@ -477,7 +776,27 @@ export default function ProjectView() {
                 </button>
               )}
             </div>
+            </div>
           </div>
+          {/* La rama vive aquí, junto a lo que se va a commitear, no repetida en
+              la cabecera: al estilo de Bionic. */}
+          {git?.isRepo && git.branch && (
+            <div className="mx-auto mt-1.5 flex max-w-3xl justify-end">
+              <button
+                onClick={() => void refreshGit(project.id)}
+                title={t("Rama {r} · {n} archivo(s) con cambios", { r: git.branch, n: git.dirtyCount })}
+                className="flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] text-zinc-600 transition-colors hover:bg-base-hover hover:text-zinc-300"
+              >
+                <GitBranch className="w-3 h-3" />
+                <span className="font-mono">{git.branch}</span>
+                {git.dirtyCount > 0 && (
+                  <span className="text-amber-300/80">
+                    · {t("{n} cambios", { n: git.dirtyCount })}
+                  </span>
+                )}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -496,91 +815,39 @@ export default function ProjectView() {
         />
       )}
       <div
-        className={`shrink-0 overflow-clip bg-base-raised/40 transition-[width] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] ${
+        className={`shrink-0 overflow-clip bg-base-raised transition-[width] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] ${
           tasksOpen ? "border-l border-base-border" : "w-0"
         }`}
         style={{ width: tasksOpen ? tasksPx : 0 }}
       >
         <div className="h-full" style={{ width: tasksPx }}>
-          <TaskList tasks={tasks} stepLines={stepLines} running={busy} />
+          <TaskList
+            tasks={tasks}
+            stepLines={stepLines}
+            running={busy}
+            cola={cola}
+            colaEnPausa={colaEnPausa}
+            onQuitarDeCola={(i) => activeProjectId && quitarDeCola(activeProjectId, i)}
+            onReanudar={() => activeProjectId && reanudarCola(activeProjectId)}
+            onReintentar={(pedido) => void lanzar(pedido)}
+            onCerrar={() => patchSettings({ tasksPanelOpen: false })}
+          />
         </div>
       </div>
-
-      {preview && !focus && (
-        <HtmlPreview
-          projectId={project.id}
-          raiz={project.rootPath}
-          onCerrar={() => setPreview(false)}
+      {!focus && !storedTasksOpen && (
+        <Riel
+          Icono={ListChecks}
+          etiqueta={t("Tareas")}
+          lado="derecha"
+          onAbrir={() => patchSettings({ tasksPanelOpen: true })}
         />
       )}
 
       <ToolApprovalModal />
       <PlanReviewModal />
 
-      {newProjectDraft && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void confirmCreateProject(newName);
-            }}
-            className="w-full max-w-sm rounded-xl border border-base-border bg-base-raised p-5 space-y-4"
-          >
-            <h2 className="text-sm font-semibold">{t("Nombre del proyecto")}</h2>
-            <p className="text-xs text-zinc-500 break-all">en {newProjectDraft.parentPath}</p>
-            <input
-              autoFocus
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="mi-proyecto"
-              className="w-full rounded-lg border border-base-border bg-base px-3 py-2 text-sm outline-none focus:border-accent/70"
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={cancelCreateProject}
-                className="px-3 py-2 rounded-lg border border-base-border text-sm text-zinc-300 hover:border-zinc-500"
-              >
-                {t("Cancelar")}
-              </button>
-              <button
-                type="submit"
-                disabled={!newName.trim()}
-                className="px-3 py-2 rounded-lg bg-accent text-white text-sm disabled:opacity-40 hover:bg-accent-dim"
-              >
-                {t("Crear")}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
       </div>
     </div>
   );
 }
 
-function ActivityLine({ lines }: { lines: StepLine[] }) {
-  if (lines.length === 0) return null;
-  return (
-    <div className="ml-1 space-y-1 border-l-2 border-base-border pl-3">
-      {lines.map((l, i) =>
-        l.reasoning ? (
-          <ThinkingBlock key={i} reasoning={l.reasoning} />
-        ) : l.data ? (
-          <CommandBlock key={i} data={l.data} ok={l.ok} durationMs={l.durationMs} />
-        ) : (
-          <div key={i} className="text-[11px] text-zinc-500 font-mono">
-            <span className={l.ok ? "text-emerald-500/80" : "text-red-400/80"}>
-              {l.ok ? "✓" : "✗"}
-            </span>{" "}
-            {l.toolName}
-            {l.brief && <span className="text-zinc-600"> — {l.brief}</span>}
-            {l.durationMs > 0 && (
-              <span className="text-zinc-700"> · {l.durationMs} ms</span>
-            )}
-          </div>
-        ),
-      )}
-    </div>
-  );
-}

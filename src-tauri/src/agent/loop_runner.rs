@@ -1,3 +1,4 @@
+use crate::agent::bucle::DetectorBucles;
 use crate::agent::tools::{self, RiskLevel, ToolDefinition};
 use crate::db;
 use crate::providers::tool_calling::{AgentMessage, AgentResponse, ToolCallRequest};
@@ -60,10 +61,15 @@ struct StepResultPayload {
     ok: bool,
     brief: String,
     duration_ms: i64,
+    /// Si `write_file` creó el archivo en vez de modificarlo: la traza lo dice
+    /// («1 archivo creado · 1 modificado») en lugar del ambiguo «Escribió 2».
+    creado: bool,
     /// Salida estructurada, solo para las herramientas que se muestran como
     /// bloque propio (`run_command`). Va ya redactada: es el mismo texto que se
     /// guardó y que recibió el modelo.
     data: Option<Value>,
+    /// El diff que aplicó `write_file`, para poder verlo bajo el paso.
+    diff: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -105,10 +111,28 @@ fn reasoning_resumen(blocks: &[Value]) -> String {
     texto.trim().chars().take(600).collect()
 }
 
+/// El razonamiento del turno también se guarda como fila en `tool_calls` con
+/// `tool_name = razonamiento`: es la misma pseudo-línea que monta el frontend
+/// mientras se trabaja, y así la traza reconstruida al reabrir la sesión no
+/// pierde el «Pensó…».
 fn emit_reasoning(app: &tauri::AppHandle, conversation_id: &str, blocks: &[Value]) {
     let text = reasoning_resumen(blocks);
     if text.is_empty() {
         return;
+    }
+    let state = app.state::<AppState>();
+    if let Ok(conn) = state.db.lock() {
+        let _ = db::insert_tool_call(
+            &conn,
+            &uuid::Uuid::new_v4().to_string(),
+            conversation_id,
+            "razonamiento",
+            "{}",
+            None,
+            "completed",
+            0,
+            Some(&text),
+        );
     }
     let _ = app.emit(
         "agent:reasoning",
@@ -181,7 +205,7 @@ fn meta_tool_definitions() -> Vec<ToolDefinition> {
 /// Cruce entre el nivel de aprobación elegido por el usuario y el riesgo de la tool.
 /// `auto_sandbox` y `full_access` nunca piden aprobación: hoy todas las tools ya
 /// operan dentro del sandbox del proyecto (Acceso total no lo relaja).
-fn needs_approval(approval_level: &str, risk: RiskLevel) -> bool {
+pub(crate) fn needs_approval(approval_level: &str, risk: RiskLevel) -> bool {
     match approval_level {
         "ask_always" => true,
         "auto_sandbox" | "full_access" => false,
@@ -192,7 +216,9 @@ fn needs_approval(approval_level: &str, risk: RiskLevel) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{needs_approval, system_prompt, RiskLevel};
+    use super::{
+        es_saludo, es_tool_de_plan, needs_approval, respuesta_de_saludo, system_prompt, RiskLevel,
+    };
 
     #[test]
     fn approval_levels_cross_with_risk() {
@@ -222,19 +248,23 @@ mod tests {
             "· Explica qué hace cada paso antes de hacerlo.\n",
             false,
             "",
+            "",
+            0,
         );
         assert!(con.contains("Explica qué hace cada paso"));
         assert!(con.contains("SIN relajar ninguna regla anterior"));
-        assert!(con.contains("que lo llames «Bicho»"));
+        assert!(con.contains("El usuario se llama «Bicho»"));
+        // El nombre del usuario no puede confundirse con el del agente.
+        assert!(con.contains("siendo Hatboo"));
         // La regla 4 del sandbox sigue ahí igualmente.
         assert!(con.contains("nunca intentes salir de ella"));
 
-        let sin = system_prompt(&raiz, "approve_for_me", "", "", false, "");
+        let sin = system_prompt(&raiz, "approve_for_me", "", "", false, "", "", 0);
         assert!(!sin.contains("SIN relajar"));
-        assert!(!sin.contains("que lo llames"));
+        assert!(!sin.contains("El usuario se llama"));
         // El chip de código también llega al agente.
         assert!(!sin.contains("Modo código activo"));
-        let con_codigo = system_prompt(&raiz, "approve_for_me", "", "", true, "");
+        let con_codigo = system_prompt(&raiz, "approve_for_me", "", "", true, "", "", 0);
         assert!(con_codigo.contains("Modo código activo"));
         assert!(con_codigo.contains("nunca intentes salir de ella"));
     }
@@ -242,7 +272,7 @@ mod tests {
     #[test]
     fn las_reglas_del_proyecto_tampoco_relajan_el_sandbox() {
         let raiz = std::path::Path::new(".").canonicalize().unwrap();
-        let sin = system_prompt(&raiz, "approve_for_me", "", "", false, "");
+        let sin = system_prompt(&raiz, "approve_for_me", "", "", false, "", "", 0);
         let con = system_prompt(
             &raiz,
             "approve_for_me",
@@ -250,23 +280,62 @@ mod tests {
             "",
             false,
             "Usa pnpm y no toques el lockfile.",
+            "",
+            0,
         );
         assert!(con.contains("Reglas de este proyecto"));
         assert!(con.contains("Usa pnpm y no toques el lockfile"));
         assert!(con.contains("sin relajar ninguna regla anterior"));
         assert!(con.contains("nunca intentes salir de ella"));
         // Sin archivo (o con espacios) el prompt tiene que quedar igual byte a byte.
-        assert_eq!(system_prompt(&raiz, "approve_for_me", "", "", false, "   "), sin);
+        assert_eq!(
+            system_prompt(&raiz, "approve_for_me", "", "", false, "   ", "", 0),
+            sin
+        );
+    }
+
+    #[test]
+    fn planificar_no_es_haber_tocado_nada() {
+        assert!(es_tool_de_plan("submit_plan"));
+        assert!(es_tool_de_plan("update_step"));
+        assert!(!es_tool_de_plan("list_dir"));
+        assert!(!es_tool_de_plan("write_file"));
+    }
+
+    #[test]
+    fn un_saludo_no_enciende_al_agente() {
+        assert!(es_saludo("hola"));
+        assert!(es_saludo("¡Hola!"));
+        assert!(es_saludo("hola hola hola"));
+        assert!(es_saludo("buenas tardes"));
+        assert!(es_saludo("¿qué tal?"));
+        assert!(es_saludo("prueba"));
+        // Un saludo con encargo detrás sí es tarea.
+        assert!(!es_saludo("hola, crea hola.txt con la palabra hola"));
+        assert!(!es_saludo("hola y dime el estado de git"));
+        assert!(!es_saludo("lee a.txt"));
+        assert!(!es_saludo(""));
+    }
+
+    #[test]
+    fn el_saludo_responde_con_lo_que_hay_en_el_disco() {
+        let raiz = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let respuesta = respuesta_de_saludo(raiz);
+        assert!(respuesta.starts_with("Estoy en «src-tauri»"), "{respuesta}");
+        assert!(respuesta.contains("Cargo.toml"));
+        assert!(!respuesta.contains("plan"));
     }
 }
 
-fn system_prompt(
+pub(crate) fn system_prompt(
     project_root: &Path,
     approval_level: &str,
     assistant_name: &str,
     skills: &str,
     code_mode: bool,
     rules: &str,
+    memoria: &str,
+    tz_offset_min: i32,
 ) -> String {
     let listing = list_dir_brief(project_root);
     let approval_rule = match approval_level {
@@ -275,11 +344,15 @@ fn system_prompt(
         "full_access" => "Ejecutas todas las herramientas sin pedir aprobación (dentro del proyecto).".to_string(),
         _ => "write_file, run_command y git_commit pedirán aprobación al usuario; las demás corren solas.".to_string(),
     };
+    // El nombre del usuario va dicho al lado del del agente: «prefiere que lo
+    // llames X» suelto lo leía un modelo pequeño como «yo soy X» y se presentaba
+    // con el nombre de él.
     let name_rule = if assistant_name.trim().is_empty() {
         String::new()
     } else {
         format!(
-            "8. El usuario prefiere que lo llames «{}».\n",
+            "10. El usuario se llama «{}» y quiere que lo trates por ese nombre. Tú sigues \
+             siendo Hatboo: ese nombre es el suyo, no el tuyo, y no te presentas con él.\n",
             assistant_name.trim()
         )
     };
@@ -313,26 +386,46 @@ fn system_prompt(
             rules.trim()
         )
     };
+    // Las notas de memoria son contexto sobre el usuario, no una orden más: van
+    // con su propio aviso para que ninguna pueda colarse encima del sandbox.
+    let memoria_rule = if memoria.trim().is_empty() {
+        String::new()
+    } else {
+        format!("\n{}\n", memoria.trim())
+    };
+    let hoy = crate::behavior::hoy(tz_offset_min);
     format!(
         "Eres Hatboo, un agente de trabajo que opera DENTRO del proyecto del usuario.\n\
-         Raíz del proyecto: {}\n\n\
+         Raíz del proyecto: {}\n\
+         Hoy es {}.\n\n\
          Estructura inicial:\n{}\n\n\
+         {}\n\n\
+         {}\n\n\
          Reglas obligatorias:\n\
          1. Primero llama a submit_plan con los pasos necesarios (máximo 6, concretos).\n\
          2. Antes de trabajar en un paso márcalo con update_step a in_progress; al acabarlo, a done.\n\
          3. {}\n\
-         4. Todas las rutas son relativas a la raíz del proyecto; nunca intentes salir de ella.\n\
+         4. Todas las rutas son relativas a la raíz del proyecto; nunca intentes salir de ella, ni con «..», ni con una ruta absoluta, ni por un comando.\n\
          5. Si el proyecto es un repositorio git, revisa git_status antes de proponer un commit, y nunca propongas git_commit sin que el usuario lo pida explícitamente.\n\
          6. Cuando hayas terminado todos los pasos, responde SOLO con un resumen final en español, sin tool calls.\n\
          7. Responde siempre en español al usuario.\n\
-         {}{}{}{}",
+         8. Si lo pedido se consigue tocando archivos (crear, editar, borrar, mover), consíguelo LLAMANDO a la tool. Nunca escribas en el chat el contenido «del archivo» como si ya existiera: sin write_file el archivo no existe.\n\
+         9. Nada de roleplay ni saludos: no inventes correos, cartas ni escenas, y no inventes \
+             integraciones, repositorios GitLab/Bitbucket ni archivos de configuración que el \
+             usuario no haya pedido. Si algo está fuera de lo que puedes hacer, di exactamente \
+             qué falló y para ahí.\n\
+         {}{}{}{}{}",
         project_root.display(),
+        hoy,
         listing,
+        crate::behavior::CONDUCTA,
+        crate::behavior::CONDUCTA_TRABAJO,
         approval_rule,
         name_rule,
         rules_rule,
         code_rule,
-        skills_rule
+        skills_rule,
+        memoria_rule
     )
 }
 
@@ -359,6 +452,81 @@ fn list_dir_brief(root: &Path) -> String {
         out = "(vacío)".to_string();
     }
     out
+}
+
+/// Las dos herramientas del plan no miran ni mueven el proyecto. Sirven para
+/// saber si el modelo hizo algo de verdad o solo se organizó por dentro.
+fn es_tool_de_plan(nombre: &str) -> bool {
+    matches!(nombre, "submit_plan" | "update_step")
+}
+
+/// Un saludo no es una tarea. Palabras sueltas de saludo, tres como mucho y sin
+/// ruta ni nombre de archivo: «hola», «buenas tardes», «¿qué tal?». «hola, crea
+/// a.txt» ya no lo es.
+pub(crate) fn es_saludo(texto: &str) -> bool {
+    const SALUDOS: &[&str] = &[
+        "hola", "holi", "ola", "hey", "ey", "hi", "hello", "buenas", "buenos", "dias",
+        "tardes", "noches", "saludos", "que", "cual", "tal", "como", "andas", "estas",
+        "vas", "jaja", "je", "test", "prueba",
+    ];
+    if texto.split_whitespace().count() > 3 {
+        return false;
+    }
+    // Una ruta o un nombre de archivo delatan que hay encargo, aunque sea corto.
+    if texto.contains(['.', '/', '\\']) {
+        return false;
+    }
+    let normalizado: String = texto
+        .chars()
+        .map(|c| match c {
+            'á' | 'à' => 'a',
+            'é' | 'è' => 'e',
+            'í' | 'ì' => 'i',
+            'ó' | 'ò' => 'o',
+            'ú' | 'ù' => 'u',
+            'ü' => 'u',
+            other => other,
+        })
+        .flat_map(|c| c.to_lowercase())
+        .filter(|c| c.is_ascii_alphanumeric() || c.is_whitespace())
+        .collect();
+    let palabras: Vec<&str> = normalizado.split_whitespace().collect();
+    !palabras.is_empty() && palabras.iter().all(|p| SALUDOS.contains(p))
+}
+
+/// La respuesta al saludo la escribe el programa, no el modelo: la lista sale del
+/// disco, así que no hay nada que fingir.
+fn respuesta_de_saludo(raiz: &Path) -> String {
+    let nombre = raiz
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| raiz.display().to_string());
+    let entradas: Vec<String> = list_dir_brief(raiz)
+        .lines()
+        .map(|s| s.to_string())
+        .collect();
+    if entradas.first().map(|e| e == "(vacío)").unwrap_or(true) {
+        return format!(
+            "Estoy en «{nombre}» y está vacía. Dime qué archivo creo o desde dónde bajo algo."
+        );
+    }
+    let primeras = entradas.iter().take(6).cloned().collect::<Vec<_>>();
+    let resto = entradas.len() - primeras.len();
+    let cola = if resto > 0 {
+        format!(" y {resto} más")
+    } else {
+        String::new()
+    };
+    let recuento = if entradas.len() == 1 {
+        "1 entrada".to_string()
+    } else {
+        format!("{} entradas", entradas.len())
+    };
+    format!(
+        "Estoy en «{nombre}». Dentro hay {recuento}: {primeros}{cola}.\n\
+         Nada ejecutado todavía: dime qué quieres que cambie.",
+        primeros = primeras.join(", "),
+    )
 }
 
 fn truncate_for_model(s: String) -> String {
@@ -411,7 +579,7 @@ pub async fn run_work_task(
                         let ids = db::pending_tool_call_ids(&conn, &conversation_id)
                             .unwrap_or_default();
                         for id in &ids {
-                            let _ = db::update_tool_call(&conn, id, "rejected", None);
+                            let _ = db::update_tool_call(&conn, id, "rejected", None, None, None);
                         }
                         ids
                     }
@@ -455,21 +623,35 @@ async fn run_loop(
     assistant_name: &str,
     user_request: &str,
 ) -> Result<(), String> {
+    // El saludo no llega al modelo: con uno pequeño acababa en un plan de seis
+    // pasos inventado. Se contesta con lo que hay en el disco y se cierra el turno.
+    if es_saludo(user_request) {
+        finish_done(app, conversation_id, &respuesta_de_saludo(project_root)).await?;
+        return Ok(());
+    }
     let state = app.state::<AppState>();
     let settings = state::load_settings(&state);
     let provider = state::build_tool_provider(&state)?;
-    let agent_tools =
-        tools::build_tools(settings.run_command_enabled, settings.web_search);
+    let agent_tools = tools::build_tools(&settings);
     let skills_prompt = state
         .db
         .lock()
         .ok()
         .and_then(|conn| db::enabled_skills_prompt(&conn).ok())
         .unwrap_or_default();
+    let memoria_prompt = state
+        .db
+        .lock()
+        .ok()
+        .and_then(|conn| db::memoria_prompt(&conn).ok())
+        .unwrap_or_default();
     // Tapar solo tiene sentido cuando lo leído va a salir de la máquina: con el
     // proveedor local el contenido viaja a tu propio Ollama.
     let redactar = settings.redact_secrets
-        && matches!(settings.active_provider.as_str(), "anthropic" | "openai");
+        && matches!(
+            settings.active_provider.as_str(),
+            "anthropic" | "openai" | "openrouter" | "gemini" | "hf"
+        );
     let mut definitions = meta_tool_definitions();
     definitions.extend(agent_tools.iter().map(|t| t.definition()));
 
@@ -483,6 +665,8 @@ async fn run_loop(
                 &skills_prompt,
                 settings.code_mode,
                 &crate::commands::project_rules_for_prompt(project_root),
+                &memoria_prompt,
+                settings.tz_offset_min,
             ),
             ..Default::default()
         },
@@ -492,6 +676,17 @@ async fn run_loop(
             ..Default::default()
         },
     ];
+
+    // Un modelo pequeño contesta con prosa en vez de llamar a la tool y «escribe»
+    // el archivo en el chat. Se le avisa una vez; si repite, la tarea falla a la
+    // vista: mejor un error en pantalla que trabajo fingido.
+    //
+    // `submit_plan` y `update_step` no cuentan como trabajo: mueven filas del plan,
+    // no el proyecto. Sin esta distinción, un 0.8B planeaba seis pasos gratis,
+    // escribía el resumen soñado debajo y pasaba por un agente correcto.
+    let mut toco_el_proyecto = false;
+    let mut avisado = false;
+    let mut bucles = DetectorBucles::new();
 
     for iteration in 0..MAX_ITERATIONS {
         let response = provider
@@ -504,6 +699,32 @@ async fn run_loop(
                 if text.trim().is_empty() {
                     return Err("El modelo devolvió una respuesta vacía.".into());
                 }
+                if !toco_el_proyecto {
+                    if avisado {
+                        return Err("El modelo no tocó el proyecto: ni leyó ni escribió \
+                                    un solo archivo. Para el modo trabajo hace falta uno \
+                                    que sepa llamar tools (7B o más, o un proveedor de API)."
+                            .into());
+                    }
+                    avisado = true;
+                    messages.push(AgentMessage {
+                        role: "assistant".into(),
+                        content: text,
+                        ..Default::default()
+                    });
+                    messages.push(AgentMessage {
+                        role: "user".into(),
+                        content: "No llamaste a ninguna herramienta que toque el \
+                                  proyecto; submit_plan y update_step no valen aquí. \
+                                  Si hay que trabajar, llama a list_dir, read_file o \
+                                  write_file ahora; si no puedes, di exactamente qué \
+                                  falla. No describas el resultado como si ya hubiera \
+                                  ocurrido."
+                            .into(),
+                        ..Default::default()
+                    });
+                    continue;
+                }
                 finish_done(app, conversation_id, &text).await?;
                 return Ok(());
             }
@@ -512,6 +733,9 @@ async fn run_loop(
                 calls,
                 thinking,
             } => {
+                if calls.iter().any(|c| !es_tool_de_plan(&c.name)) {
+                    toco_el_proyecto = true;
+                }
                 if iteration == MAX_ITERATIONS - 1 {
                     return Err("El agente alcanzó el máximo de iteraciones sin terminar.".into());
                 }
@@ -529,6 +753,13 @@ async fn run_loop(
                 });
 
                 for call in calls {
+                    // Antes de ejecutarla, no después: si es la tercera vez que
+                    // pide lo mismo, esa tercera vez no debe tocar el disco ni
+                    // gastar otro comando. El `Err` sale por el camino normal del
+                    // error, así que el mensaje se lee en el hilo y en el aviso.
+                    if let Some(bucle) = bucles.registrar(&call.name, &call.input) {
+                        return Err(bucle.mensaje());
+                    }
                     let (output_json, ok) = if call.name == "submit_plan" {
                         handle_submit_plan(app, conversation_id, &call).await?
                     } else if call.name == "update_step" {
@@ -663,7 +894,9 @@ async fn handle_update_step(
             ok: true,
             brief: format!("Paso {step_order} → {status}"),
             duration_ms: 0,
+            creado: false,
             data: None,
+            diff: None,
         },
     );
     Ok((json!({ "ok": true }).to_string(), true))
@@ -706,6 +939,8 @@ async fn handle_agent_tool(
                 &input_str,
                 None,
                 "pending_approval",
+                0,
+                None,
             )?;
         }
         let (tx, rx) = tokio::sync::oneshot::channel::<bool>();
@@ -735,9 +970,16 @@ async fn handle_agent_tool(
         {
             let conn = state.db.lock().map_err(|e| e.to_string())?;
             if !approved {
-                db::update_tool_call(&conn, &tool_call_id, "rejected", None)?;
+                db::update_tool_call(
+                    &conn,
+                    &tool_call_id,
+                    "rejected",
+                    None,
+                    Some(0),
+                    Some("Rechazada por el usuario"),
+                )?;
             } else {
-                db::update_tool_call(&conn, &tool_call_id, "approved", None)?;
+                db::update_tool_call(&conn, &tool_call_id, "approved", None, None, None)?;
             }
         }
         if !approved {
@@ -748,6 +990,8 @@ async fn handle_agent_tool(
                 false,
                 "Rechazada por el usuario",
                 0,
+                false,
+                None,
                 None,
             )
             .await;
@@ -759,6 +1003,19 @@ async fn handle_agent_tool(
                 ),
             );
         }
+    }
+
+    // Antes de que `write_file` pise el archivo se guarda lo que había dentro.
+    // El diff enseña qué cambió, pero solo el original permite «deshacer sesión».
+    if call.name == "write_file" {
+        respalda_antes_de_pisar(
+            &state,
+            conversation_id,
+            project_root,
+            &call.input,
+            &tool_call_id,
+        )
+        .await;
     }
 
     let inicio = std::time::Instant::now();
@@ -791,7 +1048,14 @@ async fn handle_agent_tool(
         let conn = state.db.lock().map_err(|e| e.to_string())?;
         let status = if ok { "completed" } else { "failed" };
         if has_approval_row {
-            db::update_tool_call(&conn, &tool_call_id, status, Some(&output_json))?;
+            db::update_tool_call(
+                &conn,
+                &tool_call_id,
+                status,
+                Some(&output_json),
+                Some(duracion_ms),
+                Some(&brief),
+            )?;
         } else {
             // Registro de auditoría para tools que no requieren aprobación.
             db::insert_tool_call(
@@ -802,18 +1066,84 @@ async fn handle_agent_tool(
                 &input_str,
                 Some(&output_json),
                 status,
+                duracion_ms,
+                Some(&brief),
             )?;
         }
     }
     // El bloque del comando se pinta con lo que realmente se guardó y se envió
     // (ya redactado), no con el valor previo a tapar.
-    let datos = if call.name == "run_command" {
+    let salida = if matches!(call.name.as_str(), "run_command" | "write_file") {
         serde_json::from_str::<Value>(&output_json).ok()
     } else {
         None
     };
-    emit_step_result(app, conversation_id, &call.name, ok, &brief, duracion_ms, datos).await;
+    // `write_file` dice en su propia salida si el archivo no existía antes.
+    let creado = salida
+        .as_ref()
+        .and_then(|v| v.get("created").and_then(Value::as_bool))
+        .unwrap_or(false);
+    let diff = salida
+        .as_ref()
+        .and_then(|v| v.get("diff").and_then(Value::as_str))
+        .map(str::to_string);
+    let datos = if call.name == "run_command" { salida } else { None };
+    emit_step_result(
+        app,
+        conversation_id,
+        &call.name,
+        ok,
+        &brief,
+        duracion_ms,
+        creado,
+        datos,
+        diff,
+    )
+    .await;
     Ok((output_json, ok))
+}
+
+/// La carpeta donde una sesión guarda lo que pisó. La usan las dos mitades del
+/// deshacer: la que respalda al escribir y la que devuelve al deshacer.
+pub(crate) fn respaldos_de(data_dir: &Path, conversation_id: &str) -> PathBuf {
+    data_dir.join("respaldos").join(conversation_id)
+}
+
+/// El respaldo de una `write_file` concreta.
+pub(crate) fn respaldo_de(carpeta: &Path, tool_call_id: &str) -> PathBuf {
+    carpeta.join(format!("{tool_call_id}.bin"))
+}
+
+/// Copia el contenido actual del archivo a la carpeta de la sesión antes de que
+/// `write_file` lo pise. Si el archivo no existía no hay nada que guardar
+/// (deshacer será borrarlo), y si pesa demasiado tampoco: respaldar 200 MB para
+/// poder devolverlos no es un trato justo.
+async fn respalda_antes_de_pisar(
+    state: &AppState,
+    conversation_id: &str,
+    project_root: &Path,
+    input: &Value,
+    tool_call_id: &str,
+) {
+    const MAXIMO: u64 = 2_000_000;
+    let Some(rel) = input["path"].as_str() else { return };
+    let Ok(ruta) = tools::resolve_in_project(project_root, rel) else {
+        return;
+    };
+    let Ok(meta) = tokio::fs::metadata(&ruta).await else {
+        return;
+    };
+    if meta.len() > MAXIMO {
+        return;
+    }
+    let Ok(contenido) = tokio::fs::read(&ruta).await else {
+        return;
+    };
+    let carpeta = respaldos_de(&state.data_dir, conversation_id);
+    if tokio::fs::create_dir_all(&carpeta).await.is_err() {
+        return;
+    }
+    let _ = tokio::fs::write(respaldo_de(&carpeta, tool_call_id), contenido).await;
 }
 
 async fn emit_step_result(
@@ -823,7 +1153,9 @@ async fn emit_step_result(
     ok: bool,
     brief: &str,
     duration_ms: i64,
+    creado: bool,
     data: Option<Value>,
+    diff: Option<String>,
 ) {
     let state = app.state::<AppState>();
     let tasks = state
@@ -841,7 +1173,9 @@ async fn emit_step_result(
             ok,
             brief: brief.to_string(),
             duration_ms,
+            creado,
             data,
+            diff,
         },
     );
 }

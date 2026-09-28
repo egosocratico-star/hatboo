@@ -3,7 +3,16 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const dirs = ["src", "src/components", "src/components/work", "src/components/mascot"];
+const dirs = [
+  "src",
+  "src/components",
+  "src/components/work",
+  "src/components/mascot",
+  // Las tiendas también llaman a `t()`: si no se escanean, sus cadenas se
+  // traducen por accidente o se quedan en español sin que nadie lo vea.
+  "src/store",
+  "src/hooks",
+];
 const files = [
   ...new Set(
     dirs.flatMap((d) =>
@@ -25,7 +34,7 @@ for (const f of files) {
 // Las etiquetas de las listas de opciones (`{ id, label }` en types.ts y en las
 // categorías de Ajustes) se pintan con `t(opción.label)`: al ser una variable no
 // la ve el patrón de arriba, así que se cuentan por su cuenta.
-const ETIQUETAS = /(?:label|help|short):\s*"((?:[^"\\]|\\.)*)"/g;
+const ETIQUETAS = /(?:label|help|short|texto|desc|subtitle|title):\s*"((?:[^"\\]|\\.)*)"/g;
 for (const f of ["src/types.ts", "src/components/Settings.tsx"]) {
   for (const m of readFileSync(join(process.cwd(), f), "utf8").matchAll(ETIQUETAS)) {
     usadas.add(JSON.parse(`"${m[1]}"`));
