@@ -65,6 +65,52 @@ export const en: Record<string, string> = {
   "{n} líneas · v{v} · {cuando}": "{n} lines · v{v} · {cuando}",
   "Abrir en el panel de la derecha": "Open in the right-hand panel",
   Abrir: "Open",
+  // ---- Diffs inline (Fase 5). ----
+  "{n} de {total} líneas": "{n} of {total} lines",
+  "Ver las {n} líneas": "Show all {n} lines",
+  "Solo lo esencial": "Just the essentials",
+  "No hay líneas añadidas ni quitadas en este diff.":
+    "This diff adds and removes no lines.",
+  "Verlo entero": "See it whole",
+  "Ver el diff": "See the diff",
+  "Ver el archivo completo": "See the whole file",
+  "Ver solo los cambios": "See only the changes",
+  "Se aplica dentro de la carpeta del proyecto y nada más.":
+    "It gets applied inside the project folder and nowhere else.",
+  // ---- Patrones de la app de referencia (28-09). ----
+  Artefactos: "Artifacts",
+  "Tus estadísticas": "Your statistics",
+  "Todo lo que sale aquí se calcula sobre tu propio historial en este PC. No se envía nada a nadie.":
+    "Everything here is computed from your own history on this PC. Nothing is sent anywhere.",
+  "Contando…": "Counting…",
+  "Todavía no hay chats ni mensajes guardados en este PC.":
+    "There are no chats or messages saved on this PC yet.",
+  Chats: "Chats",
+  "Tokens, estimado": "Tokens, estimated",
+  "Estimación: caracteres de lo escrito entre cuatro.":
+    "Estimate: characters of what was written, divided by four.",
+  "Día más activo": "Busiest day",
+  "{n} mensajes ese día": "{n} messages that day",
+  "Chat más largo": "Longest chat",
+  "Racha actual": "Current streak",
+  "La más larga: {d}": "Longest: {d}",
+  "{n} días": "{n} days",
+  "Los tokens van estimados: el proveedor no devuelve cuántos gastó cada respuesta, así que se cuentan los caracteres del historial y se divide entre cuatro. Los días seguidos cuentan desde hoy hacia atrás, y un día sin mensajes la corta.":
+    "Tokens are estimated: the provider doesn't return what each response spent, so the history's characters are counted and divided by four. Streaks count back from today, and a day without messages breaks it.",
+  "Aún no has vinculado fuentes a este proyecto":
+    "You haven't linked any sources to this project yet",
+  "{n} fuentes de lectura en este proyecto": "{n} reading sources in this project",
+  "Fuentes de este proyecto": "This project's sources",
+  "El agente las lee con read_source y list_source, y nunca escribe ahí: la carpeta donde trabaja sigue siendo la del proyecto.":
+    "The agent reads them with read_source and list_source and never writes there: the folder it works in is still the project's.",
+  "Dale contexto a este proyecto": "Give this project context",
+  "Vincula una carpeta de apuntes o un archivo de texto: todos los chats de esta carpeta podrán consultarlo.":
+    "Link a notes folder or a text file: every chat in this folder can consult it.",
+  carpeta: "folder",
+  archivo: "file",
+  "Quitar la fuente (no borra nada del disco)": "Remove the source (deletes nothing from disk)",
+  "Vincular carpeta": "Link folder",
+  "Añadir archivos de texto": "Add text files",
   "solo texto": "text only",
   "Arrastra para cambiar el ancho · doble clic para dejar el de fábrica":
     "Drag to resize · double-click to reset",
@@ -149,7 +195,6 @@ export const en: Record<string, string> = {
   "Desplegar la barra lateral (Ctrl+B)": "Expand the sidebar (Ctrl+B)",
   "Detener la tarea en curso": "Stop the running task",
   "Detener respuesta": "Stop answer",
-  "Diff del cambio": "Change diff",
   "Editar mensaje": "Edit message",
   "Editar plantilla": "Edit template",
   "Ejemplo: así se vería una respuesta de Hatboo.": "Example: this is what a Hatboo answer would look like.",
@@ -632,7 +677,6 @@ export const en: Record<string, string> = {
   "Creó {n} archivos": "Created {n} files",
   "Salió bien": "Went fine",
   "Falló": "Failed",
-  "60 de {n} líneas": "60 of {n} lines",
   "{n} lectura": "{n} read",
   "{n} lecturas": "{n} reads",
   "{n} comando": "{n} command",

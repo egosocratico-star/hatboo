@@ -7,6 +7,7 @@ import { open as pickFile, save as pickSavePath } from "@tauri-apps/plugin-dialo
 import Insignia from "./Insignia";
 import Select from "./Select";
 import Bloque, { BotonSeccion } from "./Bloque";
+import PerfilEstadisticas from "./PerfilEstadisticas";
 import { CAMPO } from "./modalUi";
 import { gigabytes } from "../unidades";
 import {
@@ -1891,6 +1892,8 @@ export default function Settings() {
                   </label>
                 )}
               </Bloque>
+
+              <PerfilEstadisticas />
             </>
           )}
 

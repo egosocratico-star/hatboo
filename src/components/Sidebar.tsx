@@ -19,6 +19,7 @@ import {
   Plus,
   Bell,
   FolderOpen,
+  FileCode2,
 } from "lucide-react";
 import { useChatStore } from "../store/chatStore";
 import { useWorkStore } from "../store/workStore";
@@ -449,6 +450,9 @@ export default function Sidebar() {
   const removeConversation = useChatStore((s) => s.removeConversation);
   const renameConversation = useChatStore((s) => s.renameConversation);
   const setView = useChatStore((s) => s.setView);
+  const artefactos = useChatStore((s) => s.artefactos);
+  const artefactoAbierto = useChatStore((s) => s.artefactoAbierto);
+  const verArtefacto = useChatStore((s) => s.verArtefacto);
   const settings = useChatStore((s) => s.settings);
   const assistantName = settings?.assistantName?.trim() || "Hatboo";
 
@@ -1071,6 +1075,38 @@ export default function Sidebar() {
               ))}
             </Fragment>
           ))}
+        {/* Los artifactos de la conversación abierta. Solo sale la sección si hay
+            alguno: un rótulo vacío encima del pie no tiene nada que decir. */}
+        {view === "chat" && artefactos.length > 0 && (
+          <div>
+            <Grupo titulo={t("Artefactos")} />
+            {artefactos.map((a) => (
+              <button
+                key={a.id}
+                onClick={() => {
+                  setView("chat");
+                  verArtefacto(a.id);
+                }}
+                title={`${a.titulo} · ${a.lenguaje} · v${a.version}`}
+                className={`mb-0.5 flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-[11px] transition-colors ${
+                  artefactoAbierto?.id === a.id
+                    ? "bg-accent/[0.14] text-zinc-100"
+                    : "text-zinc-400 hover:bg-base-hover hover:text-zinc-200"
+                }`}
+              >
+                <FileCode2
+                  className={`h-3.5 w-3.5 shrink-0 ${
+                    artefactoAbierto?.id === a.id ? "text-accent-soft" : "opacity-60"
+                  }`}
+                />
+                <span className="min-w-0 flex-1 truncate">{a.titulo}</span>
+                <span className="shrink-0 font-mono text-[10px] text-zinc-600">
+                  v{a.version}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
         {/* Pie de la lista. Con una sola carpeta abierta todo esto caía al
             fondo del todo y dejaba un hueco enorme encima; `mt-auto` lo pega
             abajo cuando sobra sitio y lo deja colar cuando la lista crece. */}

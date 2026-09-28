@@ -36,11 +36,12 @@ import AgentTrace from "./AgentTrace";
 import FileCards from "./FileCards";
 import ResizeHandle from "./ResizeHandle";
 import TaskList from "./TaskList";
-import ToolApprovalModal from "./ToolApprovalModal";
+import ApprovalInline from "./ApprovalInline";
 import PlanReviewModal from "./PlanReviewModal";
 import ApprovalLevelPicker from "./ApprovalLevelPicker";
 import ProjectRules from "./ProjectRules";
 import SessionChanges from "./SessionChanges";
+import ProjectSources from "./ProjectSources";
 import { ProyectoSwitcher, SesionSwitcher } from "./Switchers";
 import LayerChips from "./LayerChips";
 import WorkPlusMenu from "./WorkPlusMenu";
@@ -486,7 +487,12 @@ export default function ProjectView() {
               <FolderOpen className="h-3.5 w-3.5" />
             </button>
             <ProjectRules projectId={project.id} />
-            <SessionChanges conversationId={tab?.sessionId ?? null} recargarCon={stepLines.length} />
+            <ProjectSources projectId={project.id} />
+            <SessionChanges
+              conversationId={tab?.sessionId ?? null}
+              projectId={project.id}
+              recargarCon={stepLines.length}
+            />
             <ApprovalLevelPicker projectId={project.id} />
             <span aria-hidden className="mx-1 h-4 w-px shrink-0 bg-base-border" />
             {/* Los tres juntos: son «qué se ve», no acciones sobre el proyecto. */}
@@ -606,6 +612,9 @@ export default function ProjectView() {
               {stepLines.length > 0 && agentStatus !== "idle" && (
                 <AgentTrace lines={stepLines} running={agentStatus === "running"} />
               )}
+              {/* La aprobación espera aquí, debajo del paso que la pide: antes era
+                  un modal centrado que tapaba justo el archivo del que habla. */}
+              <ApprovalInline />
               {agentStatus === "running" && (
                 <div className="flex justify-start">
                   <div className="flex items-center gap-2 rounded-2xl rounded-bl-md border border-base-border bg-base-raised px-4 py-2.5 text-sm text-zinc-400">
@@ -843,7 +852,6 @@ export default function ProjectView() {
         />
       )}
 
-      <ToolApprovalModal />
       <PlanReviewModal />
 
       </div>

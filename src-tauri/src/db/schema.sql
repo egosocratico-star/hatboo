@@ -44,6 +44,20 @@ CREATE TABLE IF NOT EXISTS artifacts (
 
 CREATE INDEX IF NOT EXISTS idx_artifacts_conversation ON artifacts (conversation_id);
 
+-- Contexto adicional de un proyecto: carpetas y archivos que el agente PUEDE
+-- LEER pero donde nunca escribe. La ruta se guarda absoluta y canónica; el acceso
+-- se valida contra esta lista, no ampliando la raíz del sandbox de escritura.
+CREATE TABLE IF NOT EXISTS sources (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    ruta TEXT NOT NULL,
+    tipo TEXT NOT NULL,
+    creado_en INTEGER NOT NULL,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_sources_project ON sources (project_id);
+
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL

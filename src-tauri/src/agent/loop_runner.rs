@@ -217,7 +217,8 @@ pub(crate) fn needs_approval(approval_level: &str, risk: RiskLevel) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        es_saludo, es_tool_de_plan, needs_approval, respuesta_de_saludo, system_prompt, RiskLevel,
+        es_saludo, es_tool_de_plan, fuentes_block, needs_approval, respuesta_de_saludo,
+        system_prompt, RiskLevel,
     };
 
     #[test]
@@ -292,6 +293,25 @@ mod tests {
             system_prompt(&raiz, "approve_for_me", "", "", false, "   ", "", 0),
             sin
         );
+    }
+
+    #[test]
+    fn las_fuentes_se_nombran_en_el_prompt_y_siguen_sin_escribir() {
+        assert_eq!(fuentes_block(&[]), "");
+        let una = crate::db::Fuente {
+            id: "f1".into(),
+            project_id: "p1".into(),
+            ruta: "C:\\Users\\User\\Documentos\\notas".into(),
+            tipo: "carpeta".into(),
+            creado_en: 0,
+        };
+        let bloque = fuentes_block(&[una]);
+        assert!(bloque.contains("1. C:\\Users\\User\\Documentos\\notas — carpeta"));
+        assert!(bloque.contains("read_source"));
+        assert!(bloque.contains("list_source"));
+        // Lo que no puede faltar: que la puerta es de lectura y el sandbox no se mueve.
+        assert!(bloque.contains("NUNCA se escribe"));
+        assert!(bloque.contains("no forman parte de ella"));
     }
 
     #[test]
@@ -426,6 +446,26 @@ pub(crate) fn system_prompt(
         code_rule,
         skills_rule,
         memoria_rule
+    )
+}
+
+/// El bloque «Fuentes de solo lectura» del prompt del agente. Vacío si no hay
+/// ninguna, que es el caso normal. Se añade detrás del prompt ya armado porque
+/// las fuentes son contexto del proyecto, no una regla de conducta.
+fn fuentes_block(fuentes: &[db::Fuente]) -> String {
+    if fuentes.is_empty() {
+        return String::new();
+    }
+    let mut lista = String::new();
+    for (i, f) in fuentes.iter().enumerate() {
+        let clase = if f.tipo == "carpeta" { "carpeta" } else { "archivo" };
+        lista.push_str(&format!("{}. {} — {}\n", i + 1, f.ruta, clase));
+    }
+    format!(
+        "\n\nFuentes de solo lectura que el usuario vinculó a este proyecto:\n{lista}\
+         Léelas con read_source (y las carpetas con list_source) pasando el número de la lista y \
+         una ruta relativa a esa fuente. Ahí NUNCA se escribe: `write_file` sigue limitado a la \
+         carpeta del proyecto, y estas rutas no forman parte de ella.\n"
     )
 }
 
@@ -632,7 +672,16 @@ async fn run_loop(
     let state = app.state::<AppState>();
     let settings = state::load_settings(&state);
     let provider = state::build_tool_provider(&state)?;
-    let agent_tools = tools::build_tools(&settings);
+    // Las fuentes vinculadas se leen una vez por tarea: la puerta de lectura se
+    // monta con la lista que había al empezar, y lo que se vincule a media tarea
+    // entra en la siguiente.
+    let fuentes: Vec<db::Fuente> = state
+        .db
+        .lock()
+        .ok()
+        .and_then(|conn| db::sources_por_raiz(&conn, project_root).ok())
+        .unwrap_or_default();
+    let agent_tools = tools::build_tools(&settings, &fuentes);
     let skills_prompt = state
         .db
         .lock()
@@ -658,15 +707,19 @@ async fn run_loop(
     let mut messages = vec![
         AgentMessage {
             role: "system".into(),
-            content: system_prompt(
-                project_root,
-                approval_level,
-                assistant_name,
-                &skills_prompt,
-                settings.code_mode,
-                &crate::commands::project_rules_for_prompt(project_root),
-                &memoria_prompt,
-                settings.tz_offset_min,
+            content: format!(
+                "{}{}",
+                system_prompt(
+                    project_root,
+                    approval_level,
+                    assistant_name,
+                    &skills_prompt,
+                    settings.code_mode,
+                    &crate::commands::project_rules_for_prompt(project_root),
+                    &memoria_prompt,
+                    settings.tz_offset_min,
+                ),
+                fuentes_block(&fuentes),
             ),
             ..Default::default()
         },

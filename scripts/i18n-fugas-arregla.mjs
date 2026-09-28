@@ -21,11 +21,6 @@ const CAMBIOS = [
     ['<Plus className="w-3.5 h-3.5" /> Añadir un paso\n',
      '<Plus className="w-3.5 h-3.5" /> {t("Añadir un paso")}\n'],
   ]],
-  ["src/components/work/ToolApprovalModal.tsx", [
-    ["            El agente quiere ejecutarse {\" \"}\n", ""],
-    ["            El agente quiere ejecutar{\" \"}\n",
-     '            {t("El agente quiere ejecutar")}{" "}\n'],
-  ]],
   ["src/components/ChatWindow.tsx", [
     ["              {saludo(new Date().getHours())}. Soy{\" \"}\n",
      '              {saludo(new Date().getHours())}. {t("Soy")}{" "}\n'],

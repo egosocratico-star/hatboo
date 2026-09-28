@@ -556,3 +556,85 @@ fn ramificar_copia_hasta_el_mensaje_elegido_y_no_toca_el_original() {
 
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Escribe un mensaje con la marca de tiempo puesta a mano: las rachas y el día
+/// pico no se pueden probar con los que escribe `add_message`, que siempre usan
+/// la hora actual.
+fn mensaje_en(
+    conn: &rusqlite::Connection,
+    conversacion: &str,
+    texto: &str,
+    ms: i64,
+) {
+    conn.execute(
+        "INSERT INTO messages (id, conversation_id, role, content, created_at)
+         VALUES (?1, ?2, 'user', ?3, ?4)",
+        rusqlite::params![uuid::Uuid::new_v4().to_string(), conversacion, texto, ms],
+    )
+    .unwrap();
+}
+
+#[test]
+fn las_estadisticas_cuentan_chats_dias_y_rachas() {
+    const DIA: i64 = 86_400_000;
+    let dir = std::env::temp_dir().join(format!("hatboo-test-{}", uuid::Uuid::new_v4()));
+    let conn = db::connect(&dir.join("test.db")).expect("connect+migrate");
+    let uno = db::create_conversation(&conn, "Uno", None).unwrap();
+    let dos = db::create_conversation(&conn, "Dos", None).unwrap();
+    let _tres = db::create_conversation(&conn, "Sin mensajes", None).unwrap();
+
+    let ahora = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64;
+    let hoy = ahora / DIA * DIA;
+    let ocho = "12345678";
+    for _ in 0..2 {
+        mensaje_en(&conn, &uno.id, ocho, hoy + 1000);
+    }
+    for _ in 0..5 {
+        mensaje_en(&conn, &dos.id, ocho, hoy + 2000);
+    }
+    mensaje_en(&conn, &uno.id, ocho, hoy - DIA);
+    mensaje_en(&conn, &uno.id, ocho, hoy - 2 * DIA);
+    // Uno suelto cinco días atrás: corta la racha, pero manda en la racha larga
+    // solo si se vuelve a repetir, que aquí no es el caso.
+    mensaje_en(&conn, &uno.id, ocho, hoy - 5 * DIA);
+
+    let s = db::perfil_estadisticas(&conn, 0).unwrap();
+    assert_eq!(s.mensajes, 10);
+    assert_eq!(s.chats, 2, "la conversación vacía no cuenta como chat");
+    assert_eq!(s.tokens_estimados, 20, "80 caracteres entre cuatro");
+    assert_eq!(s.dia_mas_activo, Some(hoy));
+    assert_eq!(s.dia_mas_activo_mensajes, 7);
+    assert_eq!(s.chat_mas_largo.as_deref(), Some("Dos"));
+    assert_eq!(s.chat_mas_largo_mensajes, 5);
+    assert_eq!(s.racha_actual, 3, "hoy, ayer y anteayer");
+    assert_eq!(s.racha_mas_larga, 3);
+
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn la_zona_horaria_mueve_el_dia_de_un_mensaje_tarde() {
+    const DIA: i64 = 86_400_000;
+    let dir = std::env::temp_dir().join(format!("hatboo-test-{}", uuid::Uuid::new_v4()));
+    let conn = db::connect(&dir.join("test.db")).expect("connect+migrate");
+    let conv = db::create_conversation(&conn, "Uno", None).unwrap();
+
+    let ahora = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64;
+    let hoy = ahora / DIA * DIA;
+    // 23:30 UTC de ayer: en UTC cuenta como ayer, en UTC+2 como hoy.
+    mensaje_en(&conn, &conv.id, "hola", hoy - 30 * 60_000);
+
+    let utc = db::perfil_estadisticas(&conn, 0).unwrap();
+    assert_eq!(utc.dia_mas_activo, Some(hoy - DIA), "en UTC es ayer");
+    let dos = db::perfil_estadisticas(&conn, 120).unwrap();
+    assert_eq!(dos.dia_mas_activo, Some(hoy - 7_200_000), "en UTC+2 es hoy");
+    assert_eq!(dos.racha_actual, 1, "y la racha arranca hoy");
+
+    let _ = std::fs::remove_dir_all(dir);
+}

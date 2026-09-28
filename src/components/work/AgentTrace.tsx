@@ -18,6 +18,7 @@ import {
 import { t } from "../../i18n";
 import type { StepLine } from "../../store/workStore";
 import CommandBlock from "./CommandBlock";
+import DiffView from "../DiffView";
 import ThinkingBlock from "../ThinkingBlock";
 import Dots from "../Dots";
 
@@ -108,50 +109,6 @@ function Hecho({ ok }: { ok: boolean }) {
     >
       {ok ? "✓" : "✗"}
     </span>
-  );
-}
-
-/** Cuánto sumó una escritura: se saca del propio diff. */
-function cuentaDelDiff(diff: string) {
-  let mas = 0;
-  let menos = 0;
-  for (const linea of diff.split("\n")) {
-    if (linea.startsWith("+++") || linea.startsWith("---")) continue;
-    if (linea.startsWith("+")) mas += 1;
-    else if (linea.startsWith("-")) menos += 1;
-  }
-  return { mas, menos };
-}
-
-/** El diff de una escritura, con sus líneas coloreadas y techo de scroll. */
-function Diff({ texto }: { texto: string }) {
-  const lineas = texto.split("\n");
-  const { mas, menos } = cuentaDelDiff(texto);
-  const recortado = lineas.length > 60;
-  return (
-    <div className="mb-1 mt-0.5 ml-[26px]">
-      <p className="font-mono text-[10px] tabular-nums text-zinc-500">
-        <span className="text-emerald-400">+{mas}</span>{" "}
-        <span className="text-red-400">−{menos}</span>
-        {recortado && ` · ${t("60 de {n} líneas", { n: lineas.length })}`}
-      </p>
-      <pre className="mt-1 max-h-40 overflow-auto rounded-md border border-base-border bg-base-code px-2 py-1.5 font-mono text-[11px] leading-relaxed">
-        {lineas.slice(0, 60).map((l, i) => (
-          <div
-            key={i}
-            className={
-              l.startsWith("+") && !l.startsWith("+++")
-                ? "text-emerald-400"
-                : l.startsWith("-") && !l.startsWith("---")
-                  ? "text-red-400"
-                  : "text-zinc-500"
-            }
-          >
-            {l || " "}
-          </div>
-        ))}
-      </pre>
-    </div>
   );
 }
 
@@ -354,7 +311,11 @@ export default function AgentTrace({
                   </span>
                   {l.durationMs > 0 && <Tiempo ms={l.durationMs} />}
                 </div>
-                {l.diff && <Diff texto={l.diff} />}
+                {l.diff && (
+                  <div className="mb-1 mt-0.5 ml-[26px]">
+                    <DiffView diff={l.diff} altoMax={190} corte={60} />
+                  </div>
+                )}
               </div>
             );
           })}

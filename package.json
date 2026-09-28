@@ -10,6 +10,7 @@
     "check": "tsc --noEmit && cargo test --manifest-path src-tauri/Cargo.toml --no-fail-fast --lib --test db --test backup --test git_tools --test tools",
     "i18n": "node scripts/i18n-cubre.mjs",
     "prueba-cola": "node scripts/prueba-cola.ts",
+    "prueba-diff": "node scripts/prueba-diff.ts",
     "tauri": "tauri"
   },
   "dependencies": {

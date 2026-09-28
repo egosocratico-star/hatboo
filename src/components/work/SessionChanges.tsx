@@ -3,14 +3,23 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { FileDiff, FilePlus2, FilePen, Undo2 } from "lucide-react";
 import Popover from "../Popover";
-import EmptyHint from "../EmptyHint";
+import Vacio from "../Vacio";
 import ConfirmModal, { type AvisoBorrado } from "../ConfirmModal";
+import DiffView, { ArchivoCompleto } from "../DiffView";
 
 interface Cambio {
   ruta: string;
   diff: string;
   creado: boolean;
   escrituras: number;
+}
+
+/** Lo que devuelve `preview_project_file`. */
+interface Previa {
+  texto: string;
+  bytes: number;
+  lineas: number;
+  truncado: boolean;
 }
 
 /** Lo que aparece en el aviso antes de deshacer: ocho rutas y un recuento. */
@@ -42,6 +51,73 @@ function resumenDeDeshacer(rutas: string[]): string {
 }
 
 /**
+ * Un archivo tocado en la sesión: su ruta, si nació o se modificó, y el diff con
+ * el que se aplica el cambio. «Verlo entero» lee el archivo que hay ahora mismo
+ * en disco, que es el estado final después de todas las escrituras.
+ */
+function FilaCambio({ projectId, cambio }: { projectId: string; cambio: Cambio }) {
+  const [entero, setEntero] = useState(false);
+  const [archivo, setArchivo] = useState<Previa | null>(null);
+  const [fallo, setFallo] = useState<string | null>(null);
+
+  // Se vuelve a leer cada vez que se pide, en vez de guardarse: el agente puede
+  // escribir otra vez sobre el mismo archivo mientras el popover está abierto.
+  const carga = () => {
+    if (entero) {
+      setEntero(false);
+      return;
+    }
+    void invoke<Previa>("preview_project_file", {
+      projectId,
+      relativePath: cambio.ruta,
+    }).then(
+      (p) => {
+        setArchivo(p);
+        setEntero(true);
+        setFallo(null);
+      },
+      (e) => setFallo(String(e)),
+    );
+  };
+
+  return (
+    <div className="rounded-lg border border-base-border overflow-hidden">
+      <div className="flex items-center gap-1.5 px-2 py-1.5 bg-base text-[11px]">
+        {cambio.creado ? (
+          <FilePlus2 className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+        ) : (
+          <FilePen className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+        )}
+        <span className="font-mono truncate text-zinc-200">{cambio.ruta}</span>
+        <span className="ml-auto shrink-0 text-zinc-500">
+          {cambio.creado ? t("nuevo") : t("modificado")}
+          {cambio.escrituras > 1 ? t(" · {n} escrituras", { n: cambio.escrituras }) : ""}
+        </span>
+        <button
+          onClick={carga}
+          className="shrink-0 rounded border border-base-border px-1 py-px text-[10px] text-zinc-500 transition-colors hover:bg-base-hover hover:text-zinc-200"
+        >
+          {entero ? t("Ver el diff") : t("Verlo entero")}
+        </button>
+      </div>
+      <div className="p-1.5">
+        {entero && archivo ? (
+          <ArchivoCompleto texto={archivo.texto} altoMax={220} />
+        ) : cambio.diff ? (
+          <DiffView diff={cambio.diff} altoMax={200} corte={80} />
+        ) : (
+          <p className="px-1 py-1 text-[11px] text-zinc-500">{t("(sin diff)")}</p>
+        )}
+        {fallo && <p className="mt-1 text-[10px] text-red-300">{fallo}</p>}
+        {entero && archivo?.truncado && (
+          <p className="mt-1 text-[10px] text-zinc-500">{t("Se enseña el principio: el archivo es más grande que la vista previa.")}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
  * Lo que el agente escribió en esta sesión de trabajo. Sale de los diffs que ya
  * se guardaron al aplicar cada `write_file`, así que funciona también en
  * proyectos que no son repo de git. Si el archivo se escribió varias veces se
@@ -49,9 +125,11 @@ function resumenDeDeshacer(rutas: string[]): string {
  */
 export default function SessionChanges({
   conversationId,
+  projectId,
   recargarCon,
 }: {
   conversationId: string | null;
+  projectId: string;
   /** Algo que cambia cuando el agente termina: fuerza a volver a leer. */
   recargarCon: unknown;
 }) {
@@ -130,8 +208,8 @@ export default function SessionChanges({
         open={open}
         anchorRef={triggerRef}
         onClose={() => setOpen(false)}
-        width={480}
-        cap={480}
+        width={560}
+        cap={560}
         className="p-3 space-y-2"
       >
         <p className="text-xs font-medium text-zinc-200">
@@ -143,30 +221,14 @@ export default function SessionChanges({
           </p>
         )}
         {total === 0 ? (
-          <EmptyHint
+          <Vacio
             icon={FileDiff}
-            text={t("El agente todavía no escribió ningún archivo aquí.")}
-            detail={t("Cuando lo haga verás la ruta, si es nuevo o modificado y el diff, con el botón para deshacer la sesión.")}
+            titulo={t("El agente todavía no escribió ningún archivo aquí.")}
+            detalle={t("Cuando lo haga verás la ruta, si es nuevo o modificado y el diff, con el botón para deshacer la sesión.")}
           />
         ) : (
           cambios.map((c) => (
-            <div key={c.ruta} className="rounded-lg border border-base-border overflow-hidden">
-              <div className="flex items-center gap-1.5 px-2 py-1.5 bg-base text-[11px]">
-                {c.creado ? (
-                  <FilePlus2 className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
-                ) : (
-                  <FilePen className="w-3.5 h-3.5 shrink-0 text-amber-400" />
-                )}
-                <span className="font-mono truncate text-zinc-200">{c.ruta}</span>
-                <span className="ml-auto shrink-0 text-zinc-500">
-                  {c.creado ? t("nuevo") : t("modificado")}
-                  {c.escrituras > 1 ? t(" · {n} escrituras", { n: c.escrituras }) : ""}
-                </span>
-              </div>
-              <pre className="max-h-40 overflow-auto px-2 py-1.5 bg-base-code text-[11px] font-mono leading-relaxed whitespace-pre text-zinc-300">
-                {c.diff || t("(sin diff)")}
-              </pre>
-            </div>
+            <FilaCambio key={c.ruta} projectId={projectId} cambio={c} />
           ))
         )}
         {total > 0 && (

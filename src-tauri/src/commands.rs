@@ -933,6 +933,72 @@ pub fn delete_artifact(app: State<AppState>, id: String) -> Result<(), String> {
     db::borrar_artifact(&conn, &id)
 }
 
+/// Las fuentes vinculadas a un proyecto, con la ruta tal como se guardó.
+#[tauri::command]
+pub fn list_sources(app: State<AppState>, project_id: String) -> Result<Vec<db::Fuente>, String> {
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    db::list_sources(&conn, &project_id)
+}
+
+/// Vincula una carpeta o un archivo como contexto de lectura. La validación que
+/// importa es esta: una fuente que contenga la raíz del proyecto convertiría el
+/// «solo lectura» en «el agente puede leer tu casa entera», así que se rechaza
+/// cualquier ruta que sea la propia carpeta, un padre suyo o un hijo suyo (un
+/// hijo ya está dentro del sandbox y no necesita puerta aparte).
+#[tauri::command]
+pub fn add_source(
+    app: State<AppState>,
+    project_id: String,
+    ruta: String,
+    tipo: String,
+) -> Result<db::Fuente, String> {
+    let canon = std::path::Path::new(&ruta)
+        .canonicalize()
+        .map_err(|_| format!("Esa ruta no existe: {ruta}"))?;
+    let raiz = {
+        let conn = app.db.lock().map_err(|e| e.to_string())?;
+        db::get_project(&conn, &project_id)?.root_path
+    };
+    let raiz_canon = std::path::Path::new(&raiz)
+        .canonicalize()
+        .map_err(|e| e.to_string())?;
+    if canon == raiz_canon {
+        return Err("Esa ya es la carpeta del proyecto: no hace falta vincularla.".into());
+    }
+    if canon.starts_with(&raiz_canon) {
+        return Err("Esa ruta está dentro del proyecto; el agente ya la ve con read_file.".into());
+    }
+    if raiz_canon.starts_with(&canon) {
+        return Err(
+            "No se puede vincular una carpeta que contenga el propio proyecto: dejaría de ser \
+             lectura acotada."
+                .into(),
+        );
+    }
+    let guardada = canon.to_string_lossy().into_owned();
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    db::add_source(&conn, &project_id, &guardada, &tipo)
+}
+
+/// Quita una fuente. No borra nada de disco: solo cierra la puerta de lectura.
+#[tauri::command]
+pub fn remove_source(app: State<AppState>, id: String) -> Result<(), String> {
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    db::remove_source(&conn, &id)
+}
+
+/// Lo que pinta la tarjeta «Tus estadísticas» de Ajustes → Perfil. El desfase lo
+/// pasa el frontend porque Rust no sabe en qué zona está el usuario: sin eso, un
+/// chat de las 23:30 contaría en el día equivocado.
+#[tauri::command]
+pub fn perfil_estadisticas(
+    app: State<AppState>,
+    tz_offset_min: i32,
+) -> Result<db::Estadisticas, String> {
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    db::perfil_estadisticas(&conn, tz_offset_min)
+}
+
 /// Puntúa una respuesta del asistente (`"up"` / `"down"`); `None` la quita.
 #[tauri::command]
 pub fn set_message_feedback(
@@ -2621,7 +2687,8 @@ pub fn agent_layers(app: State<AppState>) -> Result<Capas, String> {
             .count()
     };
     Ok(Capas {
-        herramientas: crate::agent::tools::build_tools(&aj).len(),
+        // Sin proyecto en la mano no hay fuentes: se cuentan las herramientas base.
+        herramientas: crate::agent::tools::build_tools(&aj, &[]).len(),
         comandos: aj.run_command_enabled,
         web: aj.web_search,
         plantillas,

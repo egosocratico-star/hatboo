@@ -1069,6 +1069,257 @@ pub fn borrar_artifact(conn: &Connection, id: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Contexto extra de un proyecto: una carpeta o un archivo que el agente puede
+/// LEER. La raíz de escritura no se toca —`write_file` sigue encerrada en la
+/// carpeta del proyecto—, así que una fuente no puede colarse en un borrado.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Fuente {
+    pub id: String,
+    pub project_id: String,
+    pub ruta: String,
+    /// `"carpeta"` o `"archivo"`.
+    pub tipo: String,
+    pub creado_en: i64,
+}
+
+pub fn list_sources(conn: &Connection, project_id: &str) -> Result<Vec<Fuente>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, project_id, ruta, tipo, creado_en FROM sources
+             WHERE project_id = ?1 ORDER BY creado_en ASC",
+        )
+        .map_err(|e| e.to_string())?;
+    let filas = stmt
+        .query_map(params![project_id], |r| {
+            Ok(Fuente {
+                id: r.get(0)?,
+                project_id: r.get(1)?,
+                ruta: r.get(2)?,
+                tipo: r.get(3)?,
+                creado_en: r.get(4)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    filas.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+}
+
+/// Vincula una ruta. Si ya estaba, devuelve la fila existente en vez de duplicar:
+/// dos entradas iguales solo servirían para repetir el aviso en el prompt.
+pub fn add_source(conn: &Connection, project_id: &str, ruta: &str, tipo: &str) -> Result<Fuente, String> {
+    let ruta = ruta.trim();
+    if ruta.is_empty() {
+        return Err("Falta la ruta de la fuente.".into());
+    }
+    let tipo = match tipo {
+        "carpeta" | "archivo" => tipo,
+        _ => return Err("El tipo de fuente no es válido.".into()),
+    };
+    if let Some(existing) = conn
+        .query_row(
+            "SELECT id, project_id, ruta, tipo, creado_en FROM sources
+             WHERE project_id = ?1 AND ruta = ?2",
+            params![project_id, ruta],
+            |r| {
+                Ok(Fuente {
+                    id: r.get(0)?,
+                    project_id: r.get(1)?,
+                    ruta: r.get(2)?,
+                    tipo: r.get(3)?,
+                    creado_en: r.get(4)?,
+                })
+            },
+        )
+        .ok()
+    {
+        return Ok(existing);
+    }
+    let f = Fuente {
+        id: new_id(),
+        project_id: project_id.to_string(),
+        ruta: ruta.to_string(),
+        tipo: tipo.to_string(),
+        creado_en: now_ms(),
+    };
+    conn.execute(
+        "INSERT INTO sources (id, project_id, ruta, tipo, creado_en) VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![f.id, f.project_id, f.ruta, f.tipo, f.creado_en],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(f)
+}
+
+pub fn remove_source(conn: &Connection, id: &str) -> Result<(), String> {
+    let borradas = conn
+        .execute("DELETE FROM sources WHERE id = ?1", params![id])
+        .map_err(|e| e.to_string())?;
+    if borradas == 0 {
+        return Err("Esa fuente ya no está.".into());
+    }
+    Ok(())
+}
+
+/// Fuentes de la carpeta cuyo `root_path` coincide con `raiz`. El loop del agente
+/// solo tiene la raíz en la mano (el id del proyecto no baja hasta aquí), y la
+/// comparación se hace canónica porque las rutas guardadas vienen de
+/// `canonicalize()` y con las mayúsculas de Windows no vale el texto tal cual.
+pub fn sources_por_raiz(conn: &Connection, raiz: &std::path::Path) -> Result<Vec<Fuente>, String> {
+    let deseada = raiz.canonicalize().unwrap_or_else(|_| raiz.to_path_buf());
+    let mut stmt = conn
+        .prepare(
+            "SELECT s.id, s.project_id, s.ruta, s.tipo, s.creado_en, p.root_path
+             FROM sources s JOIN projects p ON p.id = s.project_id",
+        )
+        .map_err(|e| e.to_string())?;
+    let filas = stmt
+        .query_map([], |r| {
+            Ok((
+                Fuente {
+                    id: r.get(0)?,
+                    project_id: r.get(1)?,
+                    ruta: r.get(2)?,
+                    tipo: r.get(3)?,
+                    creado_en: r.get(4)?,
+                },
+                r.get::<_, String>(5)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?;
+    let mut out: Vec<Fuente> = Vec::new();
+    for fila in filas.flatten() {
+        let guardada = std::path::Path::new(&fila.1);
+        let canon = guardada.canonicalize().unwrap_or_else(|_| guardada.to_path_buf());
+        if canon == deseada {
+            out.push(fila.0);
+        }
+    }
+    out.sort_by_key(|f| f.creado_en);
+    Ok(out)
+}
+
+/// Lo que lee la tarjeta «Tus estadísticas» de Ajustes → Perfil. Todo sale de la
+/// propia base de datos y es un hecho: lo único estimado son los tokens, porque
+/// Hatboo no guarda el uso que devolvió cada respuesta. La interfaz lo dice.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Estadisticas {
+    /// Conversaciones que tienen al menos un mensaje.
+    pub chats: i64,
+    pub mensajes: i64,
+    /// Carateres del contenido dividido por cuatro: una aproximación, no un dato
+    /// del proveedor.
+    pub tokens_estimados: i64,
+    /**
+     * Inicio del día con más mensajes, en milisegundos alineados con el desfase
+     * que pasó el frontend. Se devuelve como fecha y no como texto para que la
+     * forme el idioma de la interfaz.
+     */
+    pub dia_mas_activo: Option<i64>,
+    pub dia_mas_activo_mensajes: i64,
+    pub chat_mas_largo: Option<String>,
+    pub chat_mas_largo_mensajes: i64,
+    /// Días seguidos con actividad, contados hacia atrás desde hoy.
+    pub racha_actual: i64,
+    pub racha_mas_larga: i64,
+}
+
+pub fn perfil_estadisticas(conn: &Connection, tz_offset_min: i32) -> Result<Estadisticas, String> {
+    const DIA: i64 = 86_400_000;
+    let desplazado = tz_offset_min as i64 * 60_000;
+    let dias: Vec<i64> = {
+        let mut stmt = conn
+            .prepare("SELECT created_at FROM messages")
+            .map_err(|e| e.to_string())?;
+        let crudos = stmt
+            .query_map([], |r| r.get::<_, i64>(0))
+            .map_err(|e| e.to_string())?
+            .filter_map(|x| x.ok())
+            .collect::<Vec<i64>>();
+        crudos
+            .iter()
+            .map(|ms| (ms + desplazado).div_euclid(DIA))
+            .collect()
+    };
+    let mut por_dia: std::collections::BTreeMap<i64, i64> = std::collections::BTreeMap::new();
+    for d in &dias {
+        *por_dia.entry(*d).or_insert(0) += 1;
+    }
+
+    let chats: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM conversations
+             WHERE id IN (SELECT conversation_id FROM messages)",
+            [],
+            |r| r.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    let tokens: i64 = conn
+        .query_row(
+            // LENGTH() sobre TEXT cuenta caracteres, que es lo que la estimación
+            // de ~4 por token espera; con bytes saldría distinto en acentos.
+            "SELECT COALESCE(SUM(LENGTH(content)), 0) / 4 FROM messages",
+            [],
+            |r| r.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    let mas_largo: Option<(String, i64)> = conn
+        .query_row(
+            "SELECT c.title, COUNT(m.id) AS n FROM conversations c
+             JOIN messages m ON m.conversation_id = c.id
+             GROUP BY c.id ORDER BY n DESC LIMIT 1",
+            [],
+            |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)),
+        )
+        .ok();
+
+    // Racha actual: hoy, y si hoy todavía no escribió nada se acepta ayer como
+    // pie, porque si no la racha se rompería cada madrugada antes del primer uso.
+    let hoy = (now_ms() + desplazado).div_euclid(DIA);
+    let inicio = if por_dia.contains_key(&hoy) {
+        Some(hoy)
+    } else if por_dia.contains_key(&(hoy - 1)) {
+        Some(hoy - 1)
+    } else {
+        None
+    };
+    let mut racha_actual = 0;
+    let mut d = match inicio {
+        Some(x) => x,
+        None => 0,
+    };
+    while inicio.is_some() && por_dia.contains_key(&d) {
+        racha_actual += 1;
+        d -= 1;
+    }
+    let mut racha_mas_larga = 0;
+    let mut previa: Option<i64> = None;
+    let mut larga = 0;
+    for dia in por_dia.keys() {
+        larga = match previa {
+            Some(p) if *dia == p + 1 => larga + 1,
+            _ => 1,
+        };
+        racha_mas_larga = racha_mas_larga.max(larga);
+        previa = Some(*dia);
+    }
+    let pico = por_dia
+        .iter()
+        .max_by(|a, b| a.1.cmp(b.1).then(a.0.cmp(b.0)))
+        .map(|(dia, n)| (dia * DIA - desplazado, *n));
+
+    Ok(Estadisticas {
+        chats,
+        mensajes: dias.len() as i64,
+        tokens_estimados: tokens,
+        dia_mas_activo: pico.as_ref().map(|(ms, _)| *ms),
+        dia_mas_activo_mensajes: pico.map(|(_, n)| n).unwrap_or(0),
+        chat_mas_largo: mas_largo.as_ref().map(|(t, _)| t.clone()),
+        chat_mas_largo_mensajes: mas_largo.map(|(_, n)| n).unwrap_or(0),
+        racha_actual,
+        racha_mas_larga,
+    })
+}
+
 /// Borra conversaciones de chat (sin proyecto) que no tienen ningún mensaje.
 /// Desde el borrador local del frontend una fila vacía ya no es nunca útil; se
 /// limpia al arrancar para quitar las que dejó la versión anterior.
