@@ -1,6 +1,14 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
-import type { Attachment, Conversation, LocalModel, Message, Settings, Skill } from "../types";
+import type {
+  Artifact,
+  Attachment,
+  Conversation,
+  LocalModel,
+  Message,
+  Settings,
+  Skill,
+} from "../types";
 
 export type View = "chat" | "settings" | "work" | "projects";
 export type Status = "idle" | "streaming" | "error";
@@ -40,6 +48,10 @@ interface ChatStore {
   searchOpen: boolean;
   /** Sección abierta en Ajustes. En el store para que se pueda saltar a una. */
   settingsCat: string;
+  /** Artifactos de la conversación abierta, con todas sus versiones. */
+  artefactos: Artifact[];
+  /** El que está en el panel derecho; `null` = panel cerrado. */
+  artefactoAbierto: Artifact | null;
   /**
    * Texto sin enviar por hilo. La clave `nueva` es el chat que todavía no es
    * conversación: `newConversation` no crea fila hasta el primer mensaje.
@@ -75,6 +87,13 @@ interface ChatStore {
   renameConversation: (id: string, title: string) => Promise<void>;
   sendMessage: (content: string, attachments?: Attachment[]) => Promise<void>;
   regenerate: () => Promise<void>;
+  /** Pone otra versión del mismo punto del hilo como la que se ve. */
+  cambiarVariante: (messageId: string) => Promise<void>;
+  /** Guarda una versión nueva de un artifacto y abre el panel con ella. */
+  abrirArtefacto: (titulo: string, lenguaje: string, contenido: string) => Promise<void>;
+  verArtefacto: (id: string) => void;
+  cerrarArtefacto: () => void;
+  borrarArtefacto: (id: string) => Promise<void>;
   /** Pide una imagen al motor de Ajustes → API y la mete en el hilo. */
   generateImage: (prompt: string) => Promise<void>;
   editMessage: (messageId: string, content: string) => Promise<void>;
@@ -135,6 +154,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   findNonce: 0,
   searchOpen: false,
   settingsCat: "api",
+  artefactos: [],
+  artefactoAbierto: null,
   drafts: {},
   soltados: [],
 
@@ -193,6 +214,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       view: "chat",
       activeId: null,
       messages: [],
+      artefactos: [],
+      artefactoAbierto: null,
       ...BLANK_STREAM,
       status: "idle",
       error: null,
@@ -203,13 +226,57 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     const messages = await invoke<Message[]>("list_messages", {
       conversationId: id,
     });
+    const artefactos = await invoke<Artifact[]>("list_artifacts", { conversationId: id });
     set({
       activeId: id,
       messages,
+      artefactos,
+      // El panel no se queda mostrando el artifacto de otra conversación.
+      artefactoAbierto: null,
       ...BLANK_STREAM,
       status: "idle",
       error: null,
     });
+  },
+
+  cambiarVariante: async (messageId) => {
+    const { activeId } = get();
+    if (!activeId) return;
+    await invoke("select_message_variant", { messageId });
+    // Se recarga el hilo en vez de tocar el array a mano: cambiar de variante
+    // puede quitar y meter mensajes enteros de lo que se ve.
+    set({ messages: await invoke<Message[]>("list_messages", { conversationId: activeId }) });
+  },
+
+  abrirArtefacto: async (titulo, lenguaje, contenido) => {
+    const { activeId } = get();
+    if (!activeId) return;
+    const nuevo = await invoke<Artifact>("save_artifact", {
+      conversationId: activeId,
+      titulo,
+      lenguaje,
+      contenido,
+    });
+    set({
+      artefactoAbierto: nuevo,
+      artefactos: await invoke<Artifact[]>("list_artifacts", { conversationId: activeId }),
+    });
+  },
+
+  verArtefacto: (id) => {
+    const a = get().artefactos.find((x) => x.id === id) ?? null;
+    set({ artefactoAbierto: a });
+  },
+
+  cerrarArtefacto: () => set({ artefactoAbierto: null }),
+
+  borrarArtefacto: async (id) => {
+    const { activeId, artefactoAbierto } = get();
+    await invoke("delete_artifact", { id });
+    if (artefactoAbierto?.id === id) set({ artefactoAbierto: null });
+    if (activeId) {
+      set({ artefactos: await invoke<Artifact[]>("list_artifacts", { conversationId: activeId }) });
+    }
   },
 
   removeConversation: async (id) => {

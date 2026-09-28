@@ -3,6 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { t, useT, currentLanguage } from "../i18n";
 import {
   Check,
+  ChevronLeft,
+  ChevronRight,
   Copy,
   GitBranch,
   MoreHorizontal,
@@ -40,6 +42,46 @@ interface Props {
   busy?: boolean;
   /** `false` donde la fila flotante se plantaría encima de lo que viene debajo. */
   accionesFlotando?: boolean;
+}
+
+/** «‹ 2/3 ›» de un punto del hilo. Editar o regenerar ya no borra la versión
+ *  anterior, así que hace falta una forma de volver a ella sin salir de la
+ *  conversación. Se queda visible —no al pasar el ratón— porque si no nadie
+ *  sabe que existe otra versión. */
+function SelectorVariantes({ message }: { message: Message }) {
+  const cambiar = useChatStore((s) => s.cambiarVariante);
+  const v = message.variantas;
+  if (!v || v.total < 2) return null;
+  const i = v.hermanas.indexOf(message.id);
+  const ir = (paso: number) => {
+    const destino = v.hermanas[i + paso];
+    if (destino) void cambiar(destino);
+  };
+  const flecha =
+    "grid h-5 w-5 place-items-center rounded-md text-zinc-500 transition-colors hover:bg-base-hover hover:text-zinc-200 disabled:opacity-30";
+  return (
+    <span className="inline-flex items-center gap-0.5">
+      <button
+        onClick={() => ir(-1)}
+        disabled={i <= 0}
+        title={t("Versión anterior de este mensaje")}
+        className={flecha}
+      >
+        <ChevronLeft className="h-3.5 w-3.5" />
+      </button>
+      <span className="text-[10px] tabular-nums text-zinc-500">
+        {v.posicion}/{v.total}
+      </span>
+      <button
+        onClick={() => ir(1)}
+        disabled={i < 0 || i >= v.hermanas.length - 1}
+        title={t("Versión siguiente de este mensaje")}
+        className={flecha}
+      >
+        <ChevronRight className="h-3.5 w-3.5" />
+      </button>
+    </span>
+  );
 }
 
 function ActionButton({
@@ -311,6 +353,11 @@ function MessageBubble({
                 </div>
               )}
             </div>
+            {message.variantas && (
+              <div className="mt-0.5 flex justify-end">
+                <SelectorVariantes message={message} />
+              </div>
+            )}
             {/* La fila sale siempre: lleva la hora, que interesa aunque no se
                 pueda editar (en el hilo de trabajo o con una respuesta en curso). */}
             <div className={`${acciones} right-0 opacity-0 group-hover:opacity-100`}>
@@ -367,6 +414,11 @@ function MessageBubble({
       )}
       {chips}
       <RichText text={message.content} />
+      {message.variantas && (
+        <div className="pt-1">
+          <SelectorVariantes message={message} />
+        </div>
+      )}
       {message.webSources && message.webSources.length > 0 && (
         <SourcesBlock sources={message.webSources} />
       )}

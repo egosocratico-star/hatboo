@@ -57,6 +57,17 @@ export interface StepLine {
   reasoning?: string;
 }
 
+/** Una versión de lo que el modelo escribió y el usuario abrió en el panel. */
+export interface Artifact {
+  id: string;
+  conversationId: string;
+  titulo: string;
+  lenguaje: string;
+  contenido: string;
+  version: number;
+  creadoEn: number;
+}
+
 export interface Message {
   id: string;
   conversationId: string;
@@ -69,6 +80,12 @@ export interface Message {
   thinkingMs?: number | null;
   webSources?: WebSource[];
   feedback?: "up" | "down" | null;
+  /** El mensaje al que responde este; `null` solo en el primero del hilo. */
+  parentId?: string | null;
+  /** Cuántas versiones hay escritas en este punto del hilo, cuál está puesta y
+   *  las ids de todas, en el orden en que se escribieron. Falta cuando no hay
+   *  más que esta, que es lo normal. */
+  variantas?: { total: number; posicion: number; hermanas: string[] } | null;
   /** Los pasos que el agente hizo para cerrar esta respuesta. Vienen de
    *  `tool_calls`, así que la traza sobrevive a cerrar y abrir la sesión. */
   steps?: StepLine[];

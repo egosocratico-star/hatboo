@@ -50,6 +50,21 @@ export const en: Record<string, string> = {
   "Más antiguos": "Older",
   "Ctrl+K busca en chats, sesiones y carpetas":
     "Ctrl+K searches chats, sessions and folders",
+  // ---- Variantes de mensaje (‹ 2/3 ›). ----
+  "Versión anterior de este mensaje": "Previous version of this message",
+  "Versión siguiente de este mensaje": "Next version of this message",
+  // ---- Panel de artifactos (Fase 4). ----
+  "el panel de artifactos": "the artifacts panel",
+  "Sin título": "Untitled",
+  "El portapapeles no está disponible.": "The clipboard isn't available.",
+  "Versión anterior": "Previous version",
+  "Versión siguiente": "Next version",
+  "Copiar el artifacto": "Copy the artifact",
+  "Descargar como archivo": "Download as a file",
+  "Cerrar el panel": "Close the panel",
+  "{n} líneas · v{v} · {cuando}": "{n} lines · v{v} · {cuando}",
+  "Abrir en el panel de la derecha": "Open in the right-hand panel",
+  Abrir: "Open",
   "solo texto": "text only",
   "Arrastra para cambiar el ancho · doble clic para dejar el de fábrica":
     "Drag to resize · double-click to reset",

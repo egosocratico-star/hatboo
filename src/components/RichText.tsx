@@ -1,7 +1,9 @@
 import { t } from "../i18n";
 import { Fragment, useMemo, useState, type ReactNode } from "react";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, PanelRightOpen } from "lucide-react";
 import { resaltar } from "../highlight";
+import { useChatStore } from "../store/chatStore";
+import { merecePanel, tituloDeBloque } from "./ArtifactPanel";
 
 const CODE_FENCE = /```(\w*)\n?([\s\S]*?)```/g;
 const INLINE = /(\*\*[^*]+\*\*|`[^`]+`)/g;
@@ -32,7 +34,15 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
 
 function CodeBlock({ lang, code }: { lang: string; code: string }) {
   const [copiado, setCopiado] = useState(false);
+  const abrirArtefacto = useChatStore((s) => s.abrirArtefacto);
+  const hayConversacion = useChatStore((s) => !!s.activeId);
+  const puedeAbrirse = hayConversacion && merecePanel(lang, code);
   const lineas = useMemo(() => resaltar(code, lang), [code, lang]);
+  const abrir = async () => {
+    const conversacion = useChatStore.getState().activeId;
+    if (!conversacion) return;
+    await abrirArtefacto(tituloDeBloque(code), lang || "texto", code);
+  };
   const copia = async () => {
     try {
       await navigator.clipboard.writeText(code);
@@ -58,6 +68,19 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
           {copiado ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
           {t("Copiar")}
         </button>
+        {/* El panel solo tiene sentido con una conversación guardada a la que
+            asignar el artifacto, y con un bloque que merezca la pena: un `x = 1`
+            no se abre, un documento de cuarenta líneas sí. */}
+        {puedeAbrirse && (
+          <button
+            onClick={() => void abrir()}
+            title={t("Abrir en el panel de la derecha")}
+            className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-zinc-500 opacity-0 transition-opacity hover:text-accent-soft focus:opacity-100 group-hover:opacity-100"
+          >
+            <PanelRightOpen className="w-3 h-3" />
+            {t("Abrir")}
+          </button>
+        )}
       </div>
       <pre
         className="px-3 pb-3 pt-1 overflow-x-auto leading-relaxed font-mono text-zinc-200"

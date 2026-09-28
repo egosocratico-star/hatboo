@@ -189,7 +189,7 @@ pub fn search_chats(
 #[tauri::command]
 pub fn list_messages(app: State<AppState>, conversation_id: String) -> Result<Vec<db::Message>, String> {
     let conn = app.db.lock().map_err(|e| e.to_string())?;
-    db::list_messages(&conn, &conversation_id)
+    db::hilo_activo(&conn, &conversation_id)
 }
 
 #[tauri::command]
@@ -565,7 +565,7 @@ pub async fn regenerate_image(
 ) -> Result<db::Message, String> {
     let (prompt, archivos_viejos) = {
         let conn = app.db.lock().map_err(|e| e.to_string())?;
-        let msgs = db::list_messages(&conn, &conversation_id)?;
+        let msgs = db::hilo_activo(&conn, &conversation_id)?;
         let ultimo = msgs
             .iter()
             .rev()
@@ -747,7 +747,7 @@ fn history(app: &AppState, conversation_id: &str) -> Result<Vec<ChatMessage>, St
     use base64::{engine::general_purpose, Engine as _};
     use crate::providers::ImagePart;
     let conn = app.db.lock().map_err(|e| e.to_string())?;
-    let messages = db::list_messages(&conn, conversation_id)?;
+    let messages = db::hilo_activo(&conn, conversation_id)?;
     Ok(messages
         .into_iter()
         .map(|m| {
@@ -829,8 +829,9 @@ pub async fn send_message(
     Ok(user_message)
 }
 
-/// Regenera la última respuesta del asistente: la borra y vuelve a streaming
-/// con el historial restante (sin añadir un mensaje nuevo del usuario).
+/// Regenera la última respuesta del asistente. No la borra: retrocede el hilo al
+/// mensaje del usuario y la respuesta nueva nace como hermana de la anterior, así
+/// que «‹ 1/2 ›» deja ver las dos.
 #[tauri::command]
 pub async fn regenerate_response(
     app: tauri::AppHandle,
@@ -839,13 +840,16 @@ pub async fn regenerate_response(
     let state = app.state::<AppState>();
     {
         let conn = state.db.lock().map_err(|e| e.to_string())?;
-        db::delete_last_assistant_message(&conn, &conversation_id)?;
+        if !db::preparar_regeneracion(&conn, &conversation_id)? {
+            return Err("No hay respuesta que regenerar.".into());
+        }
     }
     spawn_chat_stream(app, conversation_id)
 }
 
-/// Edita un mensaje ya enviado por el usuario: se corta todo lo posterior y se
-/// vuelve a generar la respuesta desde ahí (como en ChatGPT).
+/// Edita un mensaje ya enviado por el usuario: se escribe una versión nueva en el
+/// mismo punto y la anterior queda como variante navegable. Lo que había después
+/// no se toca ni se borra, solo deja de estar en el camino activo.
 #[tauri::command]
 pub async fn edit_user_message(
     app: tauri::AppHandle,
@@ -868,17 +872,65 @@ pub async fn edit_user_message(
     }
     {
         let conn = state.db.lock().map_err(|e| e.to_string())?;
-        let (conv_id, role, created_at) = db::message_position(&conn, &message_id)?;
+        let (conv_id, role, _) = db::message_position(&conn, &message_id)?;
         if conv_id != conversation_id {
             return Err("Ese mensaje no pertenece a esta conversación.".into());
         }
         if role != "user" {
             return Err("Solo se editan los mensajes que enviaste tú.".into());
         }
-        db::update_message_content(&conn, &message_id, &content)?;
-        remove_image_files(db::truncate_messages_after(&conn, &conversation_id, created_at)?);
+        // Sin `remove_image_files`: las imágenes de la versión vieja siguen
+        // vivas en esa variante, y borrarlas rompería la versión 1.
+        db::crear_variante(&conn, &message_id, &content)?;
     }
     spawn_chat_stream(app, conversation_id)
+}
+
+/// Pone otra versión de un mismo punto del hilo como la activa.
+#[tauri::command]
+pub fn select_message_variant(app: State<AppState>, message_id: String) -> Result<(), String> {
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    db::activar_variante(&conn, &message_id)
+}
+
+/// Guarda una versión nueva de un artifacto del panel. Si ya había otro con el
+/// mismo título e idioma en esta conversación, este pasa a ser la versión 2, 3…
+/// y los anteriores se conservan.
+#[tauri::command]
+pub fn save_artifact(
+    app: State<AppState>,
+    conversation_id: String,
+    titulo: String,
+    lenguaje: String,
+    contenido: String,
+) -> Result<db::Artifact, String> {
+    let titulo = titulo.trim().to_string();
+    if titulo.is_empty() {
+        return Err("El artifacto necesita un título.".into());
+    }
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    db::guardar_artifact(
+        &conn,
+        &conversation_id,
+        &titulo,
+        &lenguaje,
+        &contenido,
+    )
+}
+
+#[tauri::command]
+pub fn list_artifacts(
+    app: State<AppState>,
+    conversation_id: String,
+) -> Result<Vec<db::Artifact>, String> {
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    db::listar_artifacts(&conn, &conversation_id)
+}
+
+#[tauri::command]
+pub fn delete_artifact(app: State<AppState>, id: String) -> Result<(), String> {
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    db::borrar_artifact(&conn, &id)
 }
 
 /// Puntúa una respuesta del asistente (`"up"` / `"down"`); `None` la quita.
@@ -903,7 +955,7 @@ pub fn branch_conversation(
 ) -> Result<db::Conversation, String> {
     let imagenes = {
         let conn = app.db.lock().map_err(|e| e.to_string())?;
-        let todos = db::list_messages(&conn, &conversation_id)?;
+        let todos = db::hilo_activo(&conn, &conversation_id)?;
         let hasta = todos
             .iter()
             .position(|m| m.id == up_to_message_id)
@@ -1313,7 +1365,7 @@ pub fn export_conversation(
     let (title, messages) = {
         let conn = app.db.lock().map_err(|e| e.to_string())?;
         let conv = db::get_conversation(&conn, &conversation_id)?;
-        let msgs = db::list_messages(&conn, &conversation_id)?;
+        let msgs = db::hilo_activo(&conn, &conversation_id)?;
         (conv.title, msgs)
     };
 
@@ -3083,6 +3135,8 @@ mod tests {
                 snippet: String::new(),
             }],
             feedback: None,
+            parent_id: None,
+            variantas: None,
         };
         let md = render_markdown("Título", &[m.clone()]);
         assert!(md.starts_with("# Título\n\n"));

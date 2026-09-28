@@ -67,7 +67,36 @@ fn attachments_roundtrip_and_clear_messages() {
 }
 
 #[test]
-fn editing_a_user_message_truncates_everything_after_it() {
+fn un_artifacto_nuevo_suma_version_sin_perder_la_anterior() {
+    let dir = std::env::temp_dir().join(format!("hatboo-art-{}", uuid::Uuid::new_v4()));
+    let conn = db::connect(&dir.join("test.db")).expect("connect+migrate");
+    let conv = db::create_conversation(&conn, "T", None).unwrap();
+
+    let v1 = db::guardar_artifact(&conn, &conv.id, "contador", "html", "<p>1</p>").unwrap();
+    let v2 = db::guardar_artifact(&conn, &conv.id, "contador", "html", "<p>2</p>").unwrap();
+    assert_eq!((v1.version, v2.version), (1, 2));
+    // Otro título no hereda la numeración.
+    let otro = db::guardar_artifact(&conn, &conv.id, "notas", "markdown", "# h").unwrap();
+    assert_eq!(otro.version, 1);
+
+    let lista = db::listar_artifacts(&conn, &conv.id).unwrap();
+    assert_eq!(lista.len(), 3, "las tres versiones siguen ahí");
+    assert_eq!(lista[0].contenido, "<p>1</p>", "ordenadas por título y versión");
+
+    db::borrar_artifact(&conn, &v2.id).unwrap();
+    assert_eq!(db::listar_artifacts(&conn, &conv.id).unwrap().len(), 2);
+    assert!(db::borrar_artifact(&conn, "no-existe").is_err());
+
+    // Al borrar la conversación se llevan los artifactos por clave foránea: si
+    // no se llevaran, quedarían filas huérfanas comiéndose el disco.
+    db::delete_conversation(&conn, &conv.id).unwrap();
+    assert!(db::listar_artifacts(&conn, &conv.id).unwrap().is_empty());
+
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn editar_un_mensaje_crea_variante_y_no_se_pierde_nada() {
     let dir = std::env::temp_dir().join(format!("hatboo-test-{}", uuid::Uuid::new_v4()));
     let conn = db::connect(&dir.join("test.db")).expect("connect+migrate");
     let conv = db::create_conversation(&conn, "T", None).unwrap();
@@ -94,14 +123,100 @@ fn editing_a_user_message_truncates_everything_after_it() {
     db::set_message_feedback(&conn, &answer.id, None).unwrap();
     assert!(db::list_messages(&conn, &conv.id).unwrap()[1].feedback.is_none());
 
-    db::update_message_content(&conn, &first.id, "hola editado").unwrap();
-    let orphans = db::truncate_messages_after(&conn, &conv.id, first.created_at).unwrap();
-    assert!(orphans.is_empty());
+    // Editar el primero ya no corta lo de después: nace una segunda versión en
+    // el mismo punto y el hilo activo pasa a ir por ella.
+    let variante = db::crear_variante(&conn, &first.id, "hola editado").unwrap();
+    assert_eq!(variante.parent_id, first.parent_id, "misma posición en el hilo");
+    db::add_message(&conn, &conv.id, "assistant", "respuesta editada", Some("local")).unwrap();
 
-    let msgs = db::list_messages(&conn, &conv.id).unwrap();
-    assert_eq!(msgs.len(), 1, "lo posterior al mensaje editado desaparece");
-    assert_eq!(msgs[0].content, "hola editado");
-    assert_eq!(msgs[0].role, "user");
+    let activo = db::hilo_activo(&conn, &conv.id).unwrap();
+    assert_eq!(activo.len(), 2, "el hilo se corta en la variante: {activo:?}");
+    assert_eq!(activo[0].content, "hola editado");
+    let v = activo[0]
+        .variantas
+        .as_ref()
+        .expect("en este punto hay dos versiones");
+    assert_eq!((v.total, v.posicion), (2, 2));
+
+    // Volver a la primera deja el hilo tal como estaba antes de editar.
+    db::activar_variante(&conn, &first.id).unwrap();
+    let vuelto = db::hilo_activo(&conn, &conv.id).unwrap();
+    assert_eq!(vuelto.len(), 4, "la rama vieja sigue intacta");
+    assert_eq!(vuelto[0].content, "hola");
+    assert_eq!(vuelto[0].variantas.as_ref().unwrap().posicion, 1);
+    assert_eq!(vuelto[1].id, answer.id);
+
+    // Regenerar tampoco borra: la respuesta anterior queda como variante.
+    assert!(db::preparar_regeneracion(&conn, &conv.id).unwrap());
+    db::add_message(&conn, &conv.id, "assistant", "respuesta 2", Some("local")).unwrap();
+    let tras = db::hilo_activo(&conn, &conv.id).unwrap();
+    assert_eq!(tras.len(), 4);
+    assert_eq!(tras[3].content, "respuesta 2");
+    assert_eq!(tras[3].variantas.as_ref().unwrap().total, 2);
+    assert_eq!(tras[3].variantas.as_ref().unwrap().posicion, 2);
+
+    // Nadie perdió una sola fila: las cuatro de antes más las tres nuevas.
+    assert_eq!(db::list_messages(&conn, &conv.id).unwrap().len(), 7);
+
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Una base de datos vieja (sin `parent_id` ni `leaf_id`) tiene que seguir
+/// abriendo con el hilo completo y en el mismo orden. Es lo que se juega aquí:
+/// que la migración no se coma ni un mensaje de quien ya tenía chats.
+#[test]
+fn una_base_vieja_se_migra_sin_perder_mensajes() {
+    let dir = std::env::temp_dir().join(format!("hatboo-vieja-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let ruta = dir.join("viejo.db");
+    let antes: Vec<String> = {
+        let v = rusqlite::Connection::open(&ruta).unwrap();
+        v.execute_batch(
+            "CREATE TABLE conversations (id TEXT PRIMARY KEY, title TEXT NOT NULL,
+                created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+                pinned INTEGER NOT NULL DEFAULT 0, archived INTEGER NOT NULL DEFAULT 0);
+             CREATE TABLE messages (id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL,
+                role TEXT NOT NULL, content TEXT NOT NULL, provider TEXT,
+                created_at INTEGER NOT NULL);",
+        )
+        .unwrap();
+        let mut sal = Vec::new();
+        for (i, (rol, texto)) in [("user", "primero"), ("assistant", "segundo"), ("user", "tercero")]
+            .iter()
+            .enumerate()
+        {
+            let id = format!("m{i}");
+            v.execute(
+                "INSERT INTO messages (id, conversation_id, role, content, created_at)
+                 VALUES (?1, 'c1', ?2, ?3, ?4)",
+                rusqlite::params![id, rol, texto, 1000 + i as i64],
+            )
+            .unwrap();
+            sal.push(texto.to_string());
+        }
+        v.execute(
+            "INSERT INTO conversations (id, title, created_at, updated_at) VALUES ('c1', 'Vieja', 1, 1)",
+            [],
+        )
+        .unwrap();
+        sal
+    };
+    let v = db::connect(&ruta).expect("abrir y migrar la base vieja");
+    let despues: Vec<String> = db::hilo_activo(&v, "c1")
+        .unwrap()
+        .into_iter()
+        .map(|m| m.content)
+        .collect();
+    assert_eq!(despues, antes, "el orden y el contenido se conservan");
+    assert_eq!(db::list_messages(&v, "c1").unwrap().len(), 3);
+    // Y la hoja quedó en el último, así que ya se puede regenerar sin perderlo.
+    assert!(
+        !db::preparar_regeneracion(&v, "c1").unwrap(),
+        "el hilo termina en un mensaje propio: no hay respuesta que regenerar"
+    );
+    db::add_message(&v, "c1", "assistant", "cuarto", None).unwrap();
+    assert!(db::preparar_regeneracion(&v, "c1").unwrap());
+    assert_eq!(db::hilo_activo(&v, "c1").unwrap().len(), 3);
 
     let _ = std::fs::remove_dir_all(dir);
 }

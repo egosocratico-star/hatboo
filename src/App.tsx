@@ -6,6 +6,7 @@ import Sidebar from "./components/Sidebar";
 import ErrorBoundary from "./components/ErrorBoundary";
 import TitleBar from "./components/TitleBar";
 import ChatWindow from "./components/ChatWindow";
+import ArtifactPanel from "./components/ArtifactPanel";
 import Settings from "./components/Settings";
 import SearchOverlay from "./components/SearchOverlay";
 import PantallaCarga, { type Paso } from "./components/PantallaCarga";
@@ -332,6 +333,13 @@ export default function App() {
             </ErrorBoundary>
           )}
         </main>
+        {/* El panel de artifactos acompaña al chat, no al modo trabajo: allí los
+            entregables ya son archivos del proyecto. */}
+        {view === "chat" && (
+          <ErrorBoundary zona={t("el panel de artifactos")}>
+            <ArtifactPanel />
+          </ErrorBoundary>
+        )}
         {view === "settings" && (
           <ErrorBoundary zona={t("los ajustes")}>
             <Settings />

@@ -4,7 +4,10 @@ CREATE TABLE IF NOT EXISTS conversations (
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
     pinned INTEGER NOT NULL DEFAULT 0,
-    archived INTEGER NOT NULL DEFAULT 0
+    archived INTEGER NOT NULL DEFAULT 0,
+    -- Último mensaje del hilo activo. Con variantes ya no vale «el último que
+    -- se escribió»: este es el que dice por qué rama se lee la conversación.
+    leaf_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS messages (
@@ -14,10 +17,32 @@ CREATE TABLE IF NOT EXISTS messages (
     content TEXT NOT NULL,
     provider TEXT,
     created_at INTEGER NOT NULL,
+    -- El mensaje al que responde este. NULL solo en el primero. Editar o
+    -- regenerar crea una fila nueva con el MISMO padre en vez de borrar la
+    -- vieja, y así las dos versiones siguen navegables.
+    parent_id TEXT,
+    -- Cuál de los hijos se toma al bajar por el árbol: la variante activa.
+    preferido TEXT,
     FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages (conversation_id);
+
+-- Lo que el modelo escribió y el usuario abrió en el panel: código, SVG,
+-- documentos. Una fila por versión, agrupadas por (conversación, título,
+-- lenguaje), para que «hazle un cambio» no borre la versión anterior.
+CREATE TABLE IF NOT EXISTS artifacts (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL,
+    titulo TEXT NOT NULL,
+    lenguaje TEXT NOT NULL,
+    contenido TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    creado_en INTEGER NOT NULL,
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_artifacts_conversation ON artifacts (conversation_id);
 
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
