@@ -652,7 +652,7 @@ export default function ProjectView() {
                 <Mascot state={mascotState} size={36} />
               </div>
             )}
-            <div className="flex-1 min-w-0 rounded-2xl border border-base-border bg-base-card px-3 pb-2.5 pt-3 shadow-xl shadow-shade/30 transition-colors focus-within:border-accent/50">
+            <div className="flex-1 min-w-0 rounded-tarjeta border border-base-border bg-base-card px-3 pb-2.5 pt-3 shadow-flotante transition-colors focus-within:border-accent/50">
             {attachments.length > 0 && (
               <div className="flex flex-wrap items-center gap-1.5 pb-2 pl-0.5">
                 {attachments.map((a, i) => (

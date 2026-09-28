@@ -46,7 +46,7 @@ export default function ConfirmModal({
         if (e.target === e.currentTarget) cerrar();
       }}
     >
-      <div className="w-full max-w-sm rounded-2xl border border-base-border hatboo-blur p-5 shadow-2xl shadow-shade/50 animate-pop-in">
+      <div className="w-full max-w-sm rounded-tarjeta border border-base-border hatboo-blur p-5 shadow-flotante animate-pop-in">
         <h2 className="text-sm font-semibold tracking-tight text-zinc-100">{aviso.title}</h2>
         {/* `pre-line` para que un aviso pueda listar archivos en varias líneas. */}
         <p className="mt-1.5 text-xs leading-relaxed text-zinc-400 whitespace-pre-line">

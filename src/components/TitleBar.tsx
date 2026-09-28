@@ -8,11 +8,12 @@ import { useChatStore } from "../store/chatStore";
 const CUADRO =
   "grid h-7 w-7 shrink-0 place-items-center rounded-lg text-zinc-400 transition-colors hover:bg-base-hover hover:text-zinc-100";
 
-/** Los tres de ventana. Antes iban a sangre y sin redondear «porque es Windows»;
- *  el Windows que hay debajo de esta ventana redondea ese resaltado y lo deja
- *  respirar dos píxeles, que es además lo que separa el cerrar del borde. */
+/** Los tres de ventana. Iban a tamaños distintos —el de maximizar hasta 12 px
+ *  mientras los otros dos eran de 16— y se leía como tres botones de casas
+ *  distintas. Mismo cuadro, mismo glifo; solo el cerrar cambia de color. */
 const VENTANA =
   "grid h-9 w-11 shrink-0 place-items-center rounded-md text-zinc-400 transition-colors hover:bg-base-hover hover:text-zinc-100";
+const GLIFO = "h-3.5 w-3.5";
 
 export default function TitleBar() {
   const compact = useChatStore((s) => s.settings?.sidebarCompact ?? false);
@@ -40,7 +41,7 @@ export default function TitleBar() {
   return (
     <header
       data-tauri-drag-region
-      className="flex h-10 shrink-0 select-none items-center gap-1 border-b border-base-border bg-base-raised pl-3"
+      className="flex h-10 shrink-0 select-none items-center gap-1 border-b border-base-border bg-base-raised pl-3 pr-1.5"
     >
       <img
         src={mascotaLogo}
@@ -71,21 +72,21 @@ export default function TitleBar() {
         className={VENTANA}
         title={t("Minimizar")}
       >
-        <Minus className="h-4 w-4" />
+        <Minus className={GLIFO} />
       </button>
       <button
         onClick={() => void getCurrentWindow().toggleMaximize()}
         className={VENTANA}
         title={maximizada ? t("Restaurar") : t("Maximizar")}
       >
-        {maximizada ? <Copy className="h-3 w-3" /> : <Square className="h-3 w-3" />}
+        {maximizada ? <Copy className={GLIFO} /> : <Square className={GLIFO} />}
       </button>
       <button
         onClick={() => void getCurrentWindow().close()}
         className={`${VENTANA} hover:bg-red-500 hover:text-white`}
         title={t("Cerrar Hatboo")}
       >
-        <X className="h-4 w-4" />
+        <X className={GLIFO} />
       </button>
     </header>
   );

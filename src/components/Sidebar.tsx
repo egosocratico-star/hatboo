@@ -42,6 +42,13 @@ import {
   type AvatarStyle,
 } from "../types";
 
+/** La barra que marca «esta». Medía 2 px y pegaba al borde izquierdo de la
+ *  fila, justo donde el `rounded-lg` recorta: se leía como una línea cortada
+ *  que tocaba el canto de la ventana. Con 3 px y cuatro de aire dentro de la
+ *  fila se ve como lo que es, un indicador puesto a propósito. */
+const BARRA_SELECCION =
+  "absolute left-1 top-1.5 bottom-1.5 w-[3px] shrink-0 rounded-full bg-accent-soft";
+
 /** Fila de control del menú rápido: el nombre a la izquierda y el mando a la
  *  derecha. Todas miden lo mismo para que el menú se lea en dos columnas fijas
  *  en vez de como una lista de botones sueltos. */
@@ -291,7 +298,7 @@ function SessionRow({
       {isActive && (
         <span
           aria-hidden
-          className="absolute -left-1 top-1.5 bottom-1.5 w-0.5 rounded-full bg-accent-soft"
+          className={BARRA_SELECCION}
         />
       )}
       {/* El hueco se queda aunque el punto no: sin él los nombres saltarían de
@@ -380,7 +387,7 @@ function ChatRow({
       {/* El tinte solo se confundía con el del proyecto activo encima; la barra
           de acento dice «esta» sin competir con él. */}
       {isActive && (
-        <span aria-hidden className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-accent-soft" />
+        <span aria-hidden className={BARRA_SELECCION} />
       )}
       <MessageSquare
         className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-accent-soft" : "opacity-60"}`}
@@ -935,7 +942,7 @@ export default function Sidebar() {
                 {activo && (
                   <span
                     aria-hidden
-                    className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-accent-soft"
+                    className={BARRA_SELECCION}
                   />
                 )}
                 <button

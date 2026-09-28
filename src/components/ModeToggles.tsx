@@ -23,11 +23,14 @@ export default function ModeToggles({ disabled = false }: Props) {
     void saveSettings(next).catch(() => {});
   };
 
+  // El chip apagado lleva fondo de superficie elevada: sin él era un contorno
+  // sobre el panel, del mismo peso que los iconos sueltos de la cabecera, y no
+  // se leía como «esto se puede pulsar» hasta pasar el ratón por encima.
   const chip = (active: boolean) =>
     `flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs transition-colors disabled:opacity-40 ${
       active
         ? "border-accent/60 bg-accent/10 text-accent-soft"
-        : "border-base-border text-zinc-400 hover:text-zinc-100 hover:border-accent/50"
+        : "border-base-border bg-base-card text-zinc-400 hover:bg-base-hover hover:text-zinc-100 hover:border-accent/50"
     }`;
 
   return (

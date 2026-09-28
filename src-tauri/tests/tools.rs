@@ -1,4 +1,6 @@
-use hatboo_lib::agent::tools::{resolve_in_project, AgentTool, WriteFileTool};
+use hatboo_lib::agent::tools::{
+    resolve_in_project, AgentTool, SearchFilesTool, WriteFileTool,
+};
 use serde_json::json;
 
 #[test]
@@ -68,4 +70,42 @@ async fn write_file_creates_and_diffs() {
     assert!(!outside.exists());
 
     let _ = std::fs::remove_dir_all(&root);
+}
+
+/// Las dos caras de `search_files`: encontrar una línea y encontrar un archivo.
+/// Antes solo existía la primera, y para «¿dónde está el ajuste de red?» el
+/// agente tenía que adivinar la carpeta y recorrerla con `list_dir`.
+#[tokio::test]
+async fn search_files_busca_por_contenido_y_por_nombre() {
+    let dir = std::env::temp_dir().join(format!("hatboo-busca-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(dir.join("src")).unwrap();
+    std::fs::create_dir_all(dir.join("node_modules/paquete")).unwrap();
+    std::fs::write(dir.join("src/ajustes.rs"), "pub const RED: &str = \"off\";\n").unwrap();
+    std::fs::write(dir.join("src/otro.rs"), "nada que ver\n").unwrap();
+    // Lo que hay dentro de node_modules no debe aparecer en ninguna de las dos.
+    std::fs::write(dir.join("node_modules/paquete/ajustes.js"), "RED = off\n").unwrap();
+    let root = dir.canonicalize().unwrap();
+
+    let contenido = SearchFilesTool
+        .execute(json!({ "query": "red" }), &root)
+        .await
+        .unwrap();
+    assert_eq!(contenido["modo"], json!("contenido"));
+    let hits = contenido["matches"].as_array().unwrap();
+    assert_eq!(hits.len(), 1, "matches: {hits:?}");
+    let primera = hits[0].as_str().unwrap();
+    assert!(primera.contains("ajustes.rs:1"), "{primera}");
+    assert!(primera.contains("off"), "{primera}");
+
+    let nombres = SearchFilesTool
+        .execute(json!({ "query": "ajustes", "modo": "nombre" }), &root)
+        .await
+        .unwrap();
+    assert_eq!(nombres["modo"], json!("nombre"));
+    let rutas = nombres["matches"].as_array().unwrap();
+    assert_eq!(rutas.len(), 1, "rutas: {rutas:?}");
+    assert!(rutas[0].as_str().unwrap().ends_with("ajustes.rs"), "{rutas:?}");
+    assert!(!nombres["truncated"].as_bool().unwrap());
+
+    let _ = std::fs::remove_dir_all(&dir);
 }

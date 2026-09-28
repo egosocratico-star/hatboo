@@ -17,7 +17,7 @@ impl AgentTool for SearchFilesTool {
     }
 
     fn description(&self) -> &str {
-        "Busca un texto (sin distinción de mayúsculas) en todos los archivos del proyecto, tipo grep. Devuelve archivo:línea:contenido."
+        "Busca un texto (sin distinción de mayúsculas) en el proyecto. Con modo «contenido», que es el de serie, es un grep: devuelve archivo:línea:contenido. Con modo «nombre» devuelve las rutas cuyo nombre contiene el texto, para cuando se busca un archivo y no su contenido."
     }
 
     fn risk_level(&self) -> RiskLevel {
@@ -29,7 +29,12 @@ impl AgentTool for SearchFilesTool {
             "type": "object",
             "properties": {
                 "query": { "type": "string", "description": "Texto a buscar" },
-                "glob": { "type": "string", "description": "Filtro opcional de nombres de archivo, p. ej. .rs o .tsx" }
+                "glob": { "type": "string", "description": "Filtro opcional de nombres de archivo, p. ej. .rs o .tsx" },
+                "modo": {
+                    "type": "string",
+                    "enum": ["contenido", "nombre"],
+                    "description": "«contenido» busca dentro de los archivos; «nombre» solo en el nombre del archivo."
+                }
             },
             "required": ["query"]
         })
@@ -42,6 +47,10 @@ impl AgentTool for SearchFilesTool {
             .ok_or_else(|| ToolError::Other("Falta el parámetro 'query'".into()))?
             .to_lowercase();
         let glob = input["glob"].as_str().map(|g| g.to_lowercase());
+        // Por nombre es el otro caso: «¿dónde está el archivo de la configuración?».
+        // Sin esto el agente solo tenía grep de contenido y `list_dir` de un nivel,
+        // y para encontrar un archivo por su nombre tenía que adivinar la carpeta.
+        let por_nombre = input["modo"].as_str().is_some_and(|m| m.eq_ignore_ascii_case("nombre"));
 
         let root = project_root.canonicalize()?;
         tokio::task::spawn_blocking(move || {
@@ -69,13 +78,24 @@ impl AgentTool for SearchFilesTool {
                         continue;
                     }
                 }
+                let rel = path.strip_prefix(&root).unwrap_or(path).display().to_string();
+                if por_nombre {
+                    if entry
+                        .file_name()
+                        .to_string_lossy()
+                        .to_lowercase()
+                        .contains(&query)
+                    {
+                        matches.push(rel);
+                    }
+                    continue;
+                }
                 if path.metadata().map(|m| m.len() > MAX_FILE_BYTES).unwrap_or(true) {
                     continue;
                 }
                 let Ok(content) = std::fs::read_to_string(path) else {
                     continue;
                 };
-                let rel = path.strip_prefix(&root).unwrap_or(path).display().to_string();
                 for (line_no, line) in content.lines().enumerate() {
                     if line.to_lowercase().contains(&query) {
                         matches.push(format!("{rel}:{}:{}", line_no + 1, line.trim()));
@@ -87,6 +107,7 @@ impl AgentTool for SearchFilesTool {
             }
             Ok(json!({
                 "query": query,
+                "modo": if por_nombre { "nombre" } else { "contenido" },
                 "matches": matches,
                 "truncated": matches.len() >= MAX_MATCHES,
             }))

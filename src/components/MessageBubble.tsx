@@ -257,7 +257,7 @@ function MessageBubble({
     return (
       <div className="group relative flex animate-rise-in flex-col items-end">
         {editing ? (
-          <div className="w-full max-w-2xl rounded-2xl border border-accent/40 bg-base-raised p-3">
+          <div className="w-full max-w-2xl rounded-tarjeta border border-accent/40 bg-base-raised p-3">
             <textarea
               ref={editorRef}
               value={draft}
@@ -297,7 +297,7 @@ function MessageBubble({
                 solida
                   ? // Morado hondo sólido: el aro interior le quita el canto vivo
                     // al accent de marca sin perder contraste.
-                    "rounded-3xl bg-accent-dim text-white ring-1 ring-inset ring-white/5"
+                    "rounded-entrada bg-accent-dim text-white ring-1 ring-inset ring-white/5"
                   : "rounded-xl border border-accent/40 bg-accent/20 text-layer"
               }`}
             >

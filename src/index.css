@@ -3,6 +3,44 @@
 @tailwind utilities;
 
 /* ============================================================
+   Geometría. A propósito FUERA de los bloques de paleta: lo que
+   cambia al cambiar de tema son los colores, no los radios ni las
+   sombras. `tailwind.config.js` lee de aquí, así que redondear o
+   ensombrecer algo nuevo es elegir una clase, no inventar un valor.
+   ============================================================ */
+:root {
+  /* Cuatro radios: la insignia, el campo, la tarjeta y la caja de
+   * entrada, que es la que manda en el chat. Nada de 18 px sueltos. */
+  --radio-chip: 6px;
+  --radio-campo: 10px;
+  --radio-tarjeta: 16px;
+  --radio-entrada: 24px;
+
+  /* Dos niveles, y solo dos: lo que se apoya sobre una superficie y lo
+   * que flota por encima de todo (menús, modales). El color sale de
+   * `--shade`, que en claro es gris azulado para no dejar halo sucio. */
+  --sombra-apoyada: 0 1px 2px rgb(var(--shade) / 0.3);
+  --sombra-flotante: 0 10px 30px -6px rgb(var(--shade) / 0.55);
+}
+
+/* Foco visible sin que cada componente lo repita: de ~40 archivos de
+ * componentes, cuatro lo tenían. Con el teclado no había forma de saber
+ * dónde se estaba. Se deja a los que ya pintan su propio anillo (los que
+ * ponen `focus:outline-none` ganan por especificidad y siguen igual). */
+:focus-visible {
+  outline: 2px solid rgb(var(--accent) / 0.85);
+  outline-offset: 2px;
+}
+
+/* Un solo grosor de trazo para TODOS los iconos. Lucide pinta
+ * `stroke-width="2"` como atributo, y un atributo de presentación gana menos
+ * que una regla CSS: así se cambia en un sitio y no icono por icono. Antes
+ * convivían el 2 de serie con el 1,5 que ya llevaban las tarjetas del Centro. */
+.lucide {
+  stroke-width: 1.5;
+}
+
+/* ============================================================
    Paleta en variables. `tailwind.config.js` lee de aquí, así que
    cambiar de tema es cambiar estos canales y no tocar ningún
    componente. Los valores van como "R G B" para que Tailwind pueda
@@ -38,7 +76,11 @@
   --zinc-300: 212 212 216;
   --zinc-400: 161 161 170;
   --zinc-500: 113 113 122;
-  --zinc-600: 82 82 91;
+  /* Subido un paso respecto al 82 82 91 que había. Ese gris sobre el panel
+   * (18 18 26) daba 3,1:1 y aquí van frases de 10-11 px —«Sin coincidencias.»,
+   * la pista del pie, los metadatos—, no decoracion. Con 99 sigue por debajo de
+   * zinc-500, así que la jerarquía de grises se mantiene. */
+  --zinc-600: 99 99 111;
 
   --red-300: 252 165 165;
   --red-400: 248 113 113;
@@ -139,7 +181,7 @@
   --zinc-300: 179 192 221;
   --zinc-400: 141 154 192;
   --zinc-500: 107 119 156;
-  --zinc-600: 82 93 126;
+  --zinc-600: 95 106 141;
 
   --red-300: 255 154 165;
   --red-400: 255 107 122;
@@ -179,7 +221,7 @@
   --zinc-500: 111 123 172;
   /* El gris de la paleta original (#565f89) se quedaba por debajo del tenue que
      ya usa el oscuro de Hatboo: estas etiquetas son de 10-11 px sobre tarjeta. */
-  --zinc-600: 100 110 153;
+  --zinc-600: 106 117 163;
 
   --red-300: 255 157 170;
   --red-400: 247 118 138;
@@ -217,7 +259,10 @@
   --zinc-300: 216 222 233;
   --zinc-400: 177 187 201;
   --zinc-500: 143 155 173;
-  --zinc-600: 115 127 147;
+  /* Cada `--zinc-600` de las paletas oscuras sube al punto medio con su
+   * `--zinc-500`: así el gris más tenue deja de estar en 3:1 sobre su propio
+   * panel sin que ningún tema se quede sin paso entre los dos grises. */
+  --zinc-600: 129 141 160;
 
   --red-300: 229 161 166;
   --red-400: 208 128 135;
@@ -257,7 +302,7 @@
   --zinc-300: 166 173 200;
   --zinc-400: 147 153 178;
   --zinc-500: 127 132 156;
-  --zinc-600: 108 112 134;
+  --zinc-600: 118 122 145;
 
   --red-300: 242 205 205;
   --red-400: 243 139 168;
@@ -295,7 +340,7 @@
   --zinc-300: 210 211 220;
   --zinc-400: 176 179 199;
   --zinc-500: 138 143 176;
-  --zinc-600: 98 114 164;
+  --zinc-600: 118 129 170;
 
   --red-300: 255 158 158;
   --red-400: 255 123 123;
@@ -333,7 +378,7 @@
   --zinc-300: 179 176 203;
   --zinc-400: 144 140 170;
   --zinc-500: 123 119 148;
-  --zinc-600: 110 106 134;
+  --zinc-600: 117 113 141;
 
   --red-300: 242 160 181;
   --red-400: 235 111 146;
@@ -372,7 +417,7 @@
   --zinc-300: 182 182 188;
   --zinc-400: 148 148 156;
   --zinc-500: 116 116 125;
-  --zinc-600: 92 92 102;
+  --zinc-600: 104 104 114;
 
   --red-300: 252 165 165;
   --red-400: 248 113 113;

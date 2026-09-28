@@ -338,8 +338,10 @@ export default function ChatWindow() {
     </div>
   );
 
+  // La sombra es `flotante`, no `apoyada`: el hilo pasa por debajo de la caja,
+  // así que es una capa y no una superficie pegada al panel.
   const composer = (
-    <div className="rounded-2xl border border-base-border bg-base-card shadow-xl shadow-shade/30 px-3 pt-3 pb-2.5 transition-colors focus-within:border-accent/50">
+    <div className="rounded-tarjeta border border-base-border bg-base-card shadow-flotante px-3 pt-3 pb-2.5 transition-colors focus-within:border-accent/50">
       {avisoSoltada && (
         <p className="pb-2 pl-1 text-[11px] leading-snug text-red-400/90">{avisoSoltada}</p>
       )}

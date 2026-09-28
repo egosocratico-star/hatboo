@@ -59,6 +59,20 @@ export default {
       fontFamily: {
         mono: ["JetBrains Mono", "Cascadia Code", "Consolas", "monospace"],
       },
+      // Radios y sombras salen de `src/index.css`, igual que los colores, para
+      // que redondear algo nuevo sea elegir una clase y no inventar un valor.
+      // Los cuatro están puestos para que coincidan con lo que ya había: esto
+      // documenta la forma, no la cambia.
+      borderRadius: {
+        chip: "var(--radio-chip)",
+        campo: "var(--radio-campo)",
+        tarjeta: "var(--radio-tarjeta)",
+        entrada: "var(--radio-entrada)",
+      },
+      boxShadow: {
+        apoyada: "var(--sombra-apoyada)",
+        flotante: "var(--sombra-flotante)",
+      },
     },
   },
   plugins: [],

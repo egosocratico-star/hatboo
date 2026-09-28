@@ -66,7 +66,7 @@ export default function ContextMenu({ x, y, items, onClose }: Props) {
     <div
       ref={ref}
       style={{ left: anchor.x, top: anchor.y }}
-      className="fixed z-50 min-w-44 rounded-lg border border-base-border hatboo-blur p-1 shadow-xl shadow-shade/40 animate-pop-in"
+      className="fixed z-50 min-w-44 rounded-campo border border-base-border hatboo-blur p-1 shadow-flotante animate-pop-in"
     >
       {items.map((it) => (
         <button
