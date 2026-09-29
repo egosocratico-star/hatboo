@@ -73,6 +73,11 @@ export default {
         apoyada: "var(--sombra-apoyada)",
         flotante: "var(--sombra-flotante)",
       },
+      // `ease-suave` en cualquier componente: la curva vive en index.css, así
+      // que cambiar el frenado de la interfaz entera es una línea.
+      transitionTimingFunction: {
+        suave: "var(--curva-suave)",
+      },
     },
   },
   plugins: [],

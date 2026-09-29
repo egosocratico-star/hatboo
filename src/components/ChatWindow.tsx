@@ -5,9 +5,6 @@ import {
   ArrowUp,
   ChevronDown,
   ChevronUp,
-  Code2,
-  FileText,
-  Mail,
   Paperclip,
   Search,
   Square,
@@ -19,10 +16,8 @@ import RichText from "./RichText";
 import AttachmentImage from "./AttachmentThumb";
 import Mascot from "./mascot/Mascot";
 import ProviderModelPicker from "./ProviderModelPicker";
-import ContextMeter from "./ContextMeter";
 import ChatPlusMenu from "./ChatPlusMenu";
 import Dots from "./Dots";
-import SuggestionGrid, { type Sugerencia } from "./SuggestionGrid";
 import ModeToggles from "./ModeToggles";
 import ThinkingBlock, { formatDuration } from "./ThinkingBlock";
 import { useSoltados } from "../hooks/useSoltados";
@@ -30,15 +25,6 @@ import type { Attachment, MascotState } from "../types";
 import { CHAT_FONT_SIZES, CHAT_FONT_STACKS } from "../types";
 import { saleDelEquipo } from "../modelo";
 import { modeloActivo } from "../proveedores";
-
-/** En español a pelo: si se tradujeran aquí, el texto quedaría congelado al del
- *  arranque, porque esto se evalúa al importar el módulo. Se traduce al pintar. */
-const SUGERENCIAS: Sugerencia[] = [
-  { texto: "Resúmeme un archivo", icono: FileText },
-  { texto: "Explícame un error", icono: AlertCircle },
-  { texto: "Escríbeme un email", icono: Mail },
-  { texto: "Ayúdame con código", icono: Code2 },
-];
 
 /** Cuatro franjas; la madrugada tiene la suya porque esta app se usa a deshoras.
  *  Va seguida de "Soy <nombre>", así que es un saludo al usuario, no a la app. */
@@ -397,7 +383,6 @@ export default function ChatWindow() {
         />
         <ModeToggles />
         <div className="flex-1 min-w-0" />
-        <ContextMeter conversationId={activeId} tick={messages.length} />
         <ProviderModelPicker />
         {busy ? (
           <button
@@ -453,15 +438,6 @@ export default function ChatWindow() {
           <div className="w-full max-w-3xl space-y-3">
             {errorBanner}
             {composer}
-            <div className="pt-1">
-              <SuggestionGrid
-                items={SUGERENCIAS}
-                onPick={(s) => {
-                  setInput(s);
-                  inputRef.current?.focus();
-                }}
-              />
-            </div>
           </div>
         </div>
       </div>

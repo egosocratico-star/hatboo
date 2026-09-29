@@ -268,9 +268,9 @@ export default function ProviderModelPicker() {
             <Cloud className="h-3 w-3" />
           </span>
         )}
-        <span className="shrink-0 text-zinc-500">
-          {CORTOS[settings.activeProvider]}
-        </span>
+        {/* El nombre del proveedor fuera de la pastilla: el modelo ya lo lleva
+            en el identificador y el popover lo enseña arriba. Lo que sí se
+            queda es el aviso de que la respuesta sale del equipo. */}
         {effort !== "off" && (
           <span className="shrink-0 text-accent-soft">{effortLabel}</span>
         )}

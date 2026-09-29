@@ -12,6 +12,7 @@
     "prueba-cola": "node scripts/prueba-cola.ts",
     "prueba-diff": "node scripts/prueba-diff.ts",
     "prueba-contraste": "node scripts/prueba-contraste.mjs",
+    "prueba-grano": "node scripts/prueba-grano.mjs",
     "tauri": "tauri"
   },
   "dependencies": {

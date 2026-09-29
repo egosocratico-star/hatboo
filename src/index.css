@@ -11,16 +11,47 @@
 :root {
   /* Cuatro radios: la insignia, el campo, la tarjeta y la caja de
    * entrada, que es la que manda en el chat. Nada de 18 px sueltos. */
-  --radio-chip: 6px;
-  --radio-campo: 10px;
-  --radio-tarjeta: 16px;
-  --radio-entrada: 24px;
+  /* Una escala de curvas, no cuatro valores sueltos. Cada radio es el anterior
+     + el salto del anterior, así las esquinas guardan proporción al crecer la
+     superficie. Subieron todos un punto respecto a la escala vieja (6/10/16/24)
+     porque con superficies planas son las curvas las que dan la sensación de
+     blando, no el brillo. */
+  --radio-chip: 8px;
+  --radio-campo: 12px;
+  --radio-tarjeta: 20px;
+  --radio-entrada: 28px;
+  /* La única curva de desaceleración de la app: arranque rápido, final largo.
+     Se elige aquí para que un panel, un popover y una fila frene igual. */
+  --curva-suave: cubic-bezier(0.32, 0.72, 0, 1);
+  --movimiento: 180ms;
 
   /* Dos niveles, y solo dos: lo que se apoya sobre una superficie y lo
    * que flota por encima de todo (menús, modales). El color sale de
    * `--shade`, que en claro es gris azulado para no dejar halo sucio. */
-  --sombra-apoyada: 0 1px 2px rgb(var(--shade) / 0.3);
-  --sombra-flotante: 0 10px 30px -6px rgb(var(--shade) / 0.55);
+  /* Dos capas en cada sombra: una ceñida que marca el borde y una ancha y muy
+     difusa que es la que se lee como altura. Una sola sombra dura era lo que
+     hacía las tarjetas parecieran pegatinas. */
+  --sombra-apoyada: 0 1px 2px rgb(var(--shade) / 0.22), 0 6px 18px -6px rgb(var(--shade) / 0.3);
+  --sombra-flotante: 0 2px 8px rgb(var(--shade) / 0.28), 0 22px 56px -14px rgb(var(--shade) / 0.55);
+
+  /* ============================================================
+     Grano. Dos teselas de ruido de 256 px y UNA fuerza por paleta,
+     porque la textura que sale depende del tono, no del gusto:
+     mezclado con `overlay` el salto es 2·min(b,1−b)·0,294·F, así que
+     Nord saca 5,2 niveles con la fuerza suave y el oscuro de Hatboo
+     saca 6,4 con la fuerte. Lo decide `npm run prueba-grano`, que
+     además no deja pasar una fuerza que rompa un suelo de contraste
+     en el peor píxel del grano (por eso Rosé Pine y claro van sin).
+     Dos puntos fijos de `overlay`, medidos en Chromium: el blanco
+     puro y el negro puro no se mueven ni un nivel — en el tema claro
+     el grano simplemente no se ve, y en OLED el fondo #000 sigue
+     apagando el píxel y solo se texturizan las tarjetas.
+     ============================================================ */
+  --grano-suave: url("./assets/grano-suave.svg");
+  --grano-fuerte: url("./assets/grano-fuerte.svg");
+  /* Ningún tema hereda grano: lo pide cada paleta. Así un tema nuevo no lo
+     recibe por descuido. */
+  --grano: none;
 }
 
 /* Foco visible sin que cada componente lo repita: de ~40 archivos de
@@ -40,12 +71,51 @@
   }
 }
 
+/* El grano se cuelga del TOKEN de superficie, no de cada componente: son cuatro
+ * clases y unos 150 usos repartidos por la app.
+ *
+ * Va SIN CAPA, y no es un descuido. Medido en el CSS que sirve Vite: metida dentro
+ * de `@layer components`, Tailwind trata la regla como parte de la utilidad del
+ * mismo nombre, y el grano se colaba en dos sitios que no lo pedían — en `body`, que
+ * lleva `@apply bg-base` (duplicado, inocuo), y en `.hover\:bg-base:hover`, que lo
+ * hacía aparecer DE REPENTE al pasar el ratón por una fila que estaba lisa. Sin
+ * capa, la regla es solo para la clase exacta: las variantes (`hover:bg-base-hover`)
+ * y las opacidades (`bg-base/40`) son otras clases y no la pisan.
+ *
+ * El precio de ir sin capa es el que ya enseñó el anillo de foco: le gana a
+ * cualquier utilidad, así que si algún día un componente declara su propio
+ * `background-image` (un `bg-gradient-*`, una foto) tendrá que apagar el grano él
+ * mismo con `background-image: none`. Ahora mismo no hay ni un gradiente en la app. */
+.bg-base,
+.bg-base-raised,
+.bg-base-card,
+.bg-base-code {
+  background-image: var(--grano);
+  background-repeat: repeat;
+  background-size: 256px 256px;
+  background-blend-mode: overlay;
+}
+
 /* Un solo grosor de trazo para TODOS los iconos. Lucide pinta
  * `stroke-width="2"` como atributo, y un atributo de presentación gana menos
  * que una regla CSS: así se cambia en un sitio y no icono por icono. Antes
  * convivían el 2 de serie con el 1,5 que ya llevaban las tarjetas del Centro. */
 .lucide {
   stroke-width: 1.5;
+}
+
+/* La curva de frenado de TODA la app, en una línea. Va fuera de cualquier
+ * `@layer` a propósito: las utilidades `transition-*` de Tailwind traen su propia
+ * curva y están en capa, y una regla sin capa gana a una con capa — es el mismo
+ * mecanismo que hizo que el anillo de foco se comiera el `outline-none`, usado
+ * aquí a favor. Paneles, botones, filas, popovers y barras frenan todos igual.
+ *
+ * Solo se toca la curva, no la duración: los paneles que declaran 200 ms y las
+ * filas de 150 siguen con la suya, que es decisión de cada sitio. */
+*,
+*::before,
+*::after {
+  transition-timing-function: var(--curva-suave);
 }
 
 /* ============================================================
@@ -449,6 +519,55 @@
   --shade: 0 0 0;
 }
 
+/* ============================================================
+   LA FUERZA DEL GRANO, por paleta y en una sola lista. Va fuera de
+   los bloques de tema porque aquí no se elige color sino textura, y
+   el número de niveles que saca cada tesela depende del tono de ese
+   tema: 0,45 de fuerza da 6,4 niveles sobre la tarjeta de Hatboo y
+   13,8 sobre la de Drácula — el doble de ruido con el mismo mando.
+   Los valores los fija `npm run prueba-grano` (mide el salto, la
+   deriva del tono y el peor píxel contra los suelos de contraste); si
+   se añade un tema, ese script dice cuál le toca.
+   ============================================================ */
+/* oscuro: 6,4 niv en tarjeta · 2,9 en fondo */
+:root {
+  --grano: var(--grano-fuerte);
+}
+/* sin grano, medido: `overlay` sobre blanco puro es identidad (0,0 niv) */
+[data-theme="light"] {
+  --grano: none;
+}
+/* 5,0 niv en tarjeta · 1,9 en fondo */
+[data-theme="space"] {
+  --grano: var(--grano-fuerte);
+}
+/* 3,6 niv con la suave; con la fuerte se iría a 10,8 */
+[data-theme="tokyo"] {
+  --grano: var(--grano-suave);
+}
+/* 5,2 niv; es la paleta más clara de las oscuras y la que más textura saca */
+[data-theme="nord"] {
+  --grano: var(--grano-suave);
+}
+/* 4,3 niv */
+[data-theme="catppuccin"] {
+  --grano: var(--grano-suave);
+}
+/* 4,6 niv */
+[data-theme="dracula"] {
+  --grano: var(--grano-suave);
+}
+/* Sin grano: con la fuerza suave el peor píxel del ruido deja el cuerpo tenue de
+   la tarjeta en 3,89 y el suelo de esta app es 4. No es gusto, es techo. */
+[data-theme="rosepine"] {
+  --grano: none;
+}
+/* 4,8 niv en la tarjeta y 0,0 en el fondo: sobre #000 el grano no puede pintar,
+   así que el píxel apagado lo sigue estando. */
+[data-theme="oled"] {
+  --grano: var(--grano-fuerte);
+}
+
 html,
 body,
 #root {
@@ -572,7 +691,7 @@ svg {
   }
 }
 .animate-rise-in {
-  animation: rise-in 0.18s ease-out both;
+  animation: rise-in var(--movimiento) var(--curva-suave) both;
 }
 .animate-pop-in {
   /* Sin `scale`: escalar un panel con texto lo re-muestrea y se ve borroso un
@@ -580,13 +699,13 @@ svg {
   animation: pop-in 0.16s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .animate-fade-in {
-  animation: fade-in 0.18s ease-out both;
+  animation: fade-in var(--movimiento) var(--curva-suave) both;
 }
 .animate-dot {
   animation: dot-wave 1.1s ease-in-out infinite;
 }
 .animate-pop-out {
-  animation: pop-out 0.11s ease-in both;
+  animation: pop-out 0.11s var(--curva-suave) both;
 }
 
 /* ------------------------------------------------------------

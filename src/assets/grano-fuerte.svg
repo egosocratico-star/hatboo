@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256">
+  <!-- Grano de la app. Se mezcla con `overlay` sobre el color de cada superficie,
+       así que lo que importa es que el ruido esté CENTRADO y sea simétrico:
+       `color-interpolation-filters='sRGB'` fija la mediana en 128 de canal (sin él
+       SVG filtra en lineal y la mediana sale en ~188, o sea aclararía todo);
+       `feFuncA` fija el alfa a 1 porque el feTurbulence ALSO hace ruido en el canal
+       alfa y, si se deja, la mitad de lo que se pinta es alfa del propio tile en
+       vez de la fuerza elegida;
+       `stitchTiles` para que el teselado de 256 no deje rejilla en la ventana.
+       La fuerza va en el `opacity` del rect: es lo único que cambia entre los dos
+       grano-*.svg. baseFrequency 1,0 está medido y NO sirve: colapsa a un valor
+       constante y la textura desaparece. -->
+  <filter id="g" x="0" y="0" width="256" height="256" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+    <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" stitchTiles="stitch" seed="7" />
+    <feColorMatrix type="saturate" values="0" />
+    <feComponentTransfer>
+      <feFuncA type="linear" slope="0" intercept="1" />
+    </feComponentTransfer>
+  </filter>
+  <rect width="256" height="256" filter="url(#g)" opacity="0.45" />
+</svg>

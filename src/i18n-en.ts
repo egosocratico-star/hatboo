@@ -123,7 +123,6 @@ export const en: Record<string, string> = {
   "Avisos mientras trabajas en otra ventana, y qué sale de la máquina.":
     "Notifications while you work in another window, and what leaves the machine.",
   ayer: "yesterday",
-  "Ayúdame con código": "Help me with code",
   "Base de datos": "Database",
   "Borrar key": "Delete key",
   "Borrar todo": "Delete everything",
@@ -230,7 +229,6 @@ export const en: Record<string, string> = {
   "la página de proyectos": "the projects page",
   "los ajustes": "settings",
   "Esc para cerrar": "Esc to close",
-  "Escríbeme un email": "Write me an email",
   "Esta categoría está en desarrollo.": "This section is still in development.",
   "Esta semana": "This week",
   "Este mes": "This month",
@@ -238,7 +236,6 @@ export const en: Record<string, string> = {
   Antes: "Earlier",
   "Este no comprueba si la ventana está delante: lo lanza igual.":
     "This one doesn't check whether the window is in front: it fires anyway.",
-  "Explícame un error": "Explain an error to me",
   "Explicar paso a paso": "Explain step by step",
   "Exportar conversación": "Export conversation",
   "Expulsar de la memoria": "Unload from memory",
@@ -382,7 +379,6 @@ export const en: Record<string, string> = {
     "Answer with three conclusion bullets first and the detail after. If information is missing, say so before making it up.",
   "Restablecer de fábrica": "Factory reset",
   "Restablecer Hatboo": "Reset Hatboo",
-  "Resúmeme un archivo": "Summarise a file for me",
   "Resumen de lo que hay en tu base de datos local.": "A summary of what's in your local database.",
   "Resumen ejecutivo": "Executive summary",
   "Revisa el código buscando bugs, casos sin cubrir y problemas de seguridad. Prioriza por gravedad, cita archivo y línea, y no propongas cambios de estilo.":
@@ -475,7 +471,6 @@ export const en: Record<string, string> = {
   // Palabras sueltas que se ven en etiquetas cortas e iconos con texto.
   Imágenes: "Images",
   Sesión: "Session",
-  Contexto: "Context",
   Código: "Code",
   código: "code",
   Versión: "Version",
@@ -820,30 +815,9 @@ export const en: Record<string, string> = {
     "Card with the accent at 15% and 12px corners: more subdued.",
 
   // ---- Contador de contexto: ahora se abre y cuenta qué viaja. ----
-  "Cuánto ocupa el próximo turno": "How much room the next turn takes",
-  "Ventana de contexto": "Context window",
-  "Lo fijo: identidad, reglas y plantillas": "The fixed kit: identity, rules and templates",
-  "La conversación": "The conversation",
-  "Lo que estás escribiendo": "What you're typing",
-  "Con lo escrito hasta aquí no cabe entero: se cortará por el principio de la conversación.":
-    "With what's written so far it won't fit: it would be cut from the start of the conversation.",
-  Libre: "Free",
-  "{usado} de {total} tokens": "{usado} of {total} tokens",
-  "El techo lo pone el «num_ctx» con el que Ollama arranca este modelo.":
-    "The ceiling is the `num_ctx` Ollama starts this model with.",
-  "Ventana nativa del modelo: si Ollama lo arranca con menos contexto, el corte llegará antes.":
-    "The model's native window: if Ollama starts it with less context, the cut comes sooner.",
-  "Ventana que declara el proveedor.": "The window the provider declares.",
-  "≈ {n} tokens. Este modelo no declara su ventana, así que no se saca un porcentaje de un número inventado.":
-    "≈ {n} tokens. This model doesn't declare its window, so no percentage comes out of an invented number.",
-  "Si desborda, el proveedor recorta por el principio y la conversación pierde su arranque: exporta y abre una nueva antes de que pase.":
-    "If it overflows, the provider trims from the start and the conversation loses its opening: export it and open a new one before that happens.",
-  Caracteres: "Characters",
   Mensajes: "Messages",
   "Los tokens son una estimación a ~4 caracteres por token, no el contador del proveedor.":
     "Tokens are estimated at ~4 characters per token, not the provider's own count.",
-  "Las {n} imágenes van en base64 y no entran en esa estimación: suelen ser lo que más abulta.":
-    "The {n} images go out as base64 and aren't in that estimate: they're usually the bulkiest part.",
 
   // ---- Ctrl+K: vacío ya no es un muro de texto, es un cambiador de hilos. ----
   Recientes: "Recent",

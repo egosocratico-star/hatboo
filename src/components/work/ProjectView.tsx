@@ -6,13 +6,9 @@ import {
   AlertCircle,
   AlertTriangle,
   ArrowUp,
-  BookOpen,
   ChevronDown,
-  FlaskConical,
   FolderOpen,
-  GitCompare,
   Paperclip,
-  Search,
   Square,
   X,
   FolderTree,
@@ -30,7 +26,6 @@ import { useChatStore } from "../../store/chatStore";
 import MessageBubble from "../MessageBubble";
 import Mascot from "../mascot/Mascot";
 import Dots from "../Dots";
-import SuggestionGrid, { type Sugerencia } from "../SuggestionGrid";
 import FileTree from "./FileTree";
 import AgentTrace from "./AgentTrace";
 import FileCards from "./FileCards";
@@ -116,15 +111,6 @@ const NO_MESSAGES: Message[] = [];
 const NO_TASKS: Task[] = [];
 const NO_STEPS: StepLine[] = [];
 const NO_COLA: string[] = [];
-
-/** En español a pelo y traducidas al pintar: una constante de módulo se evalúa al
- *  importar, antes de conocer el idioma guardado. */
-const TASK_SUGGESTIONS: Sugerencia[] = [
-  { texto: "Explícame qué hace este proyecto", icono: BookOpen },
-  { texto: "Busca en los archivos dónde se define X", icono: Search },
-  { texto: "Resume los cambios sin commitear", icono: GitCompare },
-  { texto: "Añade pruebas a lo último que toqué", icono: FlaskConical },
-];
 
 /** Los cinco iconos de la derecha y los tres toggles miden lo mismo (26 px): en
  *  la misma fila, cualquier diferencia de alto se ve como un desalineado. */
@@ -577,14 +563,6 @@ export default function ProjectView() {
                   <LayerChips />
                 </span>
               </div>
-              <SuggestionGrid
-                items={TASK_SUGGESTIONS}
-                disabled={toolSupport === false}
-                onPick={(texto) => {
-                  setInput(t(texto));
-                  requestAnimationFrame(() => taskRef.current?.focus());
-                }}
-              />
             </div>
           ) : (
             <div className="max-w-3xl mx-auto px-6 py-4 space-y-2.5">
@@ -742,7 +720,10 @@ export default function ProjectView() {
               className="max-h-48 w-full resize-none bg-transparent px-1 pb-2 text-sm leading-relaxed outline-none placeholder:text-zinc-600 disabled:cursor-not-allowed"
             />
 
-            <div className="flex items-center gap-2">
+            {/* `flex-wrap`: con los dos paneles abiertos la fila no cabe y el
+                modelo y el envío se salían de la tarjeta, pisando TAREAS. Mejor
+                una segunda línea dentro de la caja que un botón fuera de ella. */}
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               <WorkPlusMenu
                 onPickFiles={(files) => setAttachments((prev) => [...prev, ...files])}
                 onInsertTemplate={insertTemplate}
