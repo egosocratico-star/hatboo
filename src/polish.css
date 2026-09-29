@@ -1,0 +1,15 @@
+/* Pulido visual mínimo: no toca paletas ni geometría base. */
+
+::selection {
+  background-color: rgb(var(--accent) / 0.28);
+  color: rgb(var(--zinc-100));
+}
+
+.hatboo-composer {
+  box-shadow: 0 1px 0 rgb(var(--layer) / 0.04), var(--sombra-apoyada);
+}
+.hatboo-composer:focus-within {
+  box-shadow:
+    0 0 0 3px rgb(var(--accent) / 0.16),
+    0 1px 0 rgb(var(--layer) / 0.05);
+}
