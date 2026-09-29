@@ -46,6 +46,7 @@ export default function ProviderModelPicker() {
 
   const [open, setOpen] = useState(false);
   const [reasonOpen, setReasonOpen] = useState(false);
+  const [provOpen, setProvOpen] = useState(false);
   const [probe, setProbe] = useState<Probe>(null);
   const localModels = useChatStore((s) => s.localModels);
   const localModelsEndpoint = useChatStore((s) => s.localModelsEndpoint);
@@ -243,6 +244,10 @@ export default function ProviderModelPicker() {
   const enPc = filtradas.filter((f) => !f.nube);
   const enNube = filtradas.filter((f) => f.nube);
 
+  // El icono del proveedor activo, para la fila plegada de «Proveedor».
+  const ActivoIcono =
+    PROVEEDORES.find((p) => p.id === settings.activeProvider)?.icono ?? PROVEEDORES[0].icono;
+
   return (
     <div className="relative shrink-0">
       <button
@@ -281,26 +286,48 @@ export default function ProviderModelPicker() {
         align="end"
         className="p-2 space-y-1"
       >
-          <div className="text-[10px] uppercase tracking-wider text-zinc-600 px-2 pt-1 pb-0.5">
-            {t("Proveedor")}
-          </div>
-          {PROVEEDORES.map((p) => (
+          {/* El proveedor se elige una vez y se cambia poco, así que no ocupa
+              seis filas siempre: una línea con el activo y se despliega igual
+              que la del razonamiento. Lo que se mira al abrir es la lista de
+              modelos, y esa queda arriba. */}
+          <div className="border-b border-base-border pb-1">
             <button
-              key={p.id}
-              onClick={() => void patch({ activeProvider: p.id })}
-              className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs transition-colors ${
-                settings.activeProvider === p.id
-                  ? "bg-base-hover text-zinc-100"
-                  : "text-zinc-400 hover:bg-base-hover/60 hover:text-zinc-200"
-              }`}
+              onClick={() => setProvOpen((v) => !v)}
+              className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-zinc-400 hover:bg-base-hover/60 hover:text-zinc-200 transition-colors"
             >
-              <p.icono className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
-              {p.corto}
-              {settings.activeProvider === p.id && (
-                <Check className="w-3.5 h-3.5 ml-auto text-accent-soft" />
+              <ActivoIcono className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
+              <span>{t("Proveedor")}</span>
+              <span className="ml-auto text-zinc-300">
+                {CORTOS[settings.activeProvider]}
+              </span>
+              {provOpen ? (
+                <ChevronDown className="w-3 h-3 shrink-0 rotate-180 text-zinc-600" />
+              ) : (
+                <ChevronRight className="w-3 h-3 shrink-0 text-zinc-600" />
               )}
             </button>
-          ))}
+            {provOpen && (
+              <div className="pt-1 space-y-0.5">
+                {PROVEEDORES.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => void patch({ activeProvider: p.id })}
+                    className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-1 text-xs transition-colors ${
+                      settings.activeProvider === p.id
+                        ? "bg-base-hover text-zinc-100"
+                        : "text-zinc-400 hover:bg-base-hover/60 hover:text-zinc-200"
+                    }`}
+                  >
+                    <p.icono className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
+                    {p.corto}
+                    {settings.activeProvider === p.id && (
+                      <Check className="w-3.5 h-3.5 ml-auto text-accent-soft" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           <div className="text-[10px] uppercase tracking-wider text-zinc-600 px-2 pt-2 pb-0.5">
             {t("Modelo ({p})", { p: CORTOS[settings.activeProvider] })}
@@ -419,27 +446,21 @@ export default function ProviderModelPicker() {
             >
               <div className="overflow-hidden">
                 <div className="pl-2 pb-1 space-y-0.5">
-                {REASONING_LEVELS.map((l, i) => (
-                  <div key={l.id}>
-                    {i === 1 && (
-                      <p className="px-2.5 pt-2 pb-0.5 text-[10px] uppercase tracking-wider text-zinc-600">
-                        {t("Cuánto")}
-                      </p>
+                {REASONING_LEVELS.map((l) => (
+                  <button
+                    key={l.id}
+                    onClick={() => void patch({ reasoningEffort: l.id })}
+                    className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-1 text-xs transition-colors ${
+                      effort === l.id
+                        ? "bg-base-hover text-zinc-100"
+                        : "text-zinc-400 hover:bg-base-hover/60"
+                    }`}
+                  >
+                    {t(l.label)}
+                    {effort === l.id && (
+                      <Check className="w-3.5 h-3.5 ml-auto text-accent-soft" />
                     )}
-                    <button
-                      onClick={() => void patch({ reasoningEffort: l.id })}
-                      className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-1 text-xs transition-colors ${
-                        effort === l.id
-                          ? "bg-base-hover text-zinc-100"
-                          : "text-zinc-400 hover:bg-base-hover/60"
-                      }`}
-                    >
-                      {t(l.label)}
-                      {effort === l.id && (
-                        <Check className="w-3.5 h-3.5 ml-auto text-accent-soft" />
-                      )}
-                    </button>
-                  </div>
+                  </button>
                 ))}
                 <p className="px-2.5 pt-1 text-[10px] leading-snug text-zinc-600">
                   {t(

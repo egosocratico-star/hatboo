@@ -11,6 +11,7 @@
     "i18n": "node scripts/i18n-cubre.mjs",
     "prueba-cola": "node scripts/prueba-cola.ts",
     "prueba-diff": "node scripts/prueba-diff.ts",
+    "prueba-contraste": "node scripts/prueba-contraste.mjs",
     "tauri": "tauri"
   },
   "dependencies": {

@@ -25,11 +25,19 @@
 
 /* Foco visible sin que cada componente lo repita: de ~40 archivos de
  * componentes, cuatro lo tenían. Con el teclado no había forma de saber
- * dónde se estaba. Se deja a los que ya pintan su propio anillo (los que
- * ponen `focus:outline-none` ganan por especificidad y siguen igual). */
-:focus-visible {
-  outline: 2px solid rgb(var(--accent) / 0.85);
-  outline-offset: 2px;
+ * dónde se estaba.
+ *
+ * Va dentro de `@layer base` a propósito. Fuera de una capa, esta regla le
+ * ganaba a la utilidad `outline-none` de Tailwind —que sí está en capa—, así
+ * que el anillo morado aparecía dentro de la caja del compositor, encima de
+ * los dos campos que habían pedido claramente no tenerlo. En la capa base, el
+ * que pinta su propio anillo o apaga el del navegador manda, como se decía
+ * arriba. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid rgb(var(--accent) / 0.85);
+    outline-offset: 2px;
+  }
 }
 
 /* Un solo grosor de trazo para TODOS los iconos. Lucide pinta
@@ -53,7 +61,11 @@
   color-scheme: dark;
 
   --surface: 11 11 16; /* #0b0b10 */
-  --surface-raised: 18 18 26; /* #12121a */
+  /* Dos alturas, no cinco: el fondo y la tarjeta. `raised` es la MISMA altura
+     que `card` a propósito — paneles, popovers y tarjetas son el mismo plano y
+     se separan con el filete, no con más brillo. `code` se queda distinto
+     porque el código y los diffs necesitan leerse como otro material. */
+  --surface-raised: 24 24 32;
   /* Nivel 2: tarjetas, menús y modales. Sin este paso la app se pintaba con
      `bg-base/40`, `bg-base/60`, `bg-base-raised/70`…: quince opacidades
      distintas para decir lo mismo, y superficies que quedaban al mismo nivel
@@ -113,7 +125,7 @@
   /* En claro la rampa tiene que subir como en oscuro: fondo → panel → tarjeta.
      Con el panel en blanco puro no había sitio para la tarjeta, y quedaba al
      revés (la tarjeta más oscura que lo que flota sobre ella). */
-  --surface-raised: 248 248 251;
+  --surface-raised: 255 255 255;
   --surface-card: 255 255 255;
   --surface-border: 224 224 233;
   --surface-hover: 236 236 243;
@@ -166,7 +178,7 @@
 /* Dark Space: azul noche profundo, acento cian en vez de morado. */
 [data-theme="space"] {
   --surface: 7 10 20;
-  --surface-raised: 13 18 32;
+  --surface-raised: 19 26 43;
   --surface-card: 19 26 43;
   --surface-border: 30 39 64;
   --surface-hover: 24 33 56;
@@ -204,7 +216,7 @@
 /* Tokyo Night: índigo con lavanda. */
 [data-theme="tokyo"] {
   --surface: 26 27 38;
-  --surface-raised: 31 34 51;
+  --surface-raised: 41 46 66;
   --surface-card: 41 46 66;
   --surface-border: 59 66 97;
   --surface-hover: 42 47 69;
@@ -244,7 +256,7 @@
 /* Nord: ártico, hielo sobre pizarra. */
 [data-theme="nord"] {
   --surface: 46 52 64;
-  --surface-raised: 53 60 71;
+  --surface-raised: 59 66 82;
   --surface-card: 59 66 82;
   --surface-border: 67 76 94;
   --surface-hover: 74 84 103;
@@ -287,7 +299,7 @@
 /* Catppuccin Mocha. */
 [data-theme="catppuccin"] {
   --surface: 30 30 46;
-  --surface-raised: 38 39 62;
+  --surface-raised: 49 50 68;
   --surface-card: 49 50 68;
   --surface-border: 69 71 90;
   --surface-hover: 42 43 66;
@@ -325,7 +337,7 @@
 /* Dracula. */
 [data-theme="dracula"] {
   --surface: 33 34 44;
-  --surface-raised: 40 42 54;
+  --surface-raised: 52 55 70;
   --surface-card: 52 55 70;
   --surface-border: 68 71 90;
   --surface-hover: 58 61 77;
@@ -363,7 +375,7 @@
 /* Rosé Pine Moon. */
 [data-theme="rosepine"] {
   --surface: 35 33 54;
-  --surface-raised: 42 39 70;
+  --surface-raised: 49 46 75;
   --surface-card: 49 46 75;
   --surface-border: 57 53 82;
   --surface-hover: 52 48 78;
@@ -402,7 +414,7 @@
    punto más bajo que en el oscuro normal, que sobre #000 centellea. */
 [data-theme="oled"] {
   --surface: 0 0 0;
-  --surface-raised: 10 10 13;
+  --surface-raised: 18 18 22;
   --surface-card: 18 18 22;
   --surface-border: 31 31 38;
   --surface-hover: 22 22 27;

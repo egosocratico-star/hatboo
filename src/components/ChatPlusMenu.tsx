@@ -219,9 +219,6 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
           <button onClick={() => void pickFiles()} className={item} disabled={busy}>
             <Paperclip className="w-4 h-4 text-accent-soft shrink-0" />
             <span className="flex-1">{busy ? t("Leyendo…") : t("Archivos")}</span>
-            <span className="shrink-0 text-[10px] text-zinc-600">
-              {t("de cualquier tipo")}
-            </span>
           </button>
           <button
             onClick={() => setUrlGitHub((v) => (v === null ? "" : null))}
@@ -260,7 +257,6 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
             <button onClick={() => void capturarPantalla()} className={item} disabled={busy}>
               <Camera className="w-4 h-4 text-accent-soft shrink-0" />
               <span className="flex-1">{t("Tomar captura")}</span>
-              <span className="text-[10px] text-zinc-600">{t("pantalla entera")}</span>
             </button>
           ) : (
             <div
