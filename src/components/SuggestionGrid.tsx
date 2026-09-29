@@ -20,23 +20,36 @@ export default function SuggestionGrid({
   items,
   onPick,
   disabled = false,
+  compact = false,
 }: {
   items: Sugerencia[];
   onPick: (texto: string) => void;
   disabled?: boolean;
+  /** En el chat vacío: una fila de cuatro, para que quepan con el compositor. */
+  compact?: boolean;
 }) {
   return (
-    <div className="grid w-full gap-2 sm:grid-cols-2">
+    <div
+      className={
+        compact
+          ? "grid w-full grid-cols-2 gap-1.5 sm:grid-cols-4"
+          : "grid w-full gap-2 sm:grid-cols-2"
+      }
+    >
       {items.map(({ texto, icono: Icono }) => (
         <button
           key={texto}
           onClick={() => onPick(texto)}
           disabled={disabled}
           title={t(texto)}
-          className="flex min-w-0 items-center gap-2.5 rounded-tarjeta border border-base-border bg-base-card px-3 py-2.5 text-left text-[13px] leading-snug text-zinc-400 transition-colors hover:border-accent/50 hover:bg-base-hover hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
+          className={`flex min-w-0 items-center gap-2 border border-base-border bg-base-card text-left leading-snug text-zinc-400 transition-colors hover:border-accent/45 hover:bg-base-hover hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 ${
+            compact
+              ? "rounded-campo px-2.5 py-2 text-[12px]"
+              : "rounded-tarjeta px-3 py-2.5 text-[13px] gap-2.5"
+          }`}
         >
-          <Icono className="h-4 w-4 shrink-0 text-accent-soft" />
-          <span className="min-w-0">{t(texto)}</span>
+          <Icono className="h-3.5 w-3.5 shrink-0 text-accent-soft" />
+          <span className="min-w-0 truncate">{t(texto)}</span>
         </button>
       ))}
     </div>

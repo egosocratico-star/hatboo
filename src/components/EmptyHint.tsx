@@ -22,7 +22,7 @@ export default function EmptyHint({
   accion?: ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-2.5 rounded-lg border border-dashed border-base-border px-3 py-2.5 text-xs text-zinc-500">
+    <div className="flex items-start gap-2.5 rounded-campo border border-base-border/80 bg-base-raised/40 px-3 py-2.5 text-xs text-zinc-500">
       {pose ? (
         <Mascot state={pose} size={26} />
       ) : (

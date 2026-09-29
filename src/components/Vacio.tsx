@@ -19,8 +19,8 @@ export default function Vacio({
   accion?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-base-border px-5 py-8 text-center">
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-base-border bg-base-raised">
+    <div className="flex flex-col items-center gap-2 rounded-tarjeta border border-base-border/80 bg-base-raised/30 px-5 py-8 text-center">
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-base-border bg-base-card">
         <Icono className="h-4 w-4 text-accent-soft" />
       </span>
       <p className="text-[13px] font-semibold leading-snug text-zinc-200">{titulo}</p>
