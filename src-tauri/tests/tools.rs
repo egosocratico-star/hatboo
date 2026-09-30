@@ -86,7 +86,7 @@ async fn search_files_busca_por_contenido_y_por_nombre() {
     std::fs::write(dir.join("node_modules/paquete/ajustes.js"), "RED = off\n").unwrap();
     let root = dir.canonicalize().unwrap();
 
-    let contenido = SearchFilesTool
+    let contenido = SearchFilesTool::nuevo(vec!["node_modules".to_string()])
         .execute(json!({ "query": "red" }), &root)
         .await
         .unwrap();
@@ -97,7 +97,7 @@ async fn search_files_busca_por_contenido_y_por_nombre() {
     assert!(primera.contains("ajustes.rs:1"), "{primera}");
     assert!(primera.contains("off"), "{primera}");
 
-    let nombres = SearchFilesTool
+    let nombres = SearchFilesTool::nuevo(vec!["node_modules".to_string()])
         .execute(json!({ "query": "ajustes", "modo": "nombre" }), &root)
         .await
         .unwrap();
@@ -106,6 +106,16 @@ async fn search_files_busca_por_contenido_y_por_nombre() {
     assert_eq!(rutas.len(), 1, "rutas: {rutas:?}");
     assert!(rutas[0].as_str().unwrap().ends_with("ajustes.rs"), "{rutas:?}");
     assert!(!nombres["truncated"].as_bool().unwrap());
+
+    // La lista es la que manda: sin ella, el buscador entra en node_modules. Es lo
+    // que se cambió (antes cada herramienta traía la suya fija), y si alguien la
+    // vuelve a ignorar este caso es el que se queja.
+    let sin_lista = SearchFilesTool::nuevo(vec![])
+        .execute(json!({ "query": "ajustes", "modo": "nombre" }), &root)
+        .await
+        .unwrap();
+    let dos = sin_lista["matches"].as_array().unwrap();
+    assert_eq!(dos.len(), 2, "con la lista vacía se ven las dos: {dos:?}");
 
     let _ = std::fs::remove_dir_all(&dir);
 }
