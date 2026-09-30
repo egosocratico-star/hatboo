@@ -8,6 +8,7 @@ const dirs = [
   "src/components",
   "src/components/work",
   "src/components/mascot",
+  "src/components/settings",
   // Las tiendas también llaman a `t()`: si no se escanean, sus cadenas se
   // traducen por accidente o se quedan en español sin que nadie lo vea.
   "src/store",
@@ -35,7 +36,7 @@ for (const f of files) {
 // categorías de Ajustes) se pintan con `t(opción.label)`: al ser una variable no
 // la ve el patrón de arriba, así que se cuentan por su cuenta.
 const ETIQUETAS = /(?:label|help|short|texto|desc|subtitle|title):\s*"((?:[^"\\]|\\.)*)"/g;
-for (const f of ["src/types.ts", "src/components/Settings.tsx"]) {
+for (const f of ["src/types.ts", "src/components/Settings.tsx", "src/components/settings/Atajos.tsx"]) {
   for (const m of readFileSync(join(process.cwd(), f), "utf8").matchAll(ETIQUETAS)) {
     usadas.add(JSON.parse(`"${m[1]}"`));
   }

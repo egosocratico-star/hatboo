@@ -113,10 +113,12 @@ export const en: Record<string, string> = {
   "solo texto": "text only",
   "Arrastra para cambiar el ancho · doble clic para dejar el de fábrica":
     "Drag to resize · double-click to reset",
+  "Arrastra para cambiar el alto · doble clic para dejar el de fábrica":
+    "Drag to change the height · double-click to reset",
+  "Alto de la vista previa": "Preview height",
   "Atajos de teclado disponibles en esta versión.": "Keyboard shortcuts available in this version.",
   "Aún despiertos": "Still up",
   "Aún no has escrito archivos en esta sesión": "You haven't written any files in this session yet",
-  "Aún no hay conversaciones.": "No conversations yet.",
   "Aún no hay proyectos.": "No projects yet.",
   "Avisar cuando una sesión de trabajo pida algo": "Notify when a work session asks for something",
   "Aviso enviado. Mira la esquina de Windows.": "Notification sent. Check the corner of Windows.",
@@ -156,8 +158,8 @@ export const en: Record<string, string> = {
   "Cerrar búsqueda (Esc)": "Close search (Esc)",
   "Cerrar imagen": "Close image",
   "Cerrar pestaña": "Close tab",
-  "Cómo se ve Hatboo. Se aplica al elegirlo, sin guardar.":
-    "How Hatboo looks. Applied as you pick it, no save needed.",
+  "Cómo se ve Hatboo. Se aplica al momento: no hay botón de guardar.":
+    "How Hatboo looks. Applied on the spot: there is no save button.",
   "Cómo te trata Hatboo.": "How Hatboo treats you.",
   "Consultando Ollama…": "Asking Ollama…",
   "Consultando…": "Asking…",
@@ -189,7 +191,10 @@ export const en: Record<string, string> = {
   "Dejar de fijar": "Unpin",
   "Descargando…": "Downloading…",
   "Desde carpeta": "From folder",
-  "Desde GitHub": "From GitHub",
+  "Captura": "Capture",
+  "Captura la pantalla entera y la añade al mensaje.":
+    "Captures the whole screen and adds it to the message.",
+  GitHub: "GitHub",
   "Desplegar la barra lateral (Ctrl+B)": "Expand the sidebar (Ctrl+B)",
   "Detener la tarea en curso": "Stop the running task",
   "Detener respuesta": "Stop answer",
@@ -255,8 +260,6 @@ export const en: Record<string, string> = {
   "hace {n} h": "{n} h ago",
   "hace {n} min": "{n} min ago",
   "hace {n} sem": "{n} wk ago",
-  "Hace falta un modelo con visión para que Hatboo lea una captura.":
-    "Hatboo needs a vision model to read a screenshot.",
   "Hatboo ejecutará TODAS las acciones sin pedir aprobación, incluida escritura de archivos y comandos. El sandbox de rutas dentro de la carpeta del proyecto se mantiene.":
     "Hatboo will run EVERY action without asking, including writing files and commands. The path sandbox inside the project folder stays.",
   "Hatboo restablecida: sin conversaciones, sin proyectos, sin claves guardadas.":
@@ -315,8 +318,6 @@ export const en: Record<string, string> = {
     "Focus mode: chat only, no sidebar or panels (Ctrl+.)",
   "Mostrar en el explorador de archivos": "Show in file explorer",
   "Mostrar la salida": "Show output",
-  "Mostrar las tareas": "Show tasks",
-  "Mostrar los archivos": "Show files",
   "Nivel de aprobación: {l} — {h}": "Approval level: {l} — {h}",
   "no ejecuta nada todavía": "doesn't run anything yet",
   "No hay proyecto abierto: se guarda como nivel por defecto de los proyectos nuevos.":
@@ -409,7 +410,9 @@ export const en: Record<string, string> = {
   "Tarda más de lo normal; puedes cerrar y volver a abrir.":
     "Taking longer than usual; you can close and reopen.",
   "Todavía no tienes plantillas.": "You don't have any templates yet.",
-  "Tomar captura": "Take a screenshot",
+  Más: "More",
+  "plantillas y sesión": "templates and session",
+  "Volver a {n}": "Back to {n}",
   "Trabajando…": "Working…",
   "Tu equipo ahora mismo y dónde guarda Hatboo sus archivos.":
     "Your machine right now, and where Hatboo keeps its files.",
@@ -423,7 +426,33 @@ export const en: Record<string, string> = {
   "Ver todos los proyectos": "See all projects",
   "Vista previa": "Preview",
   "Volver a calcular": "Recalculate",
-  "Volver al chat desde Ajustes / cerrar un menú": "Back to chat from Settings / close a menu",
+  "Volver al chat desde Ajustes / atrás en el menú + / cerrar":
+    "Back to chat from Settings · back one face in the + menu · close",
+  "Carpetas ignoradas": "Ignored folders",
+  "LA MISMA lista para las tres cosas que miran el disco: el árbol de Archivos, su buscador y `list_dir` del agente. Si una carpeta no está en el panel, tampoco la ve el agente; si la ve él, también la ves tú.":
+    "The SAME list for the three things that look at the disk: the Files tree, its search and the agent's `list_dir`. If a folder is not in the panel, the agent does not see it either; if he sees it, you see it too.",
+  "Quitar {n} de la lista": "Remove {n} from the list",
+  "Ninguna: el árbol y el agente lo ven todo.":
+    "None: the tree and the agent see everything.",
+  "nombre de carpeta": "folder name",
+  "Se salta por su nombre en cualquier nivel, sin distinguir mayúsculas. Escribe una ruta y se guarda solo el último tramo.":
+    "Skipped by its name at any level, case-insensitive. Type a path and only the last part gets saved.",
+  Densidad: "Density",
+  "«Compacta» baja el tamaño base del documento, y con él todo el espaciado: no es letra más pequeña en un sitio, es la interfaz entera más apretada.":
+    "“Compact” lowers the document's base font size, and with it all the spacing: it is not smaller text in one place, it is the whole interface tighter.",
+  "Cómoda": "Comfortable",
+  Compacta: "Compact",
+  Acento: "Accent",
+  "Cuatro colores, no uno a mano: cada trío está medido contra el fondo de las nueve paletas, así que el texto de acento aguanta el contraste sea cual sea la que uses.":
+    "Four colors, not a hand-picked one: each trio is measured against the background of the nine palettes, so accent text holds its contrast whichever palette you use.",
+  "El violeta que ya trae cada paleta": "The violet each palette already brings",
+  "{n} fijo, sobre cualquier paleta": "{n} fixed, over any palette",
+  Azul: "Blue",
+  Verde: "Green",
+  "Plantillas desde el compositor (al principio de una palabra)":
+    "Templates from the composer (at the start of a word)",
+  "Recorrer la lista de plantillas del / y el menú +":
+    "Move through the template list of the / and the + menu",
 
   // ---- Etiquetas de constantes en `types.ts` y las categorías de Ajustes. ----
   // Se pintan con `t(opción.label)`, así que el comprobador de cobertura no las
@@ -436,7 +465,6 @@ export const en: Record<string, string> = {
   Sans: "Sans",
   Serif: "Serif",
   Monoespaciada: "Monospace",
-  Reducido: "Reduced",
   Bajo: "Low",
   Medio: "Medium",
   Preguntar: "Ask",
@@ -502,7 +530,6 @@ export const en: Record<string, string> = {
   Razonamiento: "Reasoning",
   Modelos: "Models",
   Tema: "Theme",
-  Movimiento: "Motion",
   Fuente: "Font",
   Avatar: "Avatar",
   Interfaz: "Frontend",
@@ -574,8 +601,6 @@ export const en: Record<string, string> = {
     "before leaving for a cloud provider, and also before being stored in the history. Local models are left alone. It's a pattern filter, not a perfect detector.",
   "Modelo de {p}": "{p} model",
   "Endpoint (compatible con Ollama / llama.cpp)": "Endpoint (Ollama / llama.cpp compatible)",
-  "«Reducido» quita animaciones y transiciones solo dentro de Hatboo, sin tocar el ajuste de Windows.":
-    "“Reduced” removes animations and transitions inside Hatboo only, leaving the Windows setting alone.",
   "{n} archivo(s) · {tamaño}": "{n} file(s) · {tamaño}",
   "Todo esto se calcula leyendo tu propio histórico en este PC; no se envía a ningún servicio. Las claves de API no aparecen aquí porque solo viven en el llavero del sistema. Puedes exportar una conversación concreta desde el botón «+» del chat.":
     "All of this is computed by reading your own history on this PC; nothing goes to any service. API keys don't show up here because they only live in the system keychain. You can export a specific conversation from the chat's “+” button.",
@@ -782,8 +807,13 @@ export const en: Record<string, string> = {
   tools: "tools",
   "Puede salir a internet con la búsqueda web.":
     "It can reach the internet through web search.",
-  "Sin salida a internet: se activa con el 🌐 bajo el compositor.":
-    "No internet: turn it on with the 🌐 under the composer.",
+  "Sin salida a internet. Pulsa para activarla ahora.":
+    "No internet access. Press to turn it on now.",
+  "Buscar solo aquí": "Search only here",
+  "Ahora mismo: {n}": "Right now: {n}",
+  "Ahora mismo: todo el proyecto": "Right now: the whole project",
+  "en {n}": "in {n}",
+  "Volver a buscar en todo el proyecto": "Back to searching the whole project",
   web: "web",
   "sin web": "no web",
   "Ninguna plantilla activa: el prompt no lleva extras.":
@@ -836,8 +866,6 @@ export const en: Record<string, string> = {
   // ---- Pistas de las vistas vacías del panel. ----
   "Una carpeta: el agente lee y escribe dentro de ella.":
     "A folder: the agent reads and writes inside it.",
-  "En cuanto escribas en el chat, aparecerá aquí.":
-    "As soon as you write in the chat, it shows up here.",
 
   // ---- Avisos de las carpetas que no se están mirando. ----
   "Necesita tu atención": "Needs your attention",
@@ -947,8 +975,6 @@ export const en: Record<string, string> = {
   "Modelo que se usará con este proveedor": "Model that will be used with this provider",
   "Las respuestas las genera un servidor externo.": "An external server generates the answers.",
   "Sale del equipo": "Leaves this machine",
-  "El que responde ahora y los que quedan apuntados en los demás proveedores.":
-    "The one answering now, plus the ones kept for the other providers.",
   "Modelos de los otros proveedores": "Models for the other providers",
   "Dónde escucha Ollama o llama.cpp en este equipo.":
     "Where Ollama or llama.cpp listens on this machine.",
@@ -989,7 +1015,6 @@ export const en: Record<string, string> = {
   cuadrada: "square",
   apaisada: "landscape",
   vertical: "portrait",
-  "Generar imagen": "Generate image",
   "Dibujando…": "Drawing…",
   "Pedir a {m}": "Ask {m}",
   "Describe la imagen: «un gato astronauta, acuarela»":
@@ -1032,6 +1057,7 @@ export const en: Record<string, string> = {
   "Mostrar en el Explorador": "Show in Explorer",
   "Copiar la ruta": "Copy the path",
   "Volver a leer la carpeta": "Read the folder again",
+  "Más mandos del árbol": "More tree controls",
   "Colapsar las carpetas abiertas": "Collapse the open folders",
   "Ocultar los nombres con punto": "Hide dot-names",
   "Mostrar los nombres con punto": "Show dot-names",
@@ -1042,13 +1068,19 @@ export const en: Record<string, string> = {
   "Ver todos los pasos": "Show every step",
   "Ver solo lo que queda": "Show only what is left",
   "Copiar el plan": "Copy the plan",
-  "Aquí se ve lo que el agente se propone y por dónde va.":
-    "This is where the agent's plan and its progress show up.",
-  "Cada paso del plan, con su estado": "Every step of the plan, with its state",
-  "Si el modelo no hace plan, las acciones que hizo":
-    "If the model skips planning, the actions it took",
-  "Cuánto tardó cada una": "How long each one took",
-  "Pide una tarea abajo y esto se llena solo.": "Ask for a task below and this fills itself in.",
+  "Todavía nada: aquí se ve el plan del agente, o las acciones que hizo si no hace plan.":
+    "Nothing yet: the agent's plan shows up here, or the actions it took when it skips planning.",
+  "Subir y bajar: flechas · insertar: Enter o Tab · cerrar: Esc":
+    "Up and down: arrows · insert: Enter or Tab · close: Esc",
+  "Usar esta carpeta como proyecto": "Use this folder as the project",
+  "Ocultar «{n}» del árbol": "Hide “{n}” from the tree",
+  "Vale para todos los proyectos · se quita en Ajustes → Agente":
+    "Applies to every project · remove it in Settings → Agent",
+  "La carpeta raíz de este proyecto no es un proyecto, es una de las grandes de la casa: el árbol, la búsqueda y el agente ven todo lo que hay dentro.":
+    "This project's root folder is not a project, it is one of the big folders of the house: the tree, the search and the agent see everything inside it.",
+  "Elegir una carpeta más concreta": "Pick a narrower folder",
+  "o clic derecho sobre la subcarpeta en el árbol → «Usar esta carpeta como proyecto».":
+    "or right-click the subfolder in the tree → “Use this folder as the project”.",
   "No queda ningún paso por hacer.": "There are no steps left to do.",
   "En curso: {p}": "In progress: {p}",
   "{n} pasos fallaron": "{n} steps failed",
@@ -1066,4 +1098,33 @@ export const en: Record<string, string> = {
   "La cola está en pausa: la tarea anterior no terminó bien.":
     "The queue is paused: the previous task did not finish well.",
   "Seguir con la cola": "Resume the queue",
+
+  // ---- Ficha de capacidades del modelo activo (Ajustes → API y modelos). ----
+  "Modelo activo": "Active model",
+  "Usar {p} para dibujar": "Use {p} to draw images",
+  "Lo que responde ahora mismo, y lo que se le sabe.":
+    "What answers right now, and what we know about it.",
+  "Lee imágenes": "Reads images",
+  "Lo declaraste tú abajo.": "You declared it below.",
+  "Ollama declara que ve imágenes.": "Ollama declares it sees images.",
+  "Este proveedor las ve en toda su gama.": "This provider sees images across its whole range.",
+  "Deducido del nombre del modelo.": "Inferred from the model name.",
+  "Ollama no lo declara y el nombre tampoco lo dice.":
+    "Ollama doesn't declare it and the name doesn't say so either.",
+  "No lo sabemos: si tu modelo lee imágenes, márcalo.":
+    "We don't know: if your model reads images, mark it.",
+  "Apunta un modelo para poder decirlo.": "Point at a model first to be able to say.",
+  "declarado": "declared",
+  "por nombre": "by name",
+  "Ventana de contexto": "Context window",
+  "{n} tokens · sacado de {fuente}": "{n} tokens · taken from {fuente}",
+  "el `num_ctx` con el que arranca Ollama": "the `num_ctx` Ollama starts it with",
+  "la ficha del modelo": "the model card",
+  "la tabla pública del proveedor": "the provider's published table",
+  "No la conocemos: el medidor se queda en tokens sin porcentaje.":
+    "We don't know it: the meter stays on tokens with no percentage.",
+  "Hatboo no sabe que tu modelo lea imágenes. Si las lee, márcalo en Ajustes → API y modelos.":
+    "Hatboo doesn't know that your model reads images. If it does, mark it in Settings → API and models.",
+  "Aún no hay conversaciones. En cuanto escribas en el chat, aparecerá aquí.":
+    "No conversations yet. As soon as you write in the chat, it shows up here.",
 };

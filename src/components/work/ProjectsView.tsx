@@ -78,7 +78,7 @@ export default function ProjectsView() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder={t("Buscar proyectos…")}
-              className="w-full rounded-full border border-base-border bg-base-card py-2 pl-9 pr-3 text-sm outline-none placeholder:text-zinc-600 transition-[border-color,box-shadow] focus:border-accent focus:ring-2 focus:ring-accent/25"
+              className="w-full rounded-full border border-base-border/60 bg-base-card py-2 pl-9 pr-3 text-sm outline-none placeholder:text-zinc-600 shadow-apoyada transition-[border-color,box-shadow] focus:border-accent focus:ring-2 focus:ring-accent/25"
             />
           </div>
         )}
@@ -89,7 +89,7 @@ export default function ProjectsView() {
           <>
             <button
               onClick={() => void openProjectPicker()}
-              className="flex items-center gap-2 rounded-full border border-base-border bg-base-card px-3.5 py-2 text-sm text-zinc-300 transition-colors hover:border-accent/50 hover:text-zinc-100"
+              className="flex items-center gap-2 rounded-full border border-base-border/60 bg-base-card px-3.5 py-2 text-sm text-zinc-300 shadow-apoyada transition-colors hover:border-accent/50 hover:text-zinc-100"
               title={t("Abrir una carpeta existente como proyecto")}
             >
               <FolderOpen className="h-4 w-4" />
@@ -97,7 +97,7 @@ export default function ProjectsView() {
             </button>
             <button
               onClick={() => void startCreateProject()}
-              className="flex items-center gap-2 rounded-full bg-accent px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-dim"
+              className="flex items-center gap-2 rounded-full bg-accent px-3.5 py-2 text-sm font-medium text-white shadow-apoyada transition-colors hover:bg-accent-dim"
             >
               <Plus className="h-4 w-4" />
               {t("Nuevo proyecto")}
@@ -130,14 +130,14 @@ export default function ProjectsView() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => void startCreateProject()}
-                className="flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-dim"
+                className="flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-medium text-white shadow-apoyada transition-colors hover:bg-accent-dim"
               >
                 <Plus className="h-4 w-4" />
                 {t("Nuevo proyecto")}
               </button>
               <button
                 onClick={() => void openProjectPicker()}
-                className="flex items-center gap-2 rounded-full border border-base-border bg-base-card px-4 py-2 text-sm text-zinc-300 transition-colors hover:border-accent/50 hover:text-zinc-100"
+                className="flex items-center gap-2 rounded-full border border-base-border/60 bg-base-card px-4 py-2 text-sm text-zinc-300 shadow-apoyada transition-colors hover:border-accent/50 hover:text-zinc-100"
                 title={t("Abrir una carpeta existente como proyecto")}
               >
                 <FolderOpen className="h-4 w-4" />
@@ -165,10 +165,13 @@ export default function ProjectsView() {
                       abrir(p);
                     }
                   }}
-                  className="group flex min-h-[132px] cursor-pointer flex-col gap-3 rounded-2xl border border-base-border bg-base-card p-5 transition-colors hover:border-accent/50 hover:bg-base-raised"
+                  className="group relative z-0 flex min-h-[132px] cursor-pointer flex-col gap-3 rounded-tarjeta border border-base-border/60 bg-base-card p-5 shadow-apoyada transition-[background-color,border-color,box-shadow] duration-200 ease-suave hover:z-10 hover:border-accent/50 hover:bg-base-raised hover:shadow-flotante"
                 >
                   <div className="flex items-start gap-2.5">
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-base-border bg-base">
+                    {/* La casilla del icono va HUNDIDA (`.pozo`), que es el mismo
+                        material que el pozo de las sesiones en la lateral: la
+                        tarjeta está elevada y lo que hay dentro se apoya en ella. */}
+                    <span className="pozo grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-base">
                       {p.esCodigo ? (
                         <FolderCode className="h-4 w-4 text-accent-soft" />
                       ) : (
@@ -209,7 +212,7 @@ export default function ProjectsView() {
                     </div>
                   </div>
 
-                  <div className="mt-auto flex items-center gap-2 border-t border-base-border pt-3 text-[11px] text-zinc-500">
+                  <div className="mt-auto flex items-center gap-2 border-t border-base-border/60 pt-3 text-[11px] text-zinc-500">
                     <MessageCircle className="h-3 w-3 shrink-0" />
                     <span>{t("{n} sesión(es)", { n: sesionesDe.get(p.id) ?? 0 })}</span>
                     <span className="text-zinc-700">·</span>
@@ -218,22 +221,26 @@ export default function ProjectsView() {
                     </span>
                     {nivel && (
                       <span
-                        className="ml-auto flex shrink-0 items-center gap-1 rounded-full border border-base-border bg-base px-2 py-0.5 text-zinc-400"
+                        className="ml-auto flex shrink-0 items-center gap-1 rounded-full border border-base-border/60 bg-base px-2 py-0.5 text-zinc-400 shadow-apoyada"
                         title={t(nivel.help)}
                       >
                         <ShieldCheck className="h-3 w-3 text-accent-soft/80" />
                         {t(nivel.short)}
                       </span>
                     )}
-                    <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+                    {/* Fijar y quitar van en UN grupo con borde y filete, el mismo
+                        idioma de los mandos de la lateral y de la cabecera del
+                        trabajo. Sigue apareciendo al pasar el ratón o al enfocar
+                        desde el teclado, no con `hidden`. */}
+                    <span className="ml-auto flex shrink-0 items-center gap-0.5 rounded-md border border-base-border/70 bg-base-card p-0.5 opacity-0 shadow-apoyada transition-[opacity,box-shadow] duration-200 ease-suave focus-within:opacity-100 group-hover:opacity-100">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           void setProjectPinned(p.id, !p.pinned);
                         }}
                         title={p.pinned ? t("Quitar de arriba") : t("Fijar arriba")}
-                        className={`rounded p-1 transition-colors hover:bg-base-hover ${
-                          p.pinned ? "text-accent-soft" : "text-zinc-500"
+                        className={`grid h-[26px] w-[26px] place-items-center rounded-md transition-colors hover:bg-base-hover ${
+                          p.pinned ? "text-accent-soft" : "text-zinc-500 hover:text-zinc-200"
                         }`}
                       >
                         <Pin className="h-3.5 w-3.5" />
@@ -251,7 +258,7 @@ export default function ProjectsView() {
                           });
                         }}
                         title={t("Quitar proyecto")}
-                        className="rounded p-1 text-zinc-500 transition-colors hover:bg-base-hover hover:text-red-400"
+                        className="grid h-[26px] w-[26px] place-items-center rounded-md text-zinc-500 transition-colors hover:bg-base-hover hover:text-red-400"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>

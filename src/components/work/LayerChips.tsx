@@ -26,6 +26,7 @@ const CHIP =
 export default function LayerChips() {
   const [capas, setCapas] = useState<Capas | null>(null);
   const webSearch = useChatStore((s) => s.settings?.webSearch);
+  const patchSettings = useChatStore((s) => s.patchSettings);
   const plantillas = useChatStore((s) => s.skills.filter((k) => k.enabled).length);
 
   useEffect(() => {
@@ -58,19 +59,28 @@ export default function LayerChips() {
         <span className="tabular-nums">{capas.herramientas}</span>
         {t("tools")}
       </span>
-      <span
-        className={`${CHIP} ${capas.web ? "text-zinc-300" : ""}`}
-        title={
-          capas.web
-            ? t("Puede salir a internet con la búsqueda web.")
-            : t("Sin salida a internet: se activa con el 🌐 bajo el compositor.")
-        }
-      >
-        <Globe
-          className={`h-3 w-3 ${capas.web ? "text-accent-soft" : "text-zinc-700"}`}
-        />
-        {capas.web ? t("web") : t("sin web")}
-      </span>
+      {/* Apagada, es un botón: el cartel decía «se activa con el 🌐 del
+          compositor» y había que ir buscándolo. Encendida no hay nada que
+          hacer, así que vuelve a ser texto. */}
+      {capas.web ? (
+        <span
+          className={`${CHIP} text-zinc-300`}
+          title={t("Puede salir a internet con la búsqueda web.")}
+        >
+          <Globe className="h-3 w-3 text-accent-soft" />
+          {t("web")}
+        </span>
+      ) : (
+        <button
+          type="button"
+          onClick={() => patchSettings({ webSearch: true })}
+          title={t("Sin salida a internet. Pulsa para activarla ahora.")}
+          className={`${CHIP} cursor-pointer transition-colors hover:border-accent/50 hover:text-zinc-300`}
+        >
+          <Globe className="h-3 w-3 text-zinc-700" />
+          {t("sin web")}
+        </button>
+      )}
       <span
         className={CHIP}
         title={

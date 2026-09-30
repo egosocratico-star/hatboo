@@ -62,12 +62,15 @@ pub struct Settings {
     #[serde(default = "default_gemini_model")]
     pub gemini_model: String,
     pub local_model: String,
+    /// Modelos que él declaró que ven imágenes, con el nombre tal cual lo
+    /// escribe el proveedor. La heurística de `soportaVision` acierta las
+    /// familias conocidas y se equivoca con el resto; esto es la salida honesta.
+    #[serde(default)]
+    pub vision_modelos: Vec<String>,
     pub theme: String,
     /// `system` (el idioma del navegador) | `es` | `en`.
     #[serde(default = "default_ui_language")]
     pub ui_language: String,
-    /// `system` (respeta `prefers-reduced-motion` del SO) | `reduced`.
-    pub motion: String,
     #[serde(default)]
     pub run_command_enabled: bool,
     #[serde(default)]
@@ -111,6 +114,16 @@ pub struct Settings {
     /// Familia del texto del chat: `sans` | `serif` | `mono`.
     #[serde(default = "default_chat_font_family")]
     pub chat_font_family: String,
+    /// `comoda` | `compacta`. Es el tamaño de letra base del documento, y de ahí
+    /// sale todo el espaciado (Tailwind mide en `rem`), así que compactar toca la
+    /// interfaz entera en vez de padding por padding.
+    #[serde(default = "default_densidad")]
+    pub densidad: String,
+    /// Acento fijo por encima de la paleta: `violeta` (el de cada paleta) |
+    /// `azul` | `verde` | `rosa`. Colores concretos, no hex libre: los cuatro
+    /// están medidos contra el fondo de las paletas (`npm run prueba-contraste`).
+    #[serde(default = "default_acento")]
+    pub acento: String,
     /// Avatar de la tarjeta de perfil: `mascota` | `inicial` | `emoji`.
     #[serde(default = "default_avatar_style")]
     pub avatar_style: String,
@@ -158,6 +171,12 @@ pub struct Settings {
     /// salida de una herramienta salga hacia un proveedor en la nube.
     #[serde(default = "default_true")]
     pub redact_secrets: bool,
+    /// Nombres de carpeta que se saltan el agente, el árbol y la búsqueda. Es UNA
+    /// lista a propósito (ver `agent::ignore`): lo que no aparece en el panel de
+    /// Archivos tampoco debe aparecer en `list_dir`. Se puede editar en Ajustes →
+    /// Agente; viene sembrada con `agent::ignore::FIJOS`.
+    #[serde(default = "default_ignore_dirs")]
+    pub ignore_dirs: Vec<String>,
     /// Cómo le habla al usuario: `tú` | `usted`.
     #[serde(default = "default_trato")]
     pub user_address: String,
@@ -224,12 +243,25 @@ fn default_true() -> bool {
     true
 }
 
+/// Las carpetas ignoradas de serie: lo que casi nunca es el proyecto.
+fn default_ignore_dirs() -> Vec<String> {
+    crate::agent::ignore::por_defecto()
+}
+
 fn default_chat_font_size() -> String {
     "md".to_string()
 }
 
 fn default_chat_font_family() -> String {
     "sans".to_string()
+}
+
+fn default_densidad() -> String {
+    "comoda".to_string()
+}
+
+fn default_acento() -> String {
+    "violeta".to_string()
 }
 
 fn default_avatar_style() -> String {
@@ -278,9 +310,9 @@ impl Default for Settings {
             openrouter_model: default_openrouter_model(),
             gemini_model: default_gemini_model(),
             local_model: "llama3.2".to_string(),
+            vision_modelos: Vec::new(),
             theme: "dark".to_string(),
             ui_language: default_ui_language(),
-            motion: "system".to_string(),
             run_command_enabled: false,
             assistant_name: String::new(),
             reasoning_effort: "off".to_string(),
@@ -295,6 +327,8 @@ impl Default for Settings {
             web_search: false,
             chat_font_size: default_chat_font_size(),
             chat_font_family: default_chat_font_family(),
+            densidad: default_densidad(),
+            acento: default_acento(),
             avatar_style: default_avatar_style(),
             avatar_color: default_avatar_color(),
             avatar_emoji: default_avatar_emoji(),
@@ -309,6 +343,7 @@ impl Default for Settings {
             notify_on_finish: true,
             review_plan: false,
             redact_secrets: true,
+            ignore_dirs: default_ignore_dirs(),
             user_address: default_trato(),
             answer_language: default_idioma_respuesta(),
             user_notes: String::new(),

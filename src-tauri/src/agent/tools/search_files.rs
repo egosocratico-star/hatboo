@@ -1,14 +1,23 @@
 use super::{AgentTool, RiskLevel, ToolError};
+use crate::agent::ignore;
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::path::Path;
 use walkdir::WalkDir;
 
-const SKIP_DIRS: &[&str] = &[".git", "node_modules", "target", "dist", "__pycache__", ".venv"];
 const MAX_FILE_BYTES: u64 = 1_000_000;
 const MAX_MATCHES: usize = 200;
 
-pub struct SearchFilesTool;
+/// La lista de ignoradas es la de los ajustes, la misma de `list_dir` y del árbol.
+pub struct SearchFilesTool {
+    ignora: Vec<String>,
+}
+
+impl SearchFilesTool {
+    pub fn nuevo(ignora: Vec<String>) -> Self {
+        Self { ignora }
+    }
+}
 
 #[async_trait]
 impl AgentTool for SearchFilesTool {
@@ -17,7 +26,7 @@ impl AgentTool for SearchFilesTool {
     }
 
     fn description(&self) -> &str {
-        "Busca un texto (sin distinción de mayúsculas) en el proyecto. Con modo «contenido», que es el de serie, es un grep: devuelve archivo:línea:contenido. Con modo «nombre» devuelve las rutas cuyo nombre contiene el texto, para cuando se busca un archivo y no su contenido."
+        "Busca un texto (sin distinción de mayúsculas) en el proyecto. Con modo «contenido», que es el de serie, es un grep: devuelve archivo:línea:contenido. Con modo «nombre» devuelve las rutas cuyo nombre contiene el texto, para cuando se busca un archivo y no su contenido. No recorre las carpetas de la lista de ignoradas, así que lo que no encuentre aquí puede estar en una de ellas."
     }
 
     fn risk_level(&self) -> RiskLevel {
@@ -53,6 +62,7 @@ impl AgentTool for SearchFilesTool {
         let por_nombre = input["modo"].as_str().is_some_and(|m| m.eq_ignore_ascii_case("nombre"));
 
         let root = project_root.canonicalize()?;
+        let ignora = self.ignora.clone();
         tokio::task::spawn_blocking(move || {
             let mut matches: Vec<String> = Vec::new();
             let walker = WalkDir::new(&root)
@@ -60,7 +70,7 @@ impl AgentTool for SearchFilesTool {
                 .into_iter()
                 .filter_entry(|e| {
                     let name = e.file_name().to_string_lossy();
-                    !e.file_type().is_dir() || !SKIP_DIRS.contains(&name.as_ref())
+                    !e.file_type().is_dir() || !ignore::ignora(&name, &ignora)
                 });
             for entry in walker.flatten() {
                 if matches.len() >= MAX_MATCHES {

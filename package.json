@@ -1,7 +1,7 @@
 {
   "name": "hatboo",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.6.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,6 +11,8 @@
     "i18n": "node scripts/i18n-cubre.mjs",
     "prueba-cola": "node scripts/prueba-cola.ts",
     "prueba-diff": "node scripts/prueba-diff.ts",
+    "prueba-raiz": "node scripts/prueba-raiz.ts",
+    "prueba-slash": "node scripts/prueba-slash.ts",
     "prueba-contraste": "node scripts/prueba-contraste.mjs",
     "prueba-grano": "node scripts/prueba-grano.mjs",
     "tauri": "tauri"

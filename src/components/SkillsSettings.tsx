@@ -127,7 +127,7 @@ export default function SkillsSettings() {
       </p>
 
       {skills.length === 0 && !draft && (
-        <div className="rounded-lg border border-dashed border-base-border px-4 py-6 text-center">
+        <div className="rounded-lg border border-base-border/60 bg-base-raised px-4 py-6 text-center">
           <Sparkles className="mx-auto w-5 h-5 text-zinc-600" />
           <p className="mt-2 text-sm text-zinc-400">{t("Todavía no tienes plantillas.")}</p>
           <p className="mt-0.5 text-xs text-zinc-600">

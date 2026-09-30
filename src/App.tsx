@@ -17,7 +17,7 @@ import { useChatStore } from "./store/chatStore";
 import { useWorkStore } from "./store/workStore";
 import { useStreaming } from "./hooks/useStreaming";
 import { useAgentEvents } from "./hooks/useAgentEvents";
-import { applyMotion, applyTheme, watchSystemTheme } from "./theme";
+import { applyAccent, applyDensity, applyTheme, watchSystemTheme } from "./theme";
 import { setLanguage, t, useT } from "./i18n";
 
 /** Lo que se lee de disco al abrir, en el orden en que se lee. No es una lista
@@ -74,7 +74,8 @@ export default function App() {
   const view = useChatStore((s) => s.view);
   const theme = useChatStore((s) => s.settings?.theme ?? "dark");
   const idioma = useChatStore((s) => s.settings?.uiLanguage ?? "system");
-  const motion = useChatStore((s) => s.settings?.motion ?? "system");
+  const densidad = useChatStore((s) => s.settings?.densidad ?? "comoda");
+  const acento = useChatStore((s) => s.settings?.acento ?? "violeta");
   const loadConversations = useChatStore((s) => s.loadConversations);
   const loadSettings = useChatStore((s) => s.loadSettings);
   const loadSkills = useChatStore((s) => s.loadSkills);
@@ -129,8 +130,12 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => {
-    applyMotion(motion);
-  }, [motion]);
+    applyDensity(densidad);
+  }, [densidad]);
+
+  useEffect(() => {
+    applyAccent(acento);
+  }, [acento]);
 
   useEffect(() => {
     setLanguage(idioma);

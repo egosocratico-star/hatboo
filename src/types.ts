@@ -113,11 +113,13 @@ export interface Settings {
   openrouterModel: string;
   geminiModel: string;
   localModel: string;
+  /** Modelos declarados a mano como capaces de ver imágenes. La heurística por
+   *  nombre acierta las familias conocidas y falla con el resto; esto es la
+   *  salida. Se compara sin distinguir mayúsculas. */
+  visionModelos: string[];
   theme: string;
   /** `system` sigue el idioma del navegador (que en Windows es el del sistema). */
   uiLanguage: "system" | "es" | "en";
-  /** `system` obedece a `prefers-reduced-motion` del SO; `reduced` lo fuerza. */
-  motion: MotionChoice;
   runCommandEnabled: boolean;
   assistantName: string;
   /** Cómo le habla al usuario: `tú` | `usted`. */
@@ -147,6 +149,10 @@ export interface Settings {
   /** `solida` | `translucida`: cómo se pinta la burbuja de lo que escribes. */
   bubbleStyle: BubbleStyle;
   chatFontFamily: ChatFontFamily;
+  /** Tamaño base del documento: de él sale todo el espaciado (Tailwind mide en rem). */
+  densidad: Densidad;
+  /** Acento fijo por encima de la paleta. `violeta` = el de cada paleta. */
+  acento: Acento;
   avatarStyle: AvatarStyle;
   avatarColor: string;
   avatarEmoji: string;
@@ -164,11 +170,24 @@ export interface Settings {
   /** El agente espera a que el usuario revise el plan antes de ejecutarlo. */
   reviewPlan: boolean;
   redactSecrets: boolean;
+  /** Nombres de carpeta que se saltan el árbol, la búsqueda y el agente. La lista
+   *  vive en Rust (`agent/ignore.rs`) y es LA MISMA para los tres. */
+  ignoreDirs: string[];
   /** Minutos al este de UTC. Rust no tiene forma barata de saber la zona
    *  horaria local; sin esto la fecha que se le dice al modelo es UTC y a
    *  partir de medianoche diría «ayer». */
   tzOffsetMin: number;
 }
+
+/** De qué es un fallo del chat. `ErrorClase` en Rust; se corresponde con las
+ *  variantes de `ProviderError`, no con el texto del mensaje. */
+export type ClaseError =
+  | "clave"
+  | "red"
+  | "proveedor"
+  | "respuesta"
+  | "ajustes"
+  | "otro";
 
 /** Límites del arrastre de los paneles del modo trabajo. */
 export const PANEL_WIDTHS = {
@@ -177,6 +196,28 @@ export const PANEL_WIDTHS = {
 } as const;
 
 export type ChatFontSize = "sm" | "md" | "lg";
+
+/** Tamaño de letra base del documento. Todo el espaciado de Tailwind se mide en
+ *  `rem`, así que cambiar el `font-size` de `html` compacta o abre la interfaz
+ *  entera sin tocar un padding cada vez. */
+export type Densidad = "comoda" | "compacta";
+
+export const DENSIDAD_OPCIONES: { id: Densidad; label: string; px: number }[] = [
+  { id: "comoda", label: "Cómoda", px: 16 },
+  { id: "compacta", label: "Compacta", px: 14.5 },
+];
+
+/** Acento por encima de la paleta. `violeta` = no tocar la de cada paleta. Los
+ *  otros tres son colores fijos definidos en `index.css`, no hex libres: cada
+ *  trío está medido contra el fondo de las paletas oscuras y las claras. */
+export type Acento = "violeta" | "azul" | "verde" | "rosa";
+
+export const ACENTO_OPCIONES: { id: Acento; label: string; muestra: string }[] = [
+  { id: "violeta", label: "Violeta", muestra: "#8b5cf6" },
+  { id: "azul", label: "Azul", muestra: "#60a5fa" },
+  { id: "verde", label: "Verde", muestra: "#34d399" },
+  { id: "rosa", label: "Rosa", muestra: "#f472b6" },
+];
 
 /** Base del texto de las respuestas; lo demás (código, burbuja del usuario)
  *  se deriva de esto con `calc()`, así todo escala junto. */
@@ -247,15 +288,6 @@ export const CHAT_FONT_STACKS: Record<ChatFontFamily, string> = {
   serif: 'Georgia, "Times New Roman", serif',
   mono: '"Cascadia Code", "Consolas", ui-monospace, monospace',
 };
-
-export type MotionChoice = "system" | "reduced";
-
-/** `system` deja decidir a `prefers-reduced-motion`; `reduced` lo impone dentro
- *  de Hatboo para quien no quiere tocar la configuración del SO. */
-export const MOTION_OPTIONS: { id: MotionChoice; label: string }[] = [
-  { id: "system", label: "Sistema" },
-  { id: "reduced", label: "Reducido" },
-];
 
 export type LanguageChoice = "system" | "es" | "en";
 

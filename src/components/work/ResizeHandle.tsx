@@ -90,3 +90,86 @@ export default function ResizeHandle({ width, min, max, def, side, onWidth, onCo
     </div>
   );
 }
+
+interface PropsAlto {
+  /** Alto actual del cajón que este tirador separa por arriba. */
+  alto: number;
+  min: number;
+  /** Techo dinámico: lo pone el que llama, que sabe cuánto árbol queda vivo. */
+  max: number;
+  /** Alto de fábrica, para el doble clic y para Enter con el foco. */
+  def: number;
+  onAlto: (px: number) => void;
+  onCommit: (px: number) => void;
+}
+
+/** Tirador de ALTO, para los cajones que viven al fondo de un panel (la vista
+ *  previa del árbol). Es el mismo gesto y la misma zona de agarre de 8 px con
+ *  línea de 2 dentro que el de ancho; lo único que cambia es el eje y el signo:
+ *  aquí el cajón cuelga debajo, así que arrastrar hacia ABAJO lo achica. */
+export function TiradorAlto({ alto, min, max, def, onAlto, onCommit }: PropsAlto) {
+  const drag = useRef<{ y: number; h: number; last: number } | null>(null);
+
+  const ajusta = (v: number) => Math.round(Math.min(max, Math.max(min, v)));
+
+  return (
+    <div
+      role="separator"
+      aria-orientation="horizontal"
+      tabIndex={0}
+      aria-label={t("Alto de la vista previa")}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        e.currentTarget.setPointerCapture(e.pointerId);
+        drag.current = { y: e.clientY, h: alto, last: alto };
+        document.documentElement.classList.add("hatboo-resizing");
+      }}
+      onPointerMove={(e) => {
+        const d = drag.current;
+        if (!d) return;
+        const siguiente = ajusta(d.h - (e.clientY - d.y));
+        if (siguiente === d.last) return;
+        d.last = siguiente;
+        onAlto(siguiente);
+      }}
+      onPointerUp={(e) => {
+        const d = drag.current;
+        if (!d) return;
+        drag.current = null;
+        e.currentTarget.releasePointerCapture(e.pointerId);
+        document.documentElement.classList.remove("hatboo-resizing");
+        onCommit(d.last);
+      }}
+      onPointerCancel={(e) => {
+        if (!drag.current) return;
+        drag.current = null;
+        e.currentTarget.releasePointerCapture(e.pointerId);
+        document.documentElement.classList.remove("hatboo-resizing");
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+          e.preventDefault();
+          const siguiente = ajusta(alto + (e.key === "ArrowUp" ? 10 : -10));
+          onAlto(siguiente);
+          onCommit(siguiente);
+        } else if (e.key === "Enter") {
+          e.preventDefault();
+          onAlto(def);
+          onCommit(def);
+        }
+      }}
+      onDoubleClick={() => {
+        onAlto(def);
+        onCommit(def);
+      }}
+      title={t("Arrastra para cambiar el alto · doble clic para dejar el de fábrica")}
+      className="group relative h-2 shrink-0 cursor-row-resize select-none focus-visible:outline-none"
+      style={{ touchAction: "none" }}
+    >
+      <span
+        className="absolute inset-x-0 top-1/2 -translate-y-1/2 bg-transparent transition-colors group-hover:bg-accent/60 group-active:bg-accent group-focus-visible:bg-accent/60"
+        style={{ height: 2 }}
+      />
+    </div>
+  );
+}

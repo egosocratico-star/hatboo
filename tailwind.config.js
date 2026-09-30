@@ -72,6 +72,12 @@ export default {
       boxShadow: {
         apoyada: "var(--sombra-apoyada)",
         flotante: "var(--sombra-flotante)",
+        // Ojo si se añade una clave más aquí: el `tauri dev` que ya está corriendo
+        // NO releer este fichero, así que la utilidad nueva no aparece en su ventana
+        // hasta reiniciar vite (en `vite build` sí sale, y eso engaña). Medido el
+        // 29-09 con una clave `filo`: resuelta en el build, `none` en el dev. Para
+        // el filete de luz se usó `shadow-[var(--filo-luz)]`, que no depende del
+        // config y se genera escaneando el fuente.
       },
       // `ease-suave` en cualquier componente: la curva vive en index.css, así
       // que cambiar el frenado de la interfaz entera es una línea.

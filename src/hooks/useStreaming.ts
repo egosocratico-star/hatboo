@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useChatStore } from "../store/chatStore";
-import type { Message } from "../types";
+import type { ClaseError, Message } from "../types";
 
 interface ChunkEvent {
   conversationId: string;
@@ -16,10 +16,17 @@ interface DoneEvent {
 interface ErrorEvent {
   conversationId: string;
   message: string;
+  /** De qué es el fallo. Venía como un único string y la interfaz no podía
+   *  ofrecer la salida que toca (Ajustes si es la clave, mirar el endpoint si es
+   *  la red). */
+  clase: ClaseError;
 }
 
-interface CancelledEvent {
+interface StoppedEvent {
   conversationId: string;
+  /** Lo que llegó a escribirse antes de parar, ya guardado. `null` si no quedó
+   *  nada que conservar. */
+  message: Message | null;
 }
 
 interface ReasoningEvent {
@@ -64,13 +71,18 @@ export function useStreaming() {
         if (payload.conversationId === store.activeId) store.finishStreaming(payload.message);
         void store.loadConversations();
       }),
-      listen<CancelledEvent>("chat:cancelled", ({ payload }) => {
+      listen<StoppedEvent>("chat:stopped", ({ payload }) => {
         const store = useChatStore.getState();
-        if (payload.conversationId === store.activeId) store.cancelStreaming();
+        // `chat:stopped` sale también con la respuesta cortada a medias y ya
+        // guardada: lo que se escribió se añade al hilo en vez de esperar a
+        // recargar la conversación.
+        if (payload.conversationId === store.activeId) store.cancelStreaming(payload.message);
+        void store.loadConversations();
       }),
       listen<ErrorEvent>("chat:error", ({ payload }) => {
         const store = useChatStore.getState();
-        if (payload.conversationId === store.activeId) store.failStreaming(payload.message);
+        if (payload.conversationId === store.activeId)
+          store.failStreaming(payload.message, payload.clase);
       }),
     ]).then((fns) => {
       if (disposed) {

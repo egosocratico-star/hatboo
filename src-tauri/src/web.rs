@@ -27,12 +27,42 @@ fn snippets_re() -> &'static Regex {
     })
 }
 
+/// Lo que se le pide al buscador, en una línea y con tope. DuckDuckGo no busca
+/// mejor con un log de cuatro mil caracteres que con la pregunta: lo que pasaba
+/// era que el mensaje entero —a veces un archivo pegado detrás— se escapaba por
+/// la URL, y una query larga además se corta por el medio del servidor sin avisar.
+pub fn consulta_busqueda(texto: &str) -> String {
+    const MAX: usize = 200;
+    let plano = texto.split_whitespace().collect::<Vec<_>>().join(" ");
+    if plano.chars().count() <= MAX {
+        return plano;
+    }
+    // Se queda con las palabras que caben enteras; cortar por un carácter suelto
+    // deja una palabra a medias que busca otra cosa.
+    let mut out = String::new();
+    for palabra in plano.split(' ') {
+        let cuenta = out.chars().count();
+        if cuenta == 0 {
+            // La primera palabra ya sola pasa del tope: mejor su principio que
+            // una búsqueda vacía.
+            out = palabra.chars().take(MAX).collect();
+            continue;
+        }
+        if cuenta + 1 + palabra.chars().count() > MAX {
+            break;
+        }
+        out.push(' ');
+        out.push_str(palabra);
+    }
+    out
+}
+
 pub async fn search_web(query: &str) -> Result<Vec<WebSource>, String> {
-    let query = query.trim();
+    let query = consulta_busqueda(query);
     if query.is_empty() {
         return Ok(Vec::new());
     }
-    let url = format!("{ENDPOINT}{}", percent_encode(query));
+    let url = format!("{ENDPOINT}{}", percent_encode(query.as_str()));
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(8))
         .user_agent(USER_AGENT)
@@ -253,6 +283,34 @@ pub fn as_context(sources: &[WebSource], query: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn la_query_se_pone_en_una_linea_sin_toque_de_mas() {
+        assert_eq!(consulta_busqueda("  qué   tiempo\nhace hoy  "), "qué tiempo hace hoy");
+        assert_eq!(consulta_busqueda(""), "");
+    }
+
+    #[test]
+    fn un_log_largo_no_se_cuela_por_la_url() {
+        let log = format!("resume esto {}", "palabra ".repeat(400));
+        let query = consulta_busqueda(&log);
+        assert!(query.chars().count() <= 200, "se fue a {}", query.chars().count());
+        // Se corta en palabra completa: lo que sale no termina en media palabra.
+        assert!(query.ends_with("palabra") || query.ends_with("esto"));
+        assert!(query.starts_with("resume esto"));
+    }
+
+    #[test]
+    fn una_sola_palabra_enorme_se_recorta_en_vez_de_desaparecer() {
+        let query = consulta_busqueda(&"a".repeat(500));
+        assert_eq!(query.chars().count(), 200);
+    }
+
+    #[test]
+    fn caber_cabe_tal_cual() {
+        let pregunta = "qué tiempo hace mañana en Madrid";
+        assert_eq!(consulta_busqueda(pregunta), pregunta);
+    }
 
     const HTML: &str = r##"
       <div class="result results_links results_links_deep web-result">

@@ -126,10 +126,39 @@ export function modeloActivo(s: Settings): string {
   return modeloDe(s, s.activeProvider);
 }
 
-/** Pistas de nombre para los que ven imágenes, la única señal cuando Ollama no
+/** Pistas de nombre para los que ven imágenes: la única señal cuando Ollama no
  *  declara capacidades (versiones antiguas) o cuando el modelo vive en un router
- *  —OpenRouter, Hugging Face— que reparte entre motores que no conocemos. */
-const CLAVES_VISION = ["vl", "vision", "llava", "minicpm-v", "moondream", "gemma3"];
+ *  —OpenRouter, Hugging Face— que reparte entre motores que no conocemos.
+ *  «vl» vale por su cuenta porque cubre `internvl`, `bakuvl`, `kimi-vl`, `glm-4v`
+ *  y los `qwen-*-vl`. Lo que no esté aquí NO se niega: en Ajustes → API hay un
+ *  interruptor por modelo, porque negarle a alguien una capacidad que su modelo
+ *  sí tiene es peor que preguntar. */
+const CLAVES_VISION = [
+  "vl",
+  "vision",
+  "visual",
+  "multimodal",
+  "llava",
+  "pixtral",
+  "minicpm",
+  "moondream",
+  "gemma-3",
+  "gemma3",
+  "phi-3.5-v",
+  "phi-4-multimodal",
+  "llama-4",
+  "kimi",
+  "omni",
+  "mplug",
+  "nvita",
+];
+
+/** Si ÉL declaró que este modelo ve imágenes (Ajustes → API). */
+export function visionDeclarada(s: Settings, modelo: string): boolean {
+  const m = modelo.trim().toLowerCase();
+  if (!m) return false;
+  return (s.visionModelos ?? []).some((x) => x.trim().toLowerCase() === m);
+}
 
 /** Si el modelo activo admite imágenes. Lo usan el «+» del chat y lo que se
  *  adjunta al soltar archivos sobre la ventana: la puerta tiene que ser la misma. */
@@ -138,6 +167,9 @@ export function soportaVision(
   locales: LocalModel[] | null,
 ): boolean {
   if (!settings) return false;
+  const activo = modeloActivo(settings);
+  // Primero lo que él dijo: manda sobre cualquier adivinanza del nombre.
+  if (visionDeclarada(settings, activo)) return true;
   // Anthropic, OpenAI y Gemini ven imágenes en toda su gama.
   if (
     settings.activeProvider === "anthropic" ||
@@ -150,7 +182,7 @@ export function soportaVision(
     const m = locales?.find((x) => x.name === settings.localModel);
     if (m && m.capabilities.length > 0) return m.capabilities.includes("vision");
   }
-  const modelo = modeloActivo(settings).toLowerCase();
+  const modelo = activo.toLowerCase();
   return CLAVES_VISION.some((k) => modelo.includes(k));
 }
 

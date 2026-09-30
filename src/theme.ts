@@ -4,7 +4,8 @@ import type { ThemeId } from "./temas";
 export type { ThemeId as ThemeChoice };
 
 const STORED = "hatboo-theme";
-const STORED_MOTION = "hatboo-motion";
+const STORED_DENSIDAD = "hatboo-densidad";
+const STORED_ACENTO = "hatboo-acento";
 const LIGHT = "(prefers-color-scheme: light)";
 
 function prefersLight(): boolean {
@@ -45,18 +46,32 @@ export function watchSystemTheme(choice: string): () => void {
   return () => mq.removeEventListener("change", onChange);
 }
 
-/**
- * `reduced` pone el atributo que apaga animaciones y transiciones; `system` no
- * pone nada y deja que decida el `prefers-reduced-motion` del SO (index.css).
- * Se guarda en localStorage por lo mismo que el tema: antes del primer `invoke`.
- */
-export function applyMotion(choice: string): void {
-  const root = document.documentElement;
-  if (choice === "reduced") root.dataset.motion = "reduced";
-  else delete root.dataset.motion;
+const PX_POR_DENSIDAD: Record<string, number> = { comoda: 16, compacta: 14.5 };
+
+/** Densidad = tamaño de letra base del documento. El espaciado de Tailwind se
+ *  mide en `rem`, así que esto compacta la interfaz entera de una vez; cambiar
+ *  el `px` de cada burbuja no lo hacía. `comoda` no pone nada: es el 16 de
+ *  serie, y así no hay que andarlo quitando. */
+export function applyDensity(choice: string): void {
+  const px = PX_POR_DENSIDAD[choice];
+  if (px && px !== 16) document.documentElement.style.fontSize = `${px}px`;
+  else document.documentElement.style.removeProperty("font-size");
   try {
-    localStorage.setItem(STORED_MOTION, choice === "reduced" ? "reduced" : "system");
+    localStorage.setItem(STORED_DENSIDAD, choice === "compacta" ? "compacta" : "comoda");
   } catch {
-    // Sin almacenamiento la preferencia de esta sesión sigue aplicándose.
+    // Sin almacenamiento se pinta igual; se pierde al reopen.
+  }
+}
+
+/** Acento por encima de la paleta. `violeta` = el de cada paleta, y se quita el
+ *  atributo para que los bloques `[data-acento]` no tapen lo que ya traía. */
+export function applyAccent(choice: string): void {
+  const root = document.documentElement;
+  if (choice && choice !== "violeta") root.dataset.acento = choice;
+  else delete root.dataset.acento;
+  try {
+    localStorage.setItem(STORED_ACENTO, choice || "violeta");
+  } catch {
+    // Idem.
   }
 }

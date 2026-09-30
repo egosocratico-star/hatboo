@@ -24,7 +24,6 @@ import PromptModal from "./PromptModal";
 import ThinkingBlock from "./ThinkingBlock";
 import SourcesBlock from "./SourcesBlock";
 import AttachmentImage from "./AttachmentThumb";
-import mascota from "./mascot/states/idle.png";
 import Popover from "./Popover";
 import { useChatStore } from "../store/chatStore";
 import { haceRelativo, fmtDate } from "../time";
@@ -390,20 +389,10 @@ function MessageBubble({
 
   return (
     <div className="group flex animate-rise-in gap-2.5">
-      {/* Avatar de 24 px junto a lo que dice Hatboo: sin él, la respuesta
-          empezaba en el mismo borde que la burbuja morada y no se distinguía
-          quién habla. */}
-      {/* Hatboo lleva su propia cara, fija. Antes copiaba el avatar de la
-          tarjeta de perfil, que es la del USUARIO: con el mismo sombrero en los
-          dos sitios ya no se distinguía quién hablaba. */}
-      <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-accent/20">
-        <img
-          src={mascota}
-          alt="Hatboo"
-          className="h-4 w-4 object-contain"
-          draggable={false}
-        />
-      </span>
+      {/* Sin cara: la pidió fuera del chat el 29-09. Lo que distingue quién habla
+          no era el dibujo —es que lo suyo va en burbuja morada y lo de Hatboo
+          texto suelto—, y así la respuesta coincide con el borde de la que se
+          está escribiendo en vivo, que nunca llevó avatar. */}
       <div className="relative min-w-0 flex-1">
       {message.reasoning && (
         <ThinkingBlock

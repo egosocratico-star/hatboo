@@ -4,7 +4,6 @@ import {
   CircleDashed,
   CircleCheck,
   CircleX,
-  Clock,
   Copy,
   ListChecks,
   Loader2,
@@ -113,7 +112,7 @@ export default function TaskList({
   };
 
   const boton =
-    "shrink-0 rounded p-1 text-zinc-600 transition-colors hover:bg-base-hover hover:text-zinc-200 disabled:opacity-40 disabled:hover:bg-transparent";
+    "grid h-[26px] w-[26px] shrink-0 place-items-center rounded-md text-zinc-500 transition-colors hover:bg-base-hover hover:text-zinc-200 disabled:opacity-40 disabled:hover:bg-transparent";
 
   return (
     <div className="h-full flex flex-col">
@@ -181,29 +180,14 @@ export default function TaskList({
       )}
 
       <div className="flex-1 overflow-y-auto px-2.5 py-2 space-y-1">
+        {/* Una línea. Antes era un folleto: un párrafo, tres viñetas con sus iconos
+            y otro párrafo, todo para decir que el panel se llena cuando haya tarea.
+            Lo que había que decir —qué se ve aquí— cabe en una frase. */}
         {tasks.length === 0 && stepLines.length === 0 && (
-          <div className="px-0.5 py-1">
-            <p className="text-[11px] leading-relaxed text-zinc-500">
-              {t("Aquí se ve lo que el agente se propone y por dónde va.")}
-            </p>
-            <ul className="mt-2.5 space-y-1.5 text-[11px] text-zinc-600">
-              <li className="flex items-start gap-2">
-                <CircleDashed className="mt-px h-3.5 w-3.5 shrink-0 text-zinc-600" />
-                {t("Cada paso del plan, con su estado")}
-              </li>
-              <li className="flex items-start gap-2">
-                <Wrench className="mt-px h-3.5 w-3.5 shrink-0 text-zinc-600" />
-                {t("Si el modelo no hace plan, las acciones que hizo")}
-              </li>
-              <li className="flex items-start gap-2">
-                <Clock className="mt-px h-3.5 w-3.5 shrink-0 text-zinc-600" />
-                {t("Cuánto tardó cada una")}
-              </li>
-            </ul>
-            <p className="mt-3 text-[11px] leading-relaxed text-zinc-600">
-              {t("Pide una tarea abajo y esto se llena solo.")}
-            </p>
-          </div>
+          <p className="flex items-start gap-2 px-0.5 py-1 text-[11px] leading-relaxed text-zinc-500">
+            <CircleDashed className="mt-px h-3.5 w-3.5 shrink-0 text-zinc-600" />
+            {t("Todavía nada: aquí se ve el plan del agente, o las acciones que hizo si no hace plan.")}
+          </p>
         )}
 
         {visibles.map((x) => (

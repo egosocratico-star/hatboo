@@ -35,7 +35,32 @@ interface Props {
   cap?: number;
   align?: "start" | "end";
   className?: string;
+  /** Menús con caras (el `+`). Apagado por defecto: los demás popovers —el
+   *  selector de modelo, el de tema— siguen con su comportamiento de siempre.
+   *  Encendido: al abrir se enfoca la primera fila, el Tab no se escapa del
+   *  panel, las flechas suben y bajan, y al cerrar el foco vuelve al disparador. */
+  atraparFoco?: boolean;
+  /** Si viene, es el dueño quien decide qué hace Escape (volver una cara antes de
+   *  cerrar). Sin él, Escape cierra. */
+  onEscape?: () => void;
+  /** Nombre del diálogo para los lectores de pantalla. */
+  etiqueta?: string;
+  /** Cambia al saltar de cara en un menú con caras. Sin esto, la fila enfocada se
+   *  desmonta con la cara anterior y el foco cae a `body`: las flechas dejan de
+   *  moverse por el menú hasta volver a pulsar. */
+  reenfoca?: string | null;
   children: ReactNode;
+}
+
+/** Lo enfocable del panel, en orden de lectura. Cae lo deshabilitado y lo que no
+ *  se pinta: una fila oculta no debe tragarse una pulsación de flecha. */
+function filas(panel: HTMLElement | null): HTMLElement[] {
+  if (!panel) return [];
+  return Array.from(
+    panel.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((el) => el.offsetParent !== null);
 }
 
 /**
@@ -57,6 +82,10 @@ export default function Popover({
   cap,
   align = "start",
   className = "",
+  atraparFoco = false,
+  onEscape,
+  etiqueta,
+  reenfoca,
   children,
 }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -159,23 +188,77 @@ export default function Popover({
   }, [anchorRef, onClose, open]);
 
   // Esc cierra también, como en cualquier menú nativo. Se registra después del
-  // listener del clic para ser el último en decidir.
+  // listener del clic para ser el último en decidir. Con `onEscape` el dueño del
+  // menú decide: en el `+` lo primero es deshacer la cara, y cerrar solo si ya
+  // estaba en la de arriba.
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       e.stopPropagation();
-      onClose();
+      (onEscape ?? onClose)();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [onClose, open]);
+  }, [onClose, onEscape, open]);
+
+  // Foco de un menú con caras. Entra en la primera fila al abrir, el Tab no se
+  // escapa del panel (sin esto se iba a la barra lateral, que está debajo en el
+  // DOM aunque no se vea), las flechas recorren las filas de una columna y al
+  // cerrar el foco vuelve al `+`, que es donde estaba quien lo abrió.
+  const estabaAbierto = useRef(false);
+  useEffect(() => {
+    if (!atraparFoco) return;
+    if (open) {
+      estabaAbierto.current = true;
+      const temporizador = setTimeout(() => {
+        filas(panelRef.current)[0]?.focus();
+      }, 40);
+      const onKey = (e: KeyboardEvent) => {
+        const panel = panelRef.current;
+        if (!panel) return;
+        const dentro = panel.contains(document.activeElement);
+        const lista = filas(panel);
+        if (!lista.length) return;
+        const i = dentro ? lista.indexOf(document.activeElement as HTMLElement) : -1;
+        if (e.key === "Tab") {
+          if (!dentro) return;
+          e.preventDefault();
+          const d = e.shiftKey ? -1 : 1;
+          lista[(i + d + lista.length) % lista.length].focus();
+        } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+          // Se cambia de fila aunque el foco esté en un campo de texto: dentro del
+          // panel no hay más forma de moverse que la lista.
+          if (!dentro) return;
+          e.preventDefault();
+          const d = e.key === "ArrowDown" ? 1 : -1;
+          const n = lista.length;
+          const k = i < 0 ? (d > 0 ? 0 : n - 1) : (i + d + n) % n;
+          lista[k].focus();
+        }
+      };
+      document.addEventListener("keydown", onKey, true);
+      return () => {
+        clearTimeout(temporizador);
+        document.removeEventListener("keydown", onKey, true);
+      };
+    }
+    if (estabaAbierto.current) {
+      estabaAbierto.current = false;
+      anchorRef.current?.focus();
+    }
+  }, [atraparFoco, open, anchorRef, reenfoca]);
 
   if (!mounted || !style) return null;
   return createPortal(
     <div
       ref={panelRef}
       style={style}
+      {...(atraparFoco
+        ? // Sin `aria-modal`: el Tab queda atrapado, pero tapar lo de detrás a un
+          // lector de pantalla sería peor de lo que arregla.
+          { role: "dialog", "aria-label": etiqueta ?? "" }
+        : {})}
       onAnimationEnd={(e) => {
         // Solo el cierre de la nuestra: los iconos girando también terminan.
         if (e.target !== panelRef.current || !leaving) return;

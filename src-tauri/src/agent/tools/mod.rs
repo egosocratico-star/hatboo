@@ -125,8 +125,8 @@ fn nombre_de_ruta(ruta: &str) -> String {
 pub fn build_tools(s: &crate::state::Settings, fuentes: &[crate::db::Fuente]) -> Vec<Box<dyn AgentTool>> {
     let mut tools: Vec<Box<dyn AgentTool>> = vec![
         Box::new(ReadFileTool),
-        Box::new(ListDirTool),
-        Box::new(SearchFilesTool),
+        Box::new(ListDirTool::nuevo(s.ignore_dirs.clone())),
+        Box::new(SearchFilesTool::nuevo(s.ignore_dirs.clone())),
         Box::new(WriteFileTool),
         Box::new(GitStatusTool),
         Box::new(GitDiffTool),

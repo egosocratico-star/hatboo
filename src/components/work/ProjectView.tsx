@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   ArrowUp,
   ChevronDown,
+  Cloud,
   FolderOpen,
   Paperclip,
   Square,
@@ -42,11 +43,16 @@ import LayerChips from "./LayerChips";
 import WorkPlusMenu from "./WorkPlusMenu";
 import ModeToggles from "../ModeToggles";
 import { useSoltados } from "../../hooks/useSoltados";
+import { useSlashSkills } from "../../hooks/useSlashSkills";
+import SlashPopover from "../SlashPopover";
 import ProviderModelPicker from "../ProviderModelPicker";
 import { PANEL_WIDTHS, type Attachment, type MascotState, type Message, type Task } from "../../types";
+import { sospechaRaiz } from "../../raiz";
 
 /** OneDrive no es un sitio malo para tener un proyecto: es un sitio donde otro
- *  programa mueve archivos mientras el agente escribe. Se avisa, no se prohíbe. */
+ *  programa mueve archivos mientras el agente escribe. Se avisa, no se prohíbe.
+ *  La pregunta es distinta a la de `sospechaRaiz` (si la raíz es demasiado
+ *  grande), así que las dos se contestan por separado. */
 function estaEnOneDrive(ruta: string) {
   return /onedrive/i.test(ruta);
 }
@@ -73,7 +79,7 @@ function Riel({
       onClick={onAbrir}
       title={t("Mostrar {e}", { e: etiqueta })}
       aria-label={t("Mostrar {e}", { e: etiqueta })}
-      className={`flex w-[26px] shrink-0 items-start justify-center bg-base-raised pt-2.5 text-zinc-600 transition-colors hover:bg-base-hover hover:text-accent-soft ${
+      className={`flex w-[26px] shrink-0 items-start justify-center bg-base-raised pt-2.5 filo-luz text-zinc-600 transition-colors hover:bg-base-hover hover:text-accent-soft ${
         lado === "izquierda" ? "border-r" : "border-l"
       } border-base-border`}
     >
@@ -111,6 +117,7 @@ const NO_MESSAGES: Message[] = [];
 const NO_TASKS: Task[] = [];
 const NO_STEPS: StepLine[] = [];
 const NO_COLA: string[] = [];
+const NO_IGNORADAS: string[] = [];
 
 /** Los cinco iconos de la derecha y los tres toggles miden lo mismo (26 px): en
  *  la misma fila, cualquier diferencia de alto se ve como un desalineado. */
@@ -152,6 +159,7 @@ export default function ProjectView() {
   const toolSupport = useWorkStore((s) => s.toolSupport);
   const error = tab?.error ?? null;
   const treeVersion = useWorkStore((s) => s.treeVersion);
+  const openProjectPath = useWorkStore((s) => s.openProjectPath);
   const git = tab?.git ?? null;
   const approvalLevel = tab?.approvalLevel ?? "approve_for_me";
   const busy = agentStatus === "running" || agentStatus === "awaiting";
@@ -181,6 +189,17 @@ export default function ProjectView() {
   const filesWidth = useChatStore((s) => s.settings?.filesPanelWidth ?? PANEL_WIDTHS.files.def);
   const tasksWidth = useChatStore((s) => s.settings?.tasksPanelWidth ?? PANEL_WIDTHS.tasks.def);
   const patchSettings = useChatStore((s) => s.patchSettings);
+  const skills = useChatStore((s) => s.skills);
+  const ignoreDirs = useChatStore((s) => s.settings?.ignoreDirs ?? NO_IGNORADAS);
+  /** La cinta de «esta raíz no es un proyecto»: la regla vive en `src/raiz.ts`
+   *  y se prueba sola, sin abrir la app. */
+  const sospecha = sospechaRaiz(project?.rootPath);
+  /** Clic derecho en el árbol → ocultar la carpeta. La lista es de los ajustes y
+   *  vale para todos los proyectos, así que se guarda por nombre, no por ruta. */
+  const ignorarCarpeta = (nombre: string) => {
+    if (ignoreDirs.some((d) => d.toLowerCase() === nombre.toLowerCase())) return;
+    patchSettings({ ignoreDirs: [...ignoreDirs, nombre] });
+  };
   const proveedor = useChatStore((s) => s.settings?.activeProvider ?? "local");
   const modeloLocal = useChatStore((s) => s.settings?.localModel ?? "");
   const setSettingsCat = useChatStore((s) => s.setSettingsCat);
@@ -230,6 +249,8 @@ export default function ProjectView() {
     false,
   );
   const taskRef = useRef<HTMLTextAreaElement>(null);
+  /** El `/` de plantillas, idéntico al del chat. */
+  const slash = useSlashSkills({ skills, caja: taskRef, poner: setInput });
   const prevStatus = useRef(agentStatus);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [lejos, setLejos] = useState(false);
@@ -395,13 +416,13 @@ export default function ProjectView() {
         />
       )}
       <div
-        className={`shrink-0 overflow-clip bg-base-raised transition-[width] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] ${
+        className={`shrink-0 overflow-clip bg-base-raised filo-luz transition-[width] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] ${
           filesOpen ? "border-r border-base-border" : "w-0"
         }`}
         style={{ width: filesOpen ? filesPx : 0 }}
       >
         <div className="h-full flex flex-col" style={{ width: filesPx }}>
-          <div className="flex items-center gap-2 border-b border-base-border px-2.5 py-2">
+          <div className="flex items-center gap-1.5 border-b border-base-border pl-2.5 pr-1.5 py-2">
             <FolderTree className="w-3.5 h-3.5 shrink-0 text-accent-soft" />
             <span className="min-w-0 flex-1 truncate text-[11px] font-medium uppercase tracking-wide text-zinc-500">
               {t("Archivos")}
@@ -411,7 +432,7 @@ export default function ProjectView() {
             <button
               onClick={() => patchSettings({ filesPanelOpen: false })}
               title={t("Ocultar los archivos")}
-              className="shrink-0 rounded p-1 text-zinc-600 transition-colors hover:bg-base-hover hover:text-zinc-200"
+              className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-md text-zinc-500 transition-colors hover:bg-base-hover hover:text-zinc-200"
             >
               <PanelLeftClose className="w-3.5 h-3.5" />
             </button>
@@ -421,6 +442,8 @@ export default function ProjectView() {
             raiz={project.rootPath}
             version={treeVersion}
             onAddFile={anadirAlContexto}
+            onProyecto={(ruta) => void openProjectPath(ruta)}
+            onIgnorar={ignorarCarpeta}
           />
         </div>
       </div>
@@ -440,16 +463,23 @@ export default function ProjectView() {
       )}
 
       <div className="flex-1 min-w-0 flex flex-col">
-        {/* Una sola línea con la identidad arriba: el proyecto manda, la sesión
-            se abre con un clic, y el resto son mandos. La ruta salió de aquí —
-            está en el `title` del proyecto y en el botón del Explorador — porque
-            era lo más largo y lo menos mirado. */}
-        <header className="shrink-0 flex items-center gap-1 px-3 py-1.5 border-b border-base-border">
-          <ProyectoSwitcher project={project} />
-          <span aria-hidden className="shrink-0 text-zinc-700">
-            /
-          </span>
-          <SesionSwitcher projectId={project.id} />
+        {/* Una línea con la identidad arriba: el proyecto manda, la sesión se abre
+            con un clic, y el resto son mandos. La ruta salió de aquí — está en el
+            `title` del proyecto y en el botón del Explorador — porque era lo más
+            largo y lo menos mirado. Si el centro se queda estrecho, la línea
+            ENVUELVE y los mandos bajan: nunca se trunca el nombre. */}
+        <header className="shrink-0 flex flex-wrap items-center gap-x-1 gap-y-1 px-3 py-1.5 border-b border-base-border filo-luz">
+          {/* La identidad va en su propia caja: si los mandos tienen que bajar de
+              línea, que bajen ELLOS y no que el nombre de la sesión se quede en
+              «S…» a medias. Con el grupo derecho en `shrink-0` y diez iconos, eso
+              era exactamente lo que pasaba a 1280 px con los dos paneles abiertos. */}
+          <div className="flex min-w-0 items-center gap-1">
+            <ProyectoSwitcher project={project} />
+            <span aria-hidden className="shrink-0 text-zinc-700">
+              /
+            </span>
+            <SesionSwitcher projectId={project.id} />
+          </div>
           {/* El aviso de OneDrive se queda aquí: es un riesgo real mientras
               trabaja. El badge Código/Docs se fue al menú del proyecto, que es
               donde ya está la ruta y se mira antes de pedir la primera tarea. */}
@@ -464,54 +494,46 @@ export default function ProjectView() {
             </span>
           )}
 
-          <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1">
-            <button
-              onClick={() => void revealItemInDir(project.rootPath).catch(() => {})}
-              title={t("Mostrar la carpeta del proyecto en el Explorador")}
-              className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-md text-zinc-500 transition-colors hover:bg-base-hover hover:text-zinc-200"
-            >
-              <FolderOpen className="h-3.5 w-3.5" />
-            </button>
-            <ProjectRules projectId={project.id} />
-            <ProjectSources projectId={project.id} />
-            <SessionChanges
-              conversationId={tab?.sessionId ?? null}
-              projectId={project.id}
-              recargarCon={stepLines.length}
-            />
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            {/* Los cuatro mandos de la carpeta, en UN grupo con borde y filete de
+                luz: sueltos eran cuatro iconos grises sin nada que dijera que van
+                juntos, y la fila entera se leía como un friso. El de aprobación se
+                queda fuera porque es un chip con texto, no un icono. */}
+            <span className="flex items-center gap-0.5 rounded-md border border-base-border/70 bg-base-card p-0.5 shadow-apoyada">
+              <button
+                onClick={() => void revealItemInDir(project.rootPath).catch(() => {})}
+                title={t("Mostrar la carpeta del proyecto en el Explorador")}
+                className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-md text-zinc-500 transition-colors hover:bg-base-hover hover:text-zinc-200"
+              >
+                <FolderOpen className="h-3.5 w-3.5" />
+              </button>
+              <ProjectRules projectId={project.id} />
+              <ProjectSources projectId={project.id} />
+              <SessionChanges
+                conversationId={tab?.sessionId ?? null}
+                projectId={project.id}
+                recargarCon={stepLines.length}
+              />
+            </span>
             <ApprovalLevelPicker projectId={project.id} />
             <span aria-hidden className="mx-1 h-4 w-px shrink-0 bg-base-border" />
-            {/* Los tres juntos: son «qué se ve», no acciones sobre el proyecto. */}
-            <div className="flex shrink-0 items-center gap-0.5">
-              <button
-                onClick={() => patchSettings({ focusMode: false, filesPanelOpen: !filesOpen })}
-                className={panelToggle(filesOpen)}
-                title={filesOpen ? t("Ocultar los archivos") : t("Mostrar los archivos")}
-                aria-pressed={filesOpen}
-              >
-                <FolderTree className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => patchSettings({ focusMode: false, tasksPanelOpen: !tasksOpen })}
-                className={panelToggle(tasksOpen)}
-                title={tasksOpen ? t("Ocultar las tareas") : t("Mostrar las tareas")}
-                aria-pressed={tasksOpen}
-              >
-                <ListChecks className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => patchSettings({ focusMode: !focus })}
-                className={panelToggle(focus)}
-                title={
-                  focus
-                    ? t("Salir del modo foco (Ctrl+.)")
-                    : t("Modo foco: solo el chat, sin barra lateral ni paneles (Ctrl+.)")
-                }
-                aria-pressed={focus}
-              >
-                {focus ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-              </button>
-            </div>
+            {/* Los dos mandos de panel SALIERON de aquí: cada panel ya tiene su bot
+                ón de ocultar en su propia cabecera, y al cerrarlo queda el riel de
+                26 px para volver a abrirlo en el mismo sitio. Eran tres iconos más
+                en una barra que no da para tres iconos más. El de modo foco se
+                queda porque no vive en ningún otro lado visible (solo en Ctrl+.). */}
+            <button
+              onClick={() => patchSettings({ focusMode: !focus })}
+              className={panelToggle(focus)}
+              title={
+                focus
+                  ? t("Salir del modo foco (Ctrl+.)")
+                  : t("Modo foco: solo el chat, sin barra lateral ni paneles (Ctrl+.)")
+              }
+              aria-pressed={focus}
+            >
+              {focus ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
           </div>
         </header>
 
@@ -534,6 +556,25 @@ export default function ProjectView() {
               {t(
                 "Este modelo no soporta tool calling — cambia de proveedor o modelo en Ajustes para usar el modo trabajo.",
               )}
+            </span>
+          </Cinta>
+        )}
+
+        {sospecha && (
+          <Cinta tono="aviso">
+            <Cloud className="mt-px h-3 w-3 shrink-0" />
+            <span className="min-w-0">
+              {t(
+                "La carpeta raíz de este proyecto no es un proyecto, es una de las grandes de la casa: el árbol, la búsqueda y el agente ven todo lo que hay dentro.",
+              )}{" "}
+              <button
+                onClick={() => void openProjectPicker()}
+                className="underline decoration-amber-300/40 underline-offset-2 transition-colors hover:text-amber-200"
+              >
+                {t("Elegir una carpeta más concreta")}
+              </button>
+              {" "}
+              {t("o clic derecho sobre la subcarpeta en el árbol → «Usar esta carpeta como proyecto».")}
             </span>
           </Cinta>
         )}
@@ -639,7 +680,10 @@ export default function ProjectView() {
                 <Mascot state={mascotState} size={36} />
               </div>
             )}
-            <div className="flex-1 min-w-0 rounded-tarjeta border border-base-border bg-base-card px-3 pb-2.5 pt-3 shadow-flotante transition-colors focus-within:border-accent/50">
+            <div className="relative flex-1 min-w-0 rounded-entrada border border-base-border bg-base-card px-3.5 pb-2.5 pt-3 shadow-flotante ring-accent/25 transition-[border-color,box-shadow] focus-within:border-accent/60 focus-within:ring-2">
+            {slash.abierto && (
+              <SlashPopover lista={slash.lista} indice={slash.indice} onPick={slash.elegir} />
+            )}
             {attachments.length > 0 && (
               <div className="flex flex-wrap items-center gap-1.5 pb-2 pl-0.5">
                 {attachments.map((a, i) => (
@@ -705,8 +749,13 @@ export default function ProjectView() {
               ref={taskRef}
               id="work-task-input"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                setInput(e.target.value);
+                slash.onTexto(e.target.value, e.currentTarget.selectionStart);
+              }}
               onKeyDown={(e) => {
+                // Con la lista del `/` abierta, el Enter inserta la plantilla.
+                if (slash.onKeyDown(e)) return;
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   void submit();
@@ -805,7 +854,7 @@ export default function ProjectView() {
         />
       )}
       <div
-        className={`shrink-0 overflow-clip bg-base-raised transition-[width] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] ${
+        className={`shrink-0 overflow-clip bg-base-raised filo-luz transition-[width] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] ${
           tasksOpen ? "border-l border-base-border" : "w-0"
         }`}
         style={{ width: tasksOpen ? tasksPx : 0 }}

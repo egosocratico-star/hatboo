@@ -1,39 +1,18 @@
 import { t } from "../i18n";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import {
-  AlertCircle,
-  ArrowUp,
-  ChevronDown,
-  ChevronUp,
-  Paperclip,
-  Search,
-  Square,
-  X,
-} from "lucide-react";
+import { AlertCircle, ChevronDown, ChevronUp, Search, X } from "lucide-react";
 import { useChatStore } from "../store/chatStore";
 import MessageBubble from "./MessageBubble";
 import RichText from "./RichText";
-import AttachmentImage from "./AttachmentThumb";
 import Mascot from "./mascot/Mascot";
-import ProviderModelPicker from "./ProviderModelPicker";
-import ChatPlusMenu from "./ChatPlusMenu";
 import Dots from "./Dots";
-import ModeToggles from "./ModeToggles";
 import ThinkingBlock, { formatDuration } from "./ThinkingBlock";
+import Compositor from "./Compositor";
+import SaludoChat from "./SaludoChat";
 import { useSoltados } from "../hooks/useSoltados";
 import type { Attachment, MascotState } from "../types";
 import { CHAT_FONT_SIZES, CHAT_FONT_STACKS } from "../types";
-import { saleDelEquipo } from "../modelo";
 import { modeloActivo } from "../proveedores";
-
-/** Cuatro franjas; la madrugada tiene la suya porque esta app se usa a deshoras.
- *  Va seguida de "Soy <nombre>", así que es un saludo al usuario, no a la app. */
-function saludo(hora: number): string {
-  if (hora < 6) return t("Aún despiertos");
-  if (hora < 13) return t("Buenos días");
-  if (hora < 20) return t("Buenas tardes");
-  return t("Buenas noches");
-}
 
 export default function ChatWindow() {
   const messages = useChatStore((s) => s.messages);
@@ -45,6 +24,8 @@ export default function ChatWindow() {
   const thinkingMs = useChatStore((s) => s.thinkingMs);
   const status = useChatStore((s) => s.status);
   const error = useChatStore((s) => s.error);
+  /** De qué es el fallo: manda si el aviso puede ofrecer una salida concreta. */
+  const errorClase = useChatStore((s) => s.errorClase);
   const activeTitle = useChatStore((s) => {
     const conv = s.conversations.find((c) => c.id === s.activeId);
     return conv?.title ?? "Chat";
@@ -64,17 +45,16 @@ export default function ChatWindow() {
   const regenerate = useChatStore((s) => s.regenerate);
   const editMessage = useChatStore((s) => s.editMessage);
   const branchConversation = useChatStore((s) => s.branchConversation);
-  const stopStreaming = useChatStore((s) => s.stopStreaming);
   const clearError = useChatStore((s) => s.clearError);
+  const setView = useChatStore((s) => s.setView);
+  const setSettingsCat = useChatStore((s) => s.setSettingsCat);
   /** El motor de imagen está tardando: no hay stream que enseñar, solo espera. */
   const imageBusy = useChatStore((s) => s.imageBusy);
 
   // El texto sin enviar vive en el store, por hilo: cambiar de conversación ya
-  // no deja en blanco lo que se estaba escribiendo.
+  // no deja en blanco lo que se estaba escribiendo. Quien lo lee y lo escribe es
+  // `Compositor`; aquí solo hace falta la clave del hilo.
   const claveBorrador = activeId ?? "nueva";
-  const input = useChatStore((s) => s.drafts[claveBorrador] ?? "");
-  const setDraft = useChatStore((s) => s.setDraft);
-  const setInput = (value: string) => setDraft(claveBorrador, value);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [happy, setHappy] = useState(false);
   /** Lo que falló al adjuntar un archivo soltado sobre la ventana: se dice aquí,
@@ -92,7 +72,6 @@ export default function ChatWindow() {
   // Cuánto separa del final la vista: se usa para el botón flotante «Ir al final».
   const [lejos, setLejos] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const msgNodes = useRef<Record<string, HTMLDivElement | null>>({});
   const prevLen = useRef(messages.length);
@@ -165,25 +144,6 @@ export default function ChatWindow() {
   const openSearch = () => {
     setSearchOpen(true);
     requestAnimationFrame(() => searchRef.current?.focus());
-  };
-
-  /** Inserta una plantilla en el cursor del textarea, no al final. */
-  const insertTemplate = (text: string) => {
-    const el = inputRef.current;
-    const from = el?.selectionStart ?? input.length;
-    const to = el?.selectionEnd ?? input.length;
-    const before = input.slice(0, from);
-    // Se separa de lo que haya escrito solo si hace falta.
-    const glue = before && !/\s$/.test(before) ? " " : "";
-    const next = before + glue + text + input.slice(to);
-    setInput(next);
-    const caret = before.length + glue.length + text.length;
-    requestAnimationFrame(() => {
-      const node = inputRef.current;
-      if (!node) return;
-      node.focus();
-      node.setSelectionRange(caret, caret);
-    });
   };
 
   // Cambiar de conversación deja la búsqueda donde empezó.
@@ -278,19 +238,17 @@ export default function ChatWindow() {
           ? "happy"
           : "idle";
 
-  const submit = async () => {
-    const text = input.trim();
-    if ((!text && attachments.length === 0) || status === "streaming") return;
-    const sent = attachments;
-    setInput("");
-    setAttachments([]);
+  /** Lo que pasa al enviar. `Compositor` ya deja el borrador y los adjuntos limpios
+   *  y no deja mandar con la respuesta en curso; aquí queda el aviso del solteo,
+   *  pegar la vista al final y la llamada al store. */
+  const enviar = async (texto: string, adjuntos: Attachment[]) => {
     setAvisoSoltada(null);
     clearError();
     pinnedRef.current = true;
     try {
-      await sendMessage(text, sent);
+      await sendMessage(texto, adjuntos);
     } catch (e) {
-      useChatStore.getState().failStreaming(String(e));
+      useChatStore.getState().failStreaming(String(e), "otro");
     }
   };
 
@@ -314,127 +272,58 @@ export default function ChatWindow() {
   // una imagen pidiéndose: el hilo lleva segundos sin nada escrito.
   const empty = messages.length === 0 && !busy && !imageBusy;
 
+  // Tres clases se arreglan todas en el mismo sitio: falta la clave, la rechazó
+  // el proveedor (401) o nadie escucha en el endpoint. El texto ya lo dice, pero
+  // sin atajo hay que adivinar adónde ir.
+  const llevaAjustes =
+    errorClase === "clave" || errorClase === "ajustes" || errorClase === "red";
   const errorBanner = error && (
     <div className="mb-2 flex items-start gap-2 rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
       <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-      <span className="flex-1">{error}</span>
+      <span className="min-w-0 flex-1">
+        {error}
+        {llevaAjustes && (
+          <button
+            onClick={() => {
+              clearError();
+              setSettingsCat("api");
+              setView("settings");
+            }}
+            className="mt-1 block text-[13px] underline decoration-red-400/40 underline-offset-2 transition-colors hover:text-red-200"
+          >
+            {t("Abrir Ajustes → API y modelos")}
+          </button>
+        )}
+      </span>
       <button onClick={clearError} className="p-0.5 hover:text-layer">
         <X className="w-4 h-4" />
       </button>
     </div>
   );
 
-  // La sombra es `flotante`, no `apoyada`: el hilo pasa por debajo de la caja,
-  // así que es una capa y no una superficie pegada al panel.
+  // La caja del compositor está en `Compositor.tsx`; lo que aquí se decide es solo
+  // de qué hilo escribe y qué pasa al enviar.
   const composer = (
-    <div className="rounded-tarjeta border border-base-border bg-base-card shadow-flotante px-3 pt-3 pb-2.5 transition-colors focus-within:border-accent/50">
-      {avisoSoltada && (
-        <p className="pb-2 pl-1 text-[11px] leading-snug text-red-400/90">{avisoSoltada}</p>
-      )}
-      {attachments.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 pb-2 pl-0.5">
-          {attachments.map((a, i) => (
-            <span key={i} className="relative inline-flex">
-              {a.imageFile ? (
-                <AttachmentImage file={a.imageFile} name={a.name} />
-              ) : (
-                <span
-                  className="inline-flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-md text-[11px] border border-base-border bg-base text-zinc-300"
-                  title={t("{n} caracteres", { n: a.text.length.toLocaleString() })}
-                >
-                  <Paperclip className="w-3 h-3 shrink-0 text-accent-soft" />
-                  <span className="max-w-[200px] truncate">{a.name}</span>
-                </span>
-              )}
-              <button
-                onClick={() =>
-                  setAttachments((prev) => prev.filter((_, j) => j !== i))
-                }
-                className="absolute -right-1.5 -top-1.5 grid place-items-center w-4 h-4 rounded-full border border-base-border bg-base-raised text-zinc-400 hover:bg-accent hover:text-white transition-colors"
-                title={t("Quitar adjunto")}
-              >
-                <X className="w-2.5 h-2.5" />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-
-      <textarea
-        ref={inputRef}
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            void submit();
-          }
-        }}
-        rows={Math.min(6, Math.max(1, input.split("\n").length))}
-        placeholder={t("Pregúntame lo que necesites…")}
-        className="w-full resize-none bg-transparent px-1 pb-2 text-sm leading-relaxed outline-none placeholder:text-zinc-600 max-h-48"
-      />
-
-      <div className="flex items-center gap-2">
-        <ChatPlusMenu
-          onPickFiles={(files) => setAttachments((prev) => [...prev, ...files])}
-          onInsertTemplate={insertTemplate}
-          disabled={busy}
-        />
-        <ModeToggles />
-        <div className="flex-1 min-w-0" />
-        <ProviderModelPicker />
-        {busy ? (
-          <button
-            onClick={() => void stopStreaming()}
-            className="grid place-items-center w-8 h-8 shrink-0 rounded-full bg-accent text-white hover:bg-accent-dim transition-colors"
-            title={t("Detener respuesta")}
-          >
-            <Square className="w-3 h-3 fill-current" />
-          </button>
-        ) : (
-          <button
-            onClick={() => void submit()}
-            disabled={!input.trim() && attachments.length === 0}
-            className="grid place-items-center w-8 h-8 shrink-0 rounded-full bg-accent text-white disabled:opacity-35 disabled:cursor-not-allowed hover:bg-accent-dim transition-colors"
-            title={t("Enviar")}
-          >
-            <ArrowUp className="w-4 h-4" />
-          </button>
-        )}
-      </div>
-    </div>
+    <Compositor
+      clave={claveBorrador}
+      busy={busy}
+      attachments={attachments}
+      setAttachments={setAttachments}
+      aviso={avisoSoltada}
+      onSubmit={(texto, adjuntos) => void enviar(texto, adjuntos)}
+    />
   );
 
   if (empty) {
     return (
       <div className="flex-1 flex flex-col h-full min-w-0">
-        <div className="flex-1 flex flex-col items-center justify-center gap-6 px-6 pb-20">
-          <div className="flex flex-col items-center gap-3">
-            <Mascot state={mascotState} size={132} />
-            <div className="flex flex-col items-center gap-1.5">
-              <h1 className="text-[28px] font-semibold leading-tight tracking-tight">
-                {nombre ? (
-                  <>
-                    {saludo(new Date().getHours())},{" "}
-                    <span className="text-accent-soft">{nombre}</span>
-                  </>
-                ) : (
-                  <>
-                    {saludo(new Date().getHours())}. {t("Soy")}{" "}
-                    <span className="text-accent-soft">Hatboo</span>
-                  </>
-                )}
-              </h1>
-              <p className="text-sm text-zinc-400">
-                {saleDelEquipo(proveedor, modelo)
-                  ? t("El historial se queda aquí. Esta respuesta la genera {m} fuera de tu equipo.", {
-                      m: modelo || t("el proveedor elegido"),
-                    })
-                  : t("Local-first: nada sale de tu equipo salvo lo que mandes al proveedor que elijas.")}
-              </p>
-            </div>
-          </div>
+        <div className="flex-1 flex flex-col items-center justify-center gap-5 px-6 pb-12">
+          <SaludoChat
+            pose={mascotState}
+            nombre={nombre}
+            proveedor={proveedor}
+            modelo={modelo}
+          />
           <div className="w-full max-w-3xl space-y-3">
             {errorBanner}
             {composer}

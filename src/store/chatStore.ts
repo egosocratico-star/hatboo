@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   Artifact,
   Attachment,
+  ClaseError,
   Conversation,
   LocalModel,
   Message,
@@ -32,6 +33,10 @@ interface ChatStore {
   /** Se está generando una imagen ahora mismo: el motor de nube tarda segundos. */
   imageBusy: boolean;
   error: string | null;
+  /** De qué es el fallo que hay en `error`, cuando lo sabe el backend. Manda qué
+   *  acción se ofrece en el aviso: no es lo mismo que falte la clave que lo que
+   *  es un corte de red. `null` = todavía no se ha dicho. */
+  errorClase: ClaseError | null;
   settings: Settings | null;
   /** Fallo al leer los ajustes: Ajustes lo muestra con un reintento. */
   settingsError: string | null;
@@ -120,8 +125,10 @@ interface ChatStore {
   appendReasoning: (delta: string) => void;
   setSearchStatus: (searching: boolean, note: string | null) => void;
   finishStreaming: (message: Message) => void;
-  cancelStreaming: () => void;
-  failStreaming: (message: string) => void;
+  /** El stream se paró. `message` trae lo que llegó a escribirse, si quedó algo
+   *  y ya está guardado: sin eso la burbuja se queda en el limbo hasta recargar. */
+  cancelStreaming: (message?: Message | null) => void;
+  failStreaming: (message: string, clase: ClaseError) => void;
 }
 
 /** Estado transitorio de una respuesta en curso. */
@@ -146,6 +153,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   status: "idle",
   imageBusy: false,
   error: null,
+  errorClase: null,
   settings: null,
   settingsError: null,
   localModels: null,
@@ -342,7 +350,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       });
       set((s) => ({ messages: [...s.messages, userMessage] }));
     } catch (e) {
-      set({ ...BLANK_STREAM, status: "error", error: String(e) });
+      set({ ...BLANK_STREAM, status: "error", error: String(e), errorClase: "otro" });
     }
     await get().loadConversations();
   },
@@ -364,7 +372,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       }
       await get().loadConversations();
       await get().selectConversation(activeId);
-      set({ imageBusy: false, ...(fallo ? { status: "error" as const, error: fallo } : {}) });
+      set({ imageBusy: false, ...(fallo ? { status: "error" as const, error: fallo, errorClase: "otro" as const } : {}) });
       return;
     }
     // Quitamos localmente la última respuesta; el backend la borra y re-emite.
@@ -385,7 +393,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     try {
       await invoke("regenerate_response", { conversationId: activeId });
     } catch (e) {
-      set({ ...BLANK_STREAM, status: "error", error: String(e) });
+      set({ ...BLANK_STREAM, status: "error", error: String(e), errorClase: "otro" });
     }
   },
 
@@ -414,7 +422,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     await get().selectConversation(convId);
     // El aviso va DESPUÉS de la recarga: `selectConversation` limpia el error,
     // y si no el fallo del motor desaparecería antes de que se pueda leer.
-    set({ imageBusy: false, ...(fallo ? { status: "error" as const, error: fallo } : {}) });
+    set({ imageBusy: false, ...(fallo ? { status: "error" as const, error: fallo, errorClase: "otro" as const } : {}) });
   },
 
   /** Edita un mensaje propio: el backend tira lo de después y vuelve a responder. */
@@ -445,7 +453,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       // la vista refleje lo que hay de verdad y no una edición optimista.
       const message = String(e);
       await get().selectConversation(activeId);
-      set({ status: "error", error: message });
+      set({ status: "error", error: message, errorClase: "otro" });
     }
   },
 
@@ -567,7 +575,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   setSearchOpen: (open) => set({ searchOpen: open }),
 
-  clearError: () => set({ error: null, status: "idle" }),
+  clearError: () => set({ error: null, errorClase: null, status: "idle" }),
 
   appendChunk: (delta) => {
     buffer.text += delta;
@@ -594,14 +602,23 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     }));
   },
 
-  cancelStreaming: () => {
+  cancelStreaming: (message) => {
     clearBuffer();
-    set({ ...BLANK_STREAM, status: "idle" });
+    set((s) => ({
+      // Lo que llegó a escribirse antes de parar ya está en SQLite; se añade aquí
+      // para que la burbuja no tenga que esperar a recargar el chat.
+      messages:
+        message && !s.messages.some((m) => m.id === message.id)
+          ? [...s.messages, message]
+          : s.messages,
+      ...BLANK_STREAM,
+      status: "idle",
+    }));
   },
 
-  failStreaming: (message) => {
+  failStreaming: (message, clase) => {
     clearBuffer();
-    set({ ...BLANK_STREAM, status: "error", error: message });
+    set({ ...BLANK_STREAM, status: "error", error: message, errorClase: clase });
   },
 }));
 

@@ -18,7 +18,6 @@ import {
   ChevronsUpDown,
   Plus,
   Bell,
-  FolderOpen,
   FileCode2,
 } from "lucide-react";
 import { useChatStore } from "../store/chatStore";
@@ -34,11 +33,9 @@ import Mascot from "./mascot/Mascot";
 import { type ThemeChoice } from "../theme";
 import {
   LANGUAGE_OPTIONS,
-  MOTION_OPTIONS,
   type Conversation,
   type LanguageChoice,
   type MascotState,
-  type MotionChoice,
   type Project,
   type AvatarStyle,
 } from "../types";
@@ -189,7 +186,15 @@ function EncabezadoSeccion({
           </span>
         )}
       </button>
-      {abierto && acciones}
+      {abierto && acciones && (
+        /* Los mandos de la lista van en UN grupo con borde y filete de luz, no
+           sueltos a la derecha: sueltos parecían dos iconos decorativos y no se
+           entendía que son los controles de ESA sección. Es el mismo idioma que
+           el grupo de la cabecera del modo trabajo. */
+        <span className="ml-auto flex shrink-0 items-center gap-0.5 rounded-md border border-base-border/70 bg-base-card p-0.5 shadow-apoyada">
+          {acciones}
+        </span>
+      )}
     </div>
   );
 }
@@ -331,13 +336,17 @@ function SessionRow({
   );
 }
 
-/** Cabecera de un cajón de fechas dentro de la lista de chats. Más chica que
- *  la de sección: manda una línea, no es plegable y no tiene mandos. */
+/** Cabecera de un cajón de fechas dentro de la lista de chats. **No** es otra
+ *  cabecera de sección: el problema era «CONVERSACIONES» en versalitas y justo
+ *  debajo «HOY» en versalitas, dos rótulos del mismo peso seguidos. Aquí la
+ *  etiqueta va montada sobre un hilo, en redonda y sin tracking: se lee como
+ *  «aquí empieza otro bloque», no como «otro mando». */
 function Grupo({ titulo }: { titulo: string }) {
   return (
-    <p className="px-2 pb-0.5 pt-3 text-[10px] font-semibold uppercase tracking-[0.07em] text-zinc-600">
-      {titulo}
-    </p>
+    <div className="flex items-center gap-2 pl-2 pr-3 pb-1 pt-2.5">
+      <span className="shrink-0 text-[10px] text-zinc-600">{titulo}</span>
+      <span aria-hidden className="h-px min-w-0 flex-1 bg-base-border/70" />
+    </div>
   );
 }
 
@@ -464,7 +473,6 @@ export default function Sidebar() {
   const newWorkSession = useWorkStore((s) => s.newWorkSession);
   const removeProject = useWorkStore((s) => s.removeProject);
   const setProjectPinned = useWorkStore((s) => s.setProjectPinned);
-  const openProjectPicker = useWorkStore((s) => s.openProjectPicker);
   const focus = settings?.focusMode ?? false;
   // El modo foco es un arreglo del workspace: en la vista de chat la barra
   // lateral sigue con su propio estado, si no se quedaría sin forma de salir.
@@ -677,7 +685,7 @@ export default function Sidebar() {
 
   /** Menú rápido de la tarjeta de perfil. El mismo contenido en el panel ancho y
    *  en el riel; lo único que cambia es el botón del ancla. Arriba lo que se toca
-   *  a diario (tres conmutadores), abajo lo que lleva a otra pantalla. */
+   *  a diario (los dos conmutadores), abajo lo que lleva a otra pantalla. */
   const menuRapido = (
     <>
       <div className="space-y-0.5">
@@ -686,16 +694,6 @@ export default function Sidebar() {
             value={(settings?.theme ?? "dark") as ThemeChoice}
             onChange={(id) => patchSettings({ theme: id })}
             paletas={false}
-          />
-        </FilaControl>
-        <FilaControl
-          etiqueta={t("Movimiento")}
-          ayuda={t("«Reducido» quita animaciones y transiciones solo dentro de Hatboo, sin tocar el ajuste de Windows.")}
-        >
-          <Segmento
-            valor={settings?.motion ?? "system"}
-            alElegir={(id) => patchSettings({ motion: id as MotionChoice })}
-            opciones={MOTION_OPTIONS.map((m) => ({ id: m.id, etiqueta: t(m.label) }))}
           />
         </FilaControl>
         <FilaControl
@@ -760,7 +758,7 @@ export default function Sidebar() {
 
   if (compact) {
     return (
-      <aside className="w-14 shrink-0 h-full flex flex-col gap-1 px-2.5 py-2 border-r border-base-border bg-base-raised transition-[width] duration-200 ease-[cubic-bezier(.2,.8,.2,1)]">
+      <aside className="w-14 shrink-0 h-full flex flex-col gap-1 px-2.5 py-2 border-r border-base-border bg-base-raised filo-luz transition-[width] duration-200 ease-[cubic-bezier(.2,.8,.2,1)]">
         {/* El logo, el plegado y la búsqueda viven ahora en la barra de título:
             el rail empieza directo por lo que hace. */}
         <button
@@ -857,7 +855,7 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="w-64 shrink-0 h-full flex flex-col border-r border-base-border bg-base-raised transition-[width] duration-200 ease-[cubic-bezier(.2,.8,.2,1)]">
+    <aside className="w-64 shrink-0 h-full flex flex-col border-r border-base-border bg-base-raised filo-luz transition-[width] duration-200 ease-[cubic-bezier(.2,.8,.2,1)]">
       {/* Zona de acción. Era una píldora morada centrada que competía con todo
           lo de abajo; ahora es un control del mismo nivel que las filas: caja
           discreta, icono a la izquierda y el atajo a la derecha. */}
@@ -865,7 +863,7 @@ export default function Sidebar() {
         <button
           onClick={() => void newConversation()}
           title={t("Chat suelto, sin carpeta de proyecto")}
-          className="flex w-full items-center gap-2 rounded-lg border border-base-border bg-base-card py-1.5 pl-1.5 pr-2 text-left text-[13px] text-zinc-200 transition-colors hover:border-accent/40 hover:bg-base-hover"
+          className="flex w-full items-center gap-2 rounded-campo border border-base-border/60 bg-base-card py-1.5 pl-1.5 pr-2 text-left text-[13px] text-zinc-200 shadow-apoyada transition-colors hover:border-accent/40 hover:bg-base-hover"
         >
           <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-accent/[0.16] text-accent-soft">
             <Plus className="h-3.5 w-3.5" />
@@ -881,43 +879,35 @@ export default function Sidebar() {
         {avisosAtencion.length > 0 && (
           <AvisoAtencion items={avisosAtencion} onAbrir={openSession} />
         )}
+        {/* Un solo mando en el encabezado: «abrir una carpeta» estaba aquí Y en la
+            tarjeta del vacío, a cuatro píxeles de distancia. Se fue el de aquí
+            porque el del vacío es el único momento en que hace falta (con la lista
+            vacía) y además viene explicado con una frase; con proyectos ya
+            abiertos, abrir otro sigue en la página de Proyectos y soltando la
+            carpeta sobre la ventana. */}
         <EncabezadoSeccion
           titulo={t("Proyectos")}
           abierto={proyectosAbiertos}
           onPlegar={() => patchSettings({ projectsSectionOpen: !proyectosAbiertos })}
           contador={projects.length}
           acciones={
-            <>
-              <IconoSeccion
-                titulo={t("Ver todos los proyectos")}
-                activo={view === "projects"}
-                onClick={() => setView("projects")}
-              >
-                <LayoutGrid className="h-3.5 w-3.5" />
-              </IconoSeccion>
-              <IconoSeccion
-                titulo={t("Abrir una carpeta existente como proyecto")}
-                onClick={() => void openProjectPicker()}
-              >
-                <FolderOpen className="h-3.5 w-3.5" />
-              </IconoSeccion>
-            </>
+            <IconoSeccion
+              titulo={t("Ver todos los proyectos")}
+              activo={view === "projects"}
+              onClick={() => setView("projects")}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+            </IconoSeccion>
           }
         />
         {proyectosAbiertos && projects.length === 0 && (
+          /* Sin botón dentro del hueco: la tarjeta ya dice qué es un proyecto, y
+             para abrir uno están el mando de la esquina (la página de Proyectos,
+             que trae los dos botones) y soltar la carpeta sobre la ventana. */
           <EmptyHint
             pose="walking"
             text={t("Aún no hay proyectos.")}
             detail={t("Una carpeta: el agente lee y escribe dentro de ella.")}
-            accion={
-              <button
-                onClick={() => void openProjectPicker()}
-                className="flex items-center gap-1.5 rounded-md border border-base-border bg-base-card px-2 py-1 text-[11px] text-zinc-300 transition-colors hover:border-accent/50 hover:bg-base-hover"
-              >
-                <FolderOpen className="h-3 w-3 shrink-0 text-accent-soft" />
-                {t("Abrir carpeta")}
-              </button>
-            }
           />
         )}
         {(proyectosAbiertos ? projects : []).map((p) => {
@@ -998,7 +988,7 @@ export default function Sidebar() {
                    `bg-base` sobre el panel, más oscuro que los dos. Con la
                    rayita de antes las sesiones parecían sueltas al lado del
                    nombre, y no había forma de ver dónde terminaba la carpeta. */
-                <div className="ml-4 mr-0.5 mb-1 mt-0.5 space-y-0.5 rounded-lg bg-base py-1 pl-2 pr-1">
+                <div className="pozo ml-4 mr-0.5 mb-1 mt-0.5 space-y-0.5 rounded-lg bg-base py-1 pl-2 pr-1">
                   {sessions.map((conv) => (
                     <SessionRow
                       key={conv.id}
@@ -1013,7 +1003,7 @@ export default function Sidebar() {
                   ))}
                   <button
                     onClick={() => openBlankSession(p.id)}
-                    className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-xs text-zinc-600 transition-colors hover:bg-base-hover hover:text-zinc-300"
+                    className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-xs text-zinc-500 transition-colors hover:bg-base-hover hover:text-zinc-200"
                     title={t("Hilo nuevo dentro de esta carpeta, con sus mismas reglas")}
                   >
                     <Plus className="w-3 h-3 shrink-0" />
@@ -1025,6 +1015,7 @@ export default function Sidebar() {
           );
         })}
 
+        {seccionChats && <div className="my-2 h-px shrink-0 bg-base-border/60" />}
         {seccionChats && (
           <EncabezadoSeccion
             titulo={t("Conversaciones")}
@@ -1034,11 +1025,12 @@ export default function Sidebar() {
           />
         )}
         {seccionChats && chatsAbiertos && chatConversations.length === 0 && (
-          <EmptyHint
-            pose="sleeping"
-            text={t("Aún no hay conversaciones.")}
-            detail={t("En cuanto escribas en el chat, aparecerá aquí.")}
-          />
+          /* Una línea, no otra tarjeta: con las dos cajas de las secciones vacías
+             la barra parecía recién instalada a propósito. Lo de «aparecerá aquí»
+             es un pie de página, no un hueco que haya que resolver. */
+          <p className="px-2 py-1 text-[11px] leading-snug text-zinc-600">
+            {t("Aún no hay conversaciones. En cuanto escribas en el chat, aparecerá aquí.")}
+          </p>
         )}
         {chatsAbiertos &&
           chatsFijados.map((conv) => (
@@ -1110,6 +1102,11 @@ export default function Sidebar() {
         {/* Pie de la lista. Con una sola carpeta abierta todo esto caía al
             fondo del todo y dejaba un hueco enorme encima; `mt-auto` lo pega
             abajo cuando sobra sitio y lo deja colar cuando la lista crece. */}
+        {/* Pie: antes la mascota flotaba centrada en medio del hueco y debajo,
+            centrada también, la frase del atajo — dos cosas sueltas que no eran
+            de ninguna lista. Ahora una sola fila alineada con las demás: la
+            mascota a la izquierda (sigue siendo el estado de la carpeta abierta)
+            y el aviso a su lado, en la línea que pisa el pie. */}
         <div className="mt-auto pt-4">
           {archivadasTotal > 0 && (
             <button
@@ -1123,11 +1120,11 @@ export default function Sidebar() {
                 : t("Archivadas ({n})", { n: archivadasTotal })}
             </button>
           )}
-          <div className="flex flex-col items-center gap-1.5 pb-1">
-            <span aria-hidden className="opacity-[0.55]">
-              <Mascot state={poseLateral} size={44} />
+          <div className="flex items-center gap-2 px-2 pb-1 pt-0.5">
+            <span aria-hidden className="shrink-0 opacity-[0.55]">
+              <Mascot state={poseLateral} size={26} />
             </span>
-            <p className="text-center text-[10px] leading-snug text-zinc-600">
+            <p className="min-w-0 flex-1 text-[10px] leading-snug text-zinc-600">
               {t("Ctrl+K busca en chats, sesiones y carpetas")}
             </p>
           </div>

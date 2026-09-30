@@ -40,8 +40,20 @@ export default function TitleBar() {
 
   return (
     <header
-      data-tauri-drag-region
-      className="flex h-10 shrink-0 select-none items-center gap-1 border-b border-base-border bg-base-raised pl-3 pr-1.5"
+      // `deep`, no el atributo pelado. Leído en el script que inyecta Tauri
+      // (tauri-2.11.5/src/window/scripts/drag.js): sin valor, la zona de arrastre
+      // solo cuenta cuando el `mousedown` cae ENCIMA de este elemento (`el ===
+      // composedPath[0]`), así que el logo, la palabra «Hatboo» y cualquier hueco
+      // cubierto por un hijo no arrastraban — que es exactamente «no me deja mover
+      // la ventana». Con `deep` arrastra todo el descendiente, y los botones siguen
+      // a lo suyo porque el mismo script corta antes en los elementos clicables.
+      // Ojo: el script termina haciendo `invoke('plugin:window|start_dragging')`, y
+      // ese comando NO viene en `core:window:default` —está declarado en
+      // `capabilities/default.json` a mano—. Sin esa línea el gesto se ignora en
+      // silencio: la barra se ve normal y el doble clic sí maximiza, porque
+      // `internal_toggle_maximize` sí viene de fábrica.
+      data-tauri-drag-region="deep"
+      className="flex h-10 shrink-0 select-none items-center gap-1 border-b border-base-border bg-base-raised pl-3 pr-1.5 filo-luz"
     >
       <img
         src={mascotaLogo}
@@ -50,7 +62,7 @@ export default function TitleBar() {
         draggable={false}
       />
       <span className="text-[13px] font-semibold tracking-tight">Hatboo</span>
-      <span data-tauri-drag-region className="min-w-0 flex-1" />
+      <span className="min-w-0 flex-1" />
       <button
         onClick={() => setSearchOpen(true)}
         className={CUADRO}

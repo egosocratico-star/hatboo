@@ -1,55 +1,16 @@
 use crate::backup;
 use crate::db;
 use crate::machine;
-use crate::providers::{self, ChatMessage, StreamDelta};
+use crate::providers;
 use crate::state::{self, AppState, Settings};
-use crate::web;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
-use tauri::{Emitter, Manager, State};
+use tauri::{Manager, State};
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ChunkPayload {
-    conversation_id: String,
-    delta: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ReasoningPayload {
-    conversation_id: String,
-    delta: String,
-}
-
-/// Fase previa a la respuesta: `searching` mientras se consulta la web.
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct StatusPayload {
-    conversation_id: String,
-    phase: String,
-    detail: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct DonePayload {
-    conversation_id: String,
-    message: db::Message,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct CancelledPayload {
-    conversation_id: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ErrorPayload {
-    conversation_id: String,
-    message: String,
-}
+// Lo que se fue a `chat/stream.rs` sigue llamándose igual desde aquí: la lectura
+// del historial y el arranque del stream, que son los dos nombres que usaban los
+// comandos. Mudanza de sitio, no de nombres.
+pub(crate) use crate::chat::stream::{history, spawn_chat_stream};
 
 #[tauri::command]
 pub fn list_conversations(app: State<AppState>) -> Result<Vec<db::Conversation>, String> {
@@ -199,6 +160,12 @@ pub fn get_settings(app: State<AppState>) -> Settings {
 
 #[tauri::command]
 pub fn update_settings(app: State<AppState>, settings: Settings) -> Result<Settings, String> {
+    let mut settings = settings;
+    // La lista de ignoradas la escribe él a mano en Ajustes. Si pega una ruta se
+    // guarda solo el nombre de la carpeta, que es lo que comparan el árbol, el
+    // buscador y `list_dir`; una ruta entera no casaría nunca y quedaría ahí
+    // muerta de forma silenciosa.
+    settings.ignore_dirs = crate::agent::ignore::sanea(&settings.ignore_dirs);
     state::save_settings(&app, &settings)?;
     Ok(settings)
 }
@@ -737,58 +704,6 @@ pub async fn test_provider(
     endpoint: String,
 ) -> Result<String, String> {
     providers::test_connection(&provider, &model, &endpoint).await
-}
-
-/// Carga el historial de la conversación en formato de proveedor.
-/// Los adjuntos de TEXTO se anteponen al contenido (la burbuja sigue limpia);
-/// las IMÁGENES (M3) se leen desde disco, se codifican a base64 y viajan como
-/// `ImagePart` aparte, no dentro de `content`.
-fn history(app: &AppState, conversation_id: &str) -> Result<Vec<ChatMessage>, String> {
-    use base64::{engine::general_purpose, Engine as _};
-    use crate::providers::ImagePart;
-    let conn = app.db.lock().map_err(|e| e.to_string())?;
-    let messages = db::hilo_activo(&conn, conversation_id)?;
-    Ok(messages
-        .into_iter()
-        .map(|m| {
-            let mut text_prefix = String::new();
-            let mut images: Vec<ImagePart> = Vec::new();
-            for a in &m.attachments {
-                if let Some(path) = &a.image_file {
-                    match std::fs::read(path) {
-                        Ok(bytes) => images.push(ImagePart {
-                            media_type: a
-                                .image_media_type
-                                .clone()
-                                .unwrap_or_else(|| "image/png".to_string()),
-                            data_base64: general_purpose::STANDARD.encode(&bytes),
-                        }),
-                        Err(_) => {
-                            text_prefix.push_str(&format!(
-                                "[Adjunto no disponible: {}]\n\n",
-                                a.name
-                            ));
-                        }
-                    }
-                } else {
-                    text_prefix.push_str(&format!(
-                        "[Archivo adjunto: {}]\n{}\n\n",
-                        a.name, a.text
-                    ));
-                }
-            }
-            let content = if text_prefix.is_empty() {
-                m.content
-            } else {
-                format!("{}{}", text_prefix, m.content)
-            };
-            ChatMessage {
-                role: m.role,
-                content,
-                images,
-            }
-        })
-        .collect())
 }
 
 #[tauri::command]
@@ -1591,14 +1506,9 @@ pub fn save_project_rules(
     })
 }
 
-/// Lanza el streaming del proveedor para la conversación y emite chat:*.
-///
-/// Registrar el canal de cancelación es lo único que ocurre antes de devolver:
-/// construir el proveedor y leer el historial (que codifica las imágenes adjuntas
-/// en base64) se hace dentro de la tarea. Antes se hacían en el propio comando,
-/// y eso era el parón que se veía entre pulsar Enviar y ver el mensaje en pantalla.
 /// El *system prompt* del chat normal, sin efectos secundarios: lo arma
-/// `spawn_chat_stream` y lo mide `context_usage` para el indicador de contexto.
+/// `spawn_chat_stream` (en `chat/stream.rs`) y lo mide `context_usage` para el
+/// indicador de contexto.
 ///
 /// Tres bloques con las cabeceras siempre iguales. Antes de esta estructura el
 /// prompt podía quedarse vacío, y la única frase que mencionaba un nombre era
@@ -1607,7 +1517,7 @@ pub fn save_project_rules(
 /// nombre del usuario va en su propio bloque, lejos de la identidad.
 /// Las plantillas activas van al final: si chocan con el modo código, gana lo
 /// que el usuario escribió a mano.
-fn chat_system_prompt(settings: &state::Settings, skills: &str, memoria: &str) -> String {
+pub(crate) fn chat_system_prompt(settings: &state::Settings, skills: &str, memoria: &str) -> String {
     let nombre = settings.assistant_name.trim();
     let trato = if settings.user_address.trim().eq_ignore_ascii_case("usted") {
         "usted"
@@ -1667,270 +1577,6 @@ fn chat_system_prompt(settings: &state::Settings, skills: &str, memoria: &str) -
     system
 }
 
-/// Si lo último que escribió el usuario es un saludo. El chat lo usa para
-/// quitarse el razonamiento de encima: pensar cuatro minutos un «hola» no lo
-/// vuelve más listo, solo más lento.
-fn ultimo_mensaje_es_saludo(prompt: &[ChatMessage]) -> bool {
-    prompt
-        .iter()
-        .rev()
-        .find(|m| m.role == "user")
-        .map(|m| crate::agent::loop_runner::es_saludo(&m.content))
-        .unwrap_or(false)
-}
-
-fn spawn_chat_stream(app: tauri::AppHandle, conversation_id: String) -> Result<(), String> {
-    let state = app.state::<AppState>();
-    let (tx, mut rx) = tokio::sync::mpsc::channel::<StreamDelta>(64);
-    let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel::<()>();
-    state
-        .chat_runs
-        .lock()
-        .map_err(|e| e.to_string())?
-        .insert(conversation_id.clone(), cancel_tx);
-
-    let conv_id = conversation_id.clone();
-    let app_for_task = app.clone();
-
-    tauri::async_runtime::spawn(async move {
-        let state = app_for_task.state::<AppState>();
-
-        let (provider, prompt) = match history(&state, &conv_id).and_then(|prompt| {
-            let esfuerzo = if ultimo_mensaje_es_saludo(&prompt) {
-                "off".to_string()
-            } else {
-                state::load_settings(&state).reasoning_effort.clone()
-            };
-            state::build_provider(&state, &esfuerzo).map(|provider| (provider, prompt))
-        }) {
-            Ok(prepared) => prepared,
-            Err(e) => {
-                state.chat_runs.lock().ok().and_then(|mut r| r.remove(&conv_id));
-                let _ = app_for_task.emit(
-                    "chat:error",
-                    ErrorPayload {
-                        conversation_id: conv_id,
-                        message: e,
-                    },
-                );
-                return;
-            }
-        };
-        let settings = state::load_settings(&state);
-        let provider_name = provider.name().to_string();
-        let mut messages = prompt;
-
-        let skills = state
-            .db
-            .lock()
-            .ok()
-            .and_then(|conn| db::enabled_skills_prompt(&conn).ok())
-            .unwrap_or_default();
-        let memoria = state
-            .db
-            .lock()
-            .ok()
-            .and_then(|conn| db::memoria_prompt(&conn).ok())
-            .unwrap_or_default();
-        let system = chat_system_prompt(&settings, &skills, &memoria);
-        let system = system.trim();
-        if !system.is_empty() {
-            messages.insert(
-                0,
-                ChatMessage {
-                    role: "system".into(),
-                    content: system.to_string(),
-                    images: Vec::new(),
-                },
-            );
-        }
-
-        // La búsqueda web va antes de generar: un modelo local no tiene datos
-        // frescos y sin esto alucina fechas. Si falla, se responde igual.
-        let mut web_sources: Vec<db::WebSource> = Vec::new();
-        if settings.web_search {
-            let query = messages
-                .iter()
-                .rev()
-                .find(|m| m.role == "user")
-                .map(|m| m.content.clone())
-                .unwrap_or_default();
-            if !query.trim().is_empty() {
-                let _ = app_for_task.emit(
-                    "chat:status",
-                    StatusPayload {
-                        conversation_id: conv_id.clone(),
-                        phase: "searching".into(),
-                        detail: None,
-                    },
-                );
-                match web::search_web(&query).await {
-                    Ok(results) if !results.is_empty() => {
-                        let after_system = messages
-                            .iter()
-                            .take_while(|m| m.role == "system")
-                            .count();
-                        messages.insert(
-                            after_system,
-                            ChatMessage {
-                                role: "system".into(),
-                                content: web::as_context(&results, &query),
-                                images: Vec::new(),
-                            },
-                        );
-                        web_sources = results;
-                    }
-                    Ok(_) => {
-                        let _ = app_for_task.emit(
-                            "chat:status",
-                            StatusPayload {
-                                conversation_id: conv_id.clone(),
-                                phase: "search-empty".into(),
-                                detail: Some("La búsqueda no devolvió resultados.".into()),
-                            },
-                        );
-                    }
-                    Err(e) => {
-                        let _ = app_for_task.emit(
-                            "chat:status",
-                            StatusPayload {
-                                conversation_id: conv_id.clone(),
-                                phase: "search-failed".into(),
-                                detail: Some(e),
-                            },
-                        );
-                    }
-                }
-            }
-        }
-
-        let mut full = String::new();
-        let mut reasoning = String::new();
-        let mut thinking_ms: Option<i64> = None;
-        let started = std::time::Instant::now();
-        let mut forward_error: Option<String> = None;
-        let mut cancelled = false;
-
-        let stream_task = tauri::async_runtime::spawn(async move {
-            provider.stream_response(messages, tx).await
-        });
-
-        let mut cancel_rx = cancel_rx;
-        loop {
-            tokio::select! {
-                next = rx.recv() => {
-                    match next {
-                        Some(StreamDelta::Text(delta)) => {
-                            // El tiempo de pensamiento se mide hasta el primer
-                            // carácter visible; si no hubo razonamiento, no hay nada.
-                            if thinking_ms.is_none() && !reasoning.is_empty() {
-                                thinking_ms = Some(started.elapsed().as_millis() as i64);
-                            }
-                            full.push_str(&delta);
-                            let _ = app_for_task.emit(
-                                "chat:chunk",
-                                ChunkPayload {
-                                    conversation_id: conv_id.clone(),
-                                    delta,
-                                },
-                            );
-                        }
-                        Some(StreamDelta::Reasoning(delta)) => {
-                            reasoning.push_str(&delta);
-                            let _ = app_for_task.emit(
-                                "chat:reasoning",
-                                ReasoningPayload {
-                                    conversation_id: conv_id.clone(),
-                                    delta,
-                                },
-                            );
-                        }
-                        None => break,
-                    }
-                }
-                // Solo cuenta una cancelación explícita; si el emisor se cierra
-                // sin cancelar, la rama se deshabilita y seguimos leyendo.
-                Ok(()) = &mut cancel_rx => {
-                    cancelled = true;
-                    break;
-                }
-            }
-        }
-        // Soltamos el receptor: el lector SSE aborta el stream HTTP al no poder
-        // seguir enviando, que es lo que corta la generación en el servidor.
-        drop(rx);
-        state.chat_runs.lock().ok().and_then(|mut runs| runs.remove(&conv_id));
-
-        if !cancelled {
-            match stream_task.await {
-                Ok(Ok(())) => {}
-                Ok(Err(e)) => forward_error = Some(e.to_string()),
-                Err(e) => forward_error = Some(format!("La tarea de streaming falló: {e}")),
-            }
-        }
-
-        match forward_error {
-            None => {
-                // Al detener a mitad de respuesta se conserva lo ya generado.
-                if cancelled && full.trim().is_empty() {
-                    let _ = app_for_task.emit(
-                        "chat:cancelled",
-                        CancelledPayload {
-                            conversation_id: conv_id,
-                        },
-                    );
-                    return;
-                }
-                let saved = {
-                    let conn = state.db.lock().map_err(|e| e.to_string()).ok();
-                    let meta = db::AssistantMeta {
-                        reasoning: (!reasoning.trim().is_empty()).then_some(reasoning),
-                        thinking_ms,
-                        web_sources,
-                        ..Default::default()
-                    };
-                    match conn {
-                        Some(conn) => db::add_message_detailed(
-                            &conn,
-                            &conv_id,
-                            "assistant",
-                            &full,
-                            Some(&provider_name),
-                            &meta,
-                        ),
-                        None => Err("Base de datos no disponible".to_string()),
-                    }
-                };
-                match saved {
-                    Ok(message) => {
-                        let _ = app_for_task.emit(
-                            "chat:done",
-                            DonePayload {
-                                conversation_id: conv_id,
-                                message,
-                            },
-                        );
-                    }
-                    Err(e) => {
-                        let _ = app_for_task.emit(
-                            "chat:error",
-                            ErrorPayload {
-                                conversation_id: conv_id,
-                                message: format!("No se pudo guardar la respuesta: {e}"),
-                            },
-                        );
-                    }
-                }
-            }
-            Some(message) => {
-                let _ = app_for_task
-                    .emit("chat:error", ErrorPayload { conversation_id: conv_id, message });
-            }
-        }
-    });
-
-    Ok(())
-}
 
 /// Resumen de una exportación completa, para mostrarlo en Ajustes → Datos.
 #[derive(Debug, Clone, Serialize)]
@@ -2071,6 +1717,28 @@ pub fn open_project(app: State<AppState>, path: String) -> Result<db::Project, S
     register_project(&app, &path)
 }
 
+/// Un `HATBOO.md` de arranque. Sale con una carpeta de proyecto nueva, que es el
+/// único momento en el que Hatboo escribe un archivo sin que se lo pidan: la
+/// carpeta la acaba de crear él, así que no pisa nada.
+const RULES_EJEMPLO: &str = "\
+# Reglas de este proyecto
+
+Lo que escribas aquí se pega al prompt del agente en cada sesión de trabajo.
+Sirve para CÓMO quieres que trabaje, no para la tarea de hoy.
+
+## Dónde puede tocar
+- (las carpetas que son del proyecto)
+
+## Cómo quieres el código
+- (comentarios, nombrado, pruebas)
+
+## Fuera de los límites
+- (archivos que no se tocan aunque los vea)
+
+Las carpetas de la lista de ignoradas (Ajustes → Agente: `.git`, `node_modules`,
+`target`…) no las ve ni el árbol ni `list_dir`.
+";
+
 /// Crea una carpeta nueva de proyecto y la registra.
 #[tauri::command]
 pub fn create_project(
@@ -2085,6 +1753,12 @@ pub fn create_project(
     let new_dir = std::path::Path::new(&parent_path).join(name);
     std::fs::create_dir_all(&new_dir)
         .map_err(|e| format!("No se pudo crear la carpeta: {e}"))?;
+    // `create_dir_all` también pasa si la carpeta ya estaba, así que se comprueba
+    // antes de escribir: si alguien tiene sus propias reglas, esas se quedan.
+    let reglas = new_dir.join(RULES_FILE);
+    if !reglas.exists() {
+        let _ = std::fs::write(&reglas, RULES_EJEMPLO);
+    }
     register_project(&app, &new_dir.display().to_string())
 }
 
@@ -2104,12 +1778,18 @@ pub fn delete_project(app: State<AppState>, project_id: String) -> Result<(), St
 }
 
 /// Lista un nivel del árbol de archivos del proyecto (ruta relativa; "" = raíz).
+///
+/// Se saltan las carpetas de `ignore_dirs`, la MISMA lista que usan `list_dir` y
+/// `search_files` del agente: si el panel las enseña, el agente las ve, y si no,
+/// tampoco las busca. Con `Documentos` como raíz era lo que más se notaba.
 #[tauri::command]
 pub fn list_project_dir(
     app: State<AppState>,
     project_id: String,
     relative_path: String,
 ) -> Result<Vec<FileEntry>, String> {
+    // Antes de bloquear la conexión: `load_settings` usa el mismo mutex.
+    let ignoradas = state::load_settings(&app).ignore_dirs;
     let root = {
         let conn = app.db.lock().map_err(|e| e.to_string())?;
         PathBuf::from(db::get_project(&conn, &project_id)?.root_path)
@@ -2126,6 +1806,10 @@ pub fn list_project_dir(
     let raiz = root.canonicalize().unwrap_or_else(|_| root.clone());
     let mut out: Vec<FileEntry> = entries
         .flatten()
+        .filter(|e| {
+            let es_dir = e.file_type().map(|t| t.is_dir()).unwrap_or(false);
+            !es_dir || !crate::agent::ignore::ignora(&e.file_name().to_string_lossy(), &ignoradas)
+        })
         .map(|e| {
             let is_dir = e.file_type().map(|t| t.is_dir()).unwrap_or(false);
             let rel = e
@@ -2210,12 +1894,18 @@ fn leer_vista_previa(ruta: &Path) -> Result<VistaPrevia, String> {
 }
 
 /// Busca archivos por nombre (sin distinguir mayúsculas) dentro del proyecto.
+/// `dentro`, si viene, es una carpeta del proyecto y el recorrido arranca y se
+/// para ahí («buscar aquí» en el árbol). Las rutas que salen siguen siendo
+/// relativas a la raíz del proyecto: es lo que entienden la vista previa y el
+/// «añadir al mensaje», y lo que el árbol abre sin tener que traducir nada.
 #[tauri::command]
 pub async fn search_project_files(
     app: State<'_, AppState>,
     project_id: String,
     query: String,
+    dentro: Option<String>,
 ) -> Result<Vec<String>, String> {
+    let ignoradas = state::load_settings(&app).ignore_dirs;
     let root = {
         let conn = app.db.lock().map_err(|e| e.to_string())?;
         PathBuf::from(db::get_project(&conn, &project_id)?.root_path)
@@ -2224,14 +1914,25 @@ pub async fn search_project_files(
     if needle.is_empty() {
         return Ok(Vec::new());
     }
+    let proyecto = root.canonicalize().unwrap_or_else(|_| root.clone());
+    let donde = match dentro.as_deref().map(str::trim).filter(|d| !d.is_empty()) {
+        Some(d) => crate::agent::tools::resolve_in_project(&proyecto, d)
+            .map_err(|e| e.to_string())?,
+        None => proyecto.clone(),
+    };
+    if !donde.is_dir() {
+        return Err("Esa carpeta ya no existe.".into());
+    }
     tauri::async_runtime::spawn_blocking(move || {
         Ok(buscar_por_niveles(
-            &root,
+            &proyecto,
+            &donde,
             &needle,
             &Presupuesto {
                 total: 20_000,
                 por_carpeta: 500,
             },
+            &ignoradas,
         ))
     })
     .await
@@ -2254,12 +1955,26 @@ struct Presupuesto {
 /// vecinas, así que el buscador decía «sin coincidencias» de archivos que están
 /// a la vista. Por niveles, con un techo de entradas por carpeta, ninguna puede
 /// tapar al resto.
-fn buscar_por_niveles(raiz: &Path, needle: &str, p: &Presupuesto) -> Vec<String> {
-    const SKIP_DIRS: [&str; 5] = ["node_modules", "target", "dist", "build", ".git"];
+///
+/// Se salta `ignoradas` —la lista de los ajustes, la misma del árbol y de
+/// `list_dir`—. Aquí había además un «todo lo que empiece por punto»: el árbol sí
+/// enseñaba `.vscode` o `.cargo` y el buscador no los encontraba nunca, que es
+/// justo la clase de mentira que este plan quiere quitar. El presupuesto de
+/// arriba es la guarda, no el punto.
+///
+/// `proyecto` es solo para el recorte: lo que se devuelve se lee relativo a la
+/// raíz del proyecto aunque el recorrido empiece más abajo (`donde`).
+fn buscar_por_niveles(
+    proyecto: &Path,
+    donde: &Path,
+    needle: &str,
+    p: &Presupuesto,
+    ignoradas: &[String],
+) -> Vec<String> {
     const MAX_RESULTADOS: usize = 100;
     let mut out: Vec<String> = Vec::new();
     let mut por_procesar: std::collections::VecDeque<PathBuf> = std::collections::VecDeque::new();
-    por_procesar.push_back(raiz.to_path_buf());
+    por_procesar.push_back(donde.to_path_buf());
     let mut visitadas = 0usize;
     while let Some(dir) = por_procesar.pop_front() {
         if out.len() >= MAX_RESULTADOS || visitadas >= p.total {
@@ -2271,12 +1986,12 @@ fn buscar_por_niveles(raiz: &Path, needle: &str, p: &Presupuesto) -> Vec<String>
             let nombre = entry.file_name().to_string_lossy().into_owned();
             let es_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
             if es_dir {
-                if nombre.starts_with('.') || SKIP_DIRS.contains(&nombre.as_str()) {
+                if crate::agent::ignore::ignora(&nombre, ignoradas) {
                     continue;
                 }
                 por_procesar.push_back(entry.path());
             } else if nombre.to_lowercase().contains(needle) {
-                if let Ok(rel) = entry.path().strip_prefix(raiz) {
+                if let Ok(rel) = entry.path().strip_prefix(proyecto) {
                     out.push(rel.to_string_lossy().replace('\\', "/"));
                 }
                 if out.len() >= MAX_RESULTADOS {
@@ -3163,24 +2878,80 @@ mod tests {
 
         let hits = buscar_por_niveles(
             &raiz,
+            &raiz,
             "factura",
             &Presupuesto {
                 total: 40,
                 por_carpeta: 5,
             },
+            &crate::agent::ignore::por_defecto(),
         );
         assert_eq!(hits, vec!["b-facturas/factura-2026.pdf".to_string()]);
 
         // Y lo que se salta a propósito no vuelve: el presupuesto se nota.
         assert!(buscar_por_niveles(
             &raiz,
+            &raiz,
             "nota-199",
             &Presupuesto {
                 total: 40,
                 por_carpeta: 5,
-            }
+            },
+            &crate::agent::ignore::por_defecto()
         )
         .is_empty());
+        std::fs::remove_dir_all(&raiz).ok();
+    }
+
+    #[test]
+    fn buscar_aqui_sale_en_relativo_a_la_raiz_del_proyecto() {
+        // «Buscar aquí» recorta el recorrido a la subcarpeta, pero lo que devuelve
+        // tiene que seguir siendo relativo a la raíz del proyecto: la vista previa
+        // y el «añadir al mensaje» reciben eso, y una ruta relativa a la subcarpeta
+        // se abriría en el sitio equivocado (o no se abriría).
+        let raiz = std::env::temp_dir().join(format!("hatboo-aqui-{}", uuid::Uuid::new_v4()));
+        let dentro = raiz.join("papel/2026");
+        std::fs::create_dir_all(&dentro).unwrap();
+        std::fs::create_dir_all(raiz.join("otro")).unwrap();
+        std::fs::write(dentro.join("factura.pdf"), b"x").unwrap();
+        std::fs::write(raiz.join("otro/factura-vieja.pdf"), b"x").unwrap();
+        let p = Presupuesto {
+            total: 500,
+            por_carpeta: 100,
+        };
+        let sin_recorte = buscar_por_niveles(&raiz, &raiz, "factura", &p, &[]);
+        assert_eq!(sin_recorte.len(), 2);
+
+        let aqui = buscar_por_niveles(&raiz, &dentro, "factura", &p, &[]);
+        assert_eq!(aqui, vec!["papel/2026/factura.pdf".to_string()]);
+        std::fs::remove_dir_all(&raiz).ok();
+    }
+
+    #[test]
+    fn el_buscador_del_arbol_se_salt_lo_que_salta_el_rbol() {
+        // La regla del plan: árbol, búsqueda y `list_dir` usan UNA lista. Antes el
+        // buscador tenía la suya y el árbol ninguna, así que `node_modules` se veía
+        // y no se encontraba (o al revés según la carpeta).
+        let raiz = std::env::temp_dir().join(format!("hatboo-ignoradas-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(raiz.join("node_modules")).unwrap();
+        std::fs::create_dir_all(raiz.join("papel")).unwrap();
+        std::fs::write(raiz.join("node_modules/factura.js"), b"x").unwrap();
+        std::fs::write(raiz.join("papel/factura.txt"), b"x").unwrap();
+        let p = Presupuesto {
+            total: 500,
+            por_carpeta: 100,
+        };
+
+        let con_lista =
+            buscar_por_niveles(&raiz, &raiz, "factura", &p, &crate::agent::ignore::por_defecto());
+        assert_eq!(con_lista, vec!["papel/factura.txt".to_string()]);
+
+        // Y una carpeta propia que él añada en Ajustes se salta igual; `dist` no
+        // está en la lista vacía, así que aparece.
+        let sin_lista = buscar_por_niveles(&raiz, &raiz, "factura", &p, &[]);
+        assert_eq!(sin_lista.len(), 2);
+        let solo_dist = buscar_por_niveles(&raiz, &raiz, "factura", &p, &["dist".to_string()]);
+        assert_eq!(solo_dist.len(), 2);
         std::fs::remove_dir_all(&raiz).ok();
     }
 

@@ -30,9 +30,24 @@
    * `--shade`, que en claro es gris azulado para no dejar halo sucio. */
   /* Dos capas en cada sombra: una ceñida que marca el borde y una ancha y muy
      difusa que es la que se lee como altura. Una sola sombra dura era lo que
-     hacía las tarjetas parecieran pegatinas. */
-  --sombra-apoyada: 0 1px 2px rgb(var(--shade) / 0.22), 0 6px 18px -6px rgb(var(--shade) / 0.3);
-  --sombra-flotante: 0 2px 8px rgb(var(--shade) / 0.28), 0 22px 56px -14px rgb(var(--shade) / 0.55);
+     hacía las tarjetas parecieran pegatinas.
+     La primera capa de cada par es `--filo-luz`: el filete blanco que tiene el borde
+     superior de un objeto iluminado desde arriba. Es lo que separa una superficie de
+     la de encima cuando las dos alturas de fondo están tan cerca que el `border` ya
+     no se nota, y por eso vive en su propia variable: las barras y los paneles, que
+     miden toda la ventana y donde una sombra exterior mancharía al vecino, usan solo
+     el filete (la clase `.filo-luz`, más abajo, con el motivo de que no sea una
+     utilidad de Tailwind).
+     En el tema claro casi no se ve (sus tarjetas son blanco puro y blanco sobre
+     blanco es blanco) y en OLED solo toca las tarjetas: es el precio de que el fondo
+     apague el píxel, y no es un defecto que esconder. */
+  --filo-luz: inset 0 1px 0 rgb(255 255 255 / 0.055);
+  --sombra-apoyada:
+    var(--filo-luz), 0 1px 2px rgb(var(--shade) / 0.22),
+    0 6px 18px -6px rgb(var(--shade) / 0.3);
+  --sombra-flotante:
+    inset 0 1px 0 rgb(255 255 255 / 0.075), 0 2px 8px rgb(var(--shade) / 0.28),
+    0 22px 56px -14px rgb(var(--shade) / 0.55);
 
   /* ============================================================
      Grano. Dos teselas de ruido de 256 px y UNA fuerza por paleta,
@@ -94,6 +109,31 @@
   background-repeat: repeat;
   background-size: 256px 256px;
   background-blend-mode: overlay;
+}
+
+/* El filete de luz de las BARRAS Y LOS PANELES: TitleBar, la cabecera del modo
+ * trabajo, los dos paneles laterales y los rieles. Van sin capa por lo mismo que
+ * el grano, y con nombre propio por dos motivos medidos en su ventana:
+ *
+ *  - una clave nueva en `boxShadow` de `tailwind.config.js` NO la ve el vite que ya
+ *    está corriendo (resolvía en `vite build` y daba `none` en la ventana), así que
+ *    depender del config obliga a reiniciarle el dev por un detalle de CSS;
+ *  - `shadow-[var(--filo-luz)]` Tailwind no lo genera: el valor entre corchetes es
+ *    ambiguo (¿color?, ¿sombra?) y para las sombras no hay prefijo de tipo.
+ *
+ * Ojo si algún día un elemento de estos lleva además una utilidad `shadow-*`: la
+ * regla sin capa le ganaría y le quitaría su sombra. Hoy ninguno la tiene. */
+.filo-luz {
+  box-shadow: var(--filo-luz);
+}
+
+/* Lo contrario del filete: un área HUNDIDA, con la sombra por dentro y arriba. Es
+ * el pozo donde viven las sesiones de una carpeta abierta — un `bg-base` sobre el
+ * panel, más oscuro que los dos niveles de siempre—, que sin este canto se leía
+ * como un rectángulo pegado encima en vez de un hueco. Mismo criterio que
+ * `.filo-luz`: clase propia sin capa, para no depender del config de Tailwind. */
+.pozo {
+  box-shadow: inset 0 1px 3px rgb(var(--shade) / 0.45);
 }
 
 /* Un solo grosor de trazo para TODOS los iconos. Lucide pinta
@@ -568,6 +608,56 @@
   --grano: var(--grano-fuerte);
 }
 
+/* CUATRO ACENTOS FIJOS, no un color libre. Ponerlos aquí —encima de las paletas—
+   es lo que permite seguir tocando una sola cosa: la paleta manda sobre las
+   superficies y el zinc, y el acento solo manda sobre el acento.
+
+   Sin medida no se sube: `--accent-soft` es TEXTO (`.text-accent-soft`) y tiene
+   que aguantar el suelo de 4,5 de `npm run prueba-contraste` contra el fondo de
+   TODAS las paletas; `--accent` es relleno con blanco encima. Los dos extremos
+   de cada trío salen de ahí, no del gusto:
+
+     oscuro   soft  ≥ 7,1 sobre el fondo más claro de las oscuras (tokyo)
+     claro    soft  ≥ 5,0 sobre #f4f4f7
+
+   `violeta` no aparece: es lo que ya trae cada paleta, y no tocar el atributo
+   es lo que lo deja mandando (`applyAccent` lo quita). */
+html[data-acento="azul"] {
+  --accent: 37 99 235; /* #2563eb — blanco encima: 5,1 */
+  --accent-soft: 96 165 250; /* #60a5fa */
+  --accent-dim: 30 64 175; /* #1e40af */
+}
+html[data-acento="verde"] {
+  --accent: 4 120 87; /* #047857 — blanco encima: 5,5 */
+  --accent-soft: 52 211 153; /* #34d399 */
+  --accent-dim: 6 95 70; /* #065f46 */
+}
+html[data-acento="rosa"] {
+  --accent: 219 39 119; /* #db2777 — blanco encima: 4,6 */
+  --accent-soft: 244 114 182; /* #f472b6 */
+  --accent-dim: 157 23 77; /* #9d174d */
+}
+
+/* En claro el fondo es #f4f4f7 y los `soft` de arriba (los brillantes) caen por
+   debajo del suelo: ahí el texto de acento tiene que ser OSCURO. Este bloque
+   gana por especificidad (`html[data-a][data-t]` es más concreto que
+   `html[data-a]`), no por orden. */
+html[data-acento="azul"][data-theme="light"] {
+  --accent: 37 99 235;
+  --accent-soft: 29 78 216; /* #1d4ed8 — 6,1 sobre el fondo */
+  --accent-dim: 30 64 175;
+}
+html[data-acento="verde"][data-theme="light"] {
+  --accent: 4 120 87;
+  --accent-soft: 6 95 70; /* #065f46 — 6,9 */
+  --accent-dim: 4 78 56;
+}
+html[data-acento="rosa"][data-theme="light"] {
+  --accent: 219 39 119;
+  --accent-soft: 190 24 93; /* #be185d — 5,5 */
+  --accent-dim: 157 23 77;
+}
+
 html,
 body,
 #root {
@@ -898,30 +988,11 @@ html.hatboo-resizing * {
   transition: none !important;
 }
 
-/* Reducir el movimiento NO es dejar la animación en 0,01ms y ya: si se queda
- * el `infinite` de origen, el navegador repite un ciclo de 0,01ms sin parar y un
- * `animate-pulse` se convierte en un estroboscopio (medido: opacidad saltando a
- * ~40 veces por segundo en el "Pensando…"). Por eso va también la cuenta de
- * iteraciones. */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
-/* El mismo recorte, pedido dentro de la app (Ajustes → Apariencia → Movimiento)
- * para quien no quiere tocar la preferencia del sistema operativo. */
-html[data-motion="reduced"] *,
-html[data-motion="reduced"] *::before,
-html[data-motion="reduced"] *::after {
-  animation-duration: 0.01ms !important;
-  animation-iteration-count: 1 !important;
-  transition-duration: 0.01ms !important;
-}
+/* Hatboo anima siempre. Hubo un recorte por `prefers-reduced-motion` y un
+ * ajuste dentro de la app («Movimiento → Reducido») que lo forzaban; ambos
+ * fuera el 29-09 porque rompían cosas (transiciones a 0,01 ms con el `infinite`
+ * de origen = estroboscopio). Si algún día vuelve, la lección es esta: reducir
+ * el movimiento exige quitar también las iteraciones, no solo la duración. */
 
 /* Blur de verdad, y SOLO en superficies transitorias: menús, popovers, modales.
  * La guía de visual lo dice explícitamente —el acrílico de Windows no va en

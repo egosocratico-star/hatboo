@@ -4,7 +4,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import {
   Camera,
+  ChevronRight,
   Download,
+  Ellipsis,
   Github,
   Paperclip,
   Plus,
@@ -14,6 +16,7 @@ import {
 } from "lucide-react";
 import { useChatStore } from "../store/chatStore";
 import Popover from "./Popover";
+import MenuAtras from "./MenuAtras";
 import type { Attachment } from "../types";
 import { motorImagen, soportaVision } from "../proveedores";
 
@@ -24,13 +27,18 @@ interface Props {
   disabled?: boolean;
 }
 
+type Cara = "anadir" | "mas" | "github" | "imagen";
+
 export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }: Props) {
+  /** Las cuatro caras del menú. El panel no crece: cambia de cara, así que el
+   *  saludo de detrás no se tapa más que con la cara de arriba. */
+  const [cara, setCara] = useState<Cara>("anadir");
   const [open_, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [urlGitHub, setUrlGitHub] = useState<string | null>(null);
-  /** Mientras es `null` el campo de «Generar imagen» está cerrado. */
-  const [pedidoImagen, setPedidoImagen] = useState<string | null>(null);
+  const [urlGitHub, setUrlGitHub] = useState("");
+  /** El texto de «Generar imagen»; vacío = la cara está abierta pero sin nada. */
+  const [pedidoImagen, setPedidoImagen] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const settings = useChatStore((s) => s.settings);
@@ -68,6 +76,23 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
   };
 
   const close = () => setOpen(false);
+
+  /** Al abrir se siempre se entra por la cara de arriba: volver a medio menú de
+   *  la última vez que se usó no es un atajo, es un despiste. */
+  const abrir = (v: boolean) => {
+    setOpen(v);
+    if (v) {
+      setCara("anadir");
+      setNotice(null);
+    }
+  };
+
+  /** Escape: primero deshace la cara; solo cierra el menú si ya estaba en la de
+   *  arriba. Es lo que hace un menú nativo en cascada. */
+  const escapar = () => {
+    if (cara !== "anadir") setCara("anadir");
+    else close();
+  };
 
   /** Un solo selector para todo: `read_attachment` decide en el backend si lo
    *  que cayó es una imagen (payload de visión) o texto. */
@@ -115,7 +140,7 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
     try {
       const adjunto = await invoke<Attachment>("fetch_github", { url });
       onPickFiles([adjunto]);
-      setUrlGitHub(null);
+      setUrlGitHub("");
       close();
     } catch (e) {
       setNotice(String(e));
@@ -144,9 +169,9 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
   /** Se cierra el menú antes de pedir: la espera se ve en el hilo («Dibujando…»),
    *  que es donde va a aparecer la imagen, y no aquí dentro. */
   const generarImagen = async () => {
-    const texto = (pedidoImagen || "").trim();
+    const texto = pedidoImagen.trim();
     if (!texto || imageBusy) return;
-    setPedidoImagen(null);
+    setPedidoImagen("");
     close();
     await useChatStore.getState().generateImage(texto);
   };
@@ -200,9 +225,11 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
     <div className="relative">
       <button
         ref={triggerRef}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => abrir(!open_)}
         disabled={disabled}
         title={t("Añadir")}
+        aria-expanded={open_}
+        aria-haspopup="true"
         className="grid place-items-center w-8 h-8 rounded-full border border-base-border text-zinc-400 hover:text-layer hover:border-accent/50 disabled:opacity-40 transition-colors"
       >
         <Plus className="w-4 h-4" />
@@ -212,24 +239,31 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
         open={open_}
         anchorRef={triggerRef}
         onClose={close}
-        width={256}
-        cap={380}
-        className="p-1.5"
+        onEscape={escapar}
+        atraparFoco
+        etiqueta={t("Añadir")}
+        reenfoca={cara}
+        width={244}
+        cap={400}
+        className="p-1.5 min-h-[212px]"
       >
-          <button onClick={() => void pickFiles()} className={item} disabled={busy}>
-            <Paperclip className="w-4 h-4 text-accent-soft shrink-0" />
-            <span className="flex-1">{busy ? t("Leyendo…") : t("Archivos")}</span>
-          </button>
-          <button
-            onClick={() => setUrlGitHub((v) => (v === null ? "" : null))}
-            className={item}
-          >
-            <Github className="w-4 h-4 text-accent-soft shrink-0" />
-            <span className="flex-1">{t("Desde GitHub")}</span>
-            <span className="text-[10px] text-zinc-600">{t("sin clonar")}</span>
-          </button>
-          {urlGitHub !== null && (
+          {cara === "anadir" && (
+            <button onClick={() => void pickFiles()} className={item} disabled={busy}>
+              <Paperclip className="w-4 h-4 text-accent-soft shrink-0" />
+              <span className="flex-1">{busy ? t("Leyendo…") : t("Archivos")}</span>
+            </button>
+          )}
+          {cara === "anadir" && (
+            <button onClick={() => setCara("github")} className={item}>
+              <Github className="w-4 h-4 text-accent-soft shrink-0" />
+              <span className="flex-1">{t("GitHub")}</span>
+              <span className="text-[10px] text-zinc-600">{t("sin clonar")}</span>
+              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-zinc-600" />
+            </button>
+          )}
+          {cara === "github" && (
             <div className="px-1 pb-1.5">
+              <MenuAtras hacia={t("Añadir")} onClick={() => setCara("anadir")} />
               <input
                 autoFocus
                 value={urlGitHub}
@@ -238,7 +272,7 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
                   if (e.key === "Enter") void traerDeGitHub();
                   if (e.key === "Escape") {
                     e.stopPropagation();
-                    setUrlGitHub(null);
+                    setCara("anadir");
                   }
                 }}
                 placeholder="https://github.com/autor/repo/blob/main/archivo.rs"
@@ -253,25 +287,35 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
               </button>
             </div>
           )}
-          {visionOk ? (
-            <button onClick={() => void capturarPantalla()} className={item} disabled={busy}>
-              <Camera className="w-4 h-4 text-accent-soft shrink-0" />
-              <span className="flex-1">{t("Tomar captura")}</span>
-            </button>
-          ) : (
-            <div
-              className={item + " opacity-45 cursor-not-allowed"}
-              title={t("Hace falta un modelo con visión para que Hatboo lea una captura.")}
+          {/* Sin visión el botón se queda DESHABILITADO, no ausente ni convertido
+              en un `div`: es una opción que existe y ahora no se puede, y un
+              `div` con pinta de botón no se puede ni enfocar. */}
+          {cara === "anadir" && (
+            <button
+              onClick={() => void capturarPantalla()}
+              className={item}
+              disabled={!visionOk || busy}
+              title={
+                visionOk
+                  ? t("Captura la pantalla entera y la añade al mensaje.")
+                  : t(
+                      "Hatboo no sabe que tu modelo lea imágenes. Si las lee, márcalo en Ajustes → API y modelos.",
+                    )
+              }
             >
-              <Camera className="w-4 h-4 text-zinc-500 shrink-0" />
-              <span className="flex-1">{t("Tomar captura")}</span>
-              <span className="text-[10px] text-zinc-500">{t("sin visión")}</span>
-            </div>
+              <Camera
+                className={`w-4 h-4 shrink-0 ${visionOk ? "text-accent-soft" : "text-zinc-500"}`}
+              />
+              <span className="flex-1">{t("Captura")}</span>
+              {!visionOk && (
+                <span className="text-[10px] text-zinc-500">{t("sin visión")}</span>
+              )}
+            </button>
           )}
-          {motor ? (
-            <>
+          {cara === "anadir" &&
+            (motor ? (
               <button
-                onClick={() => setPedidoImagen((v) => (v === null ? "" : null))}
+                onClick={() => setCara("imagen")}
                 className={item}
                 disabled={imageBusy}
                 title={t(
@@ -280,57 +324,71 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
                 )}
               >
                 <WandSparkles className="w-4 h-4 text-accent-soft shrink-0" />
-                <span className="flex-1">{imageBusy ? t("Dibujando…") : t("Generar imagen")}</span>
+                <span className="flex-1">{imageBusy ? t("Dibujando…") : t("Imagen")}</span>
                 <span className="text-[10px] text-zinc-600">{motor.corto}</span>
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-zinc-600" />
               </button>
-              {pedidoImagen !== null && !imageBusy && (
-                <div className="px-1 pb-1.5">
-                  <textarea
-                    autoFocus
-                    value={pedidoImagen}
-                    onChange={(e) => setPedidoImagen(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        void generarImagen();
-                      }
-                      if (e.key === "Escape") {
-                        e.stopPropagation();
-                        setPedidoImagen(null);
-                      }
-                    }}
-                    rows={2}
-                    placeholder={t("Describe la imagen: «un gato astronauta, acuarela»")}
-                    className="w-full resize-none rounded-lg border border-base-border bg-base px-2 py-1.5 text-xs leading-relaxed outline-none placeholder:text-zinc-600 focus:border-accent/70"
-                  />
-                  <button
-                    onClick={() => void generarImagen()}
-                    disabled={!pedidoImagen.trim()}
-                    className="mt-1 w-full rounded-lg bg-accent px-2 py-1.5 text-xs text-white hover:bg-accent-dim disabled:opacity-40 transition-colors"
-                  >
-                    {t("Pedir a {m}", { m: motor.corto })}
-                  </button>
-                </div>
-              )}
-            </>
-          ) : (
-            <button
-              onClick={() => {
-                const st = useChatStore.getState();
-                st.setSettingsCat("api");
-                st.setView("settings");
-                close();
-              }}
-              className={item}
-              title={t("El motor de imágenes se elige en Ajustes → API.")}
-            >
-              <WandSparkles className="w-4 h-4 text-zinc-500 shrink-0" />
-              <span className="flex-1">{t("Generar imagen")}</span>
-              <span className="shrink-0 text-[10px] text-zinc-500">{t("Ajustes → API")}</span>
-            </button>
+            ) : (
+              <button
+                onClick={() => {
+                  const st = useChatStore.getState();
+                  st.setSettingsCat("api");
+                  st.setView("settings");
+                  close();
+                }}
+                className={item}
+                title={t("El motor de imágenes se elige en Ajustes → API.")}
+              >
+                <WandSparkles className="w-4 h-4 text-zinc-500 shrink-0" />
+                <span className="flex-1">{t("Imagen")}</span>
+                <span className="shrink-0 text-[10px] text-zinc-500">{t("Ajustes → API")}</span>
+              </button>
+            ))}
+          {cara === "imagen" && motor && (
+            <div className="px-1 pb-1.5">
+              <MenuAtras hacia={t("Añadir")} onClick={() => setCara("anadir")} />
+              <textarea
+                autoFocus
+                value={pedidoImagen}
+                onChange={(e) => setPedidoImagen(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    void generarImagen();
+                  }
+                  if (e.key === "Escape") {
+                    e.stopPropagation();
+                    setCara("anadir");
+                  }
+                }}
+                rows={2}
+                placeholder={t("Describe la imagen: «un gato astronauta, acuarela»")}
+                className="w-full resize-none rounded-lg border border-base-border bg-base px-2 py-1.5 text-xs leading-relaxed outline-none placeholder:text-zinc-600 focus:border-accent/70"
+              />
+              <button
+                onClick={() => void generarImagen()}
+                disabled={!pedidoImagen.trim()}
+                className="mt-1 w-full rounded-lg bg-accent px-2 py-1.5 text-xs text-white hover:bg-accent-dim disabled:opacity-40 transition-colors"
+              >
+                {t("Pedir a {m}", { m: motor.corto })}
+              </button>
+            </div>
           )}
 
-          <div className="my-1.5 h-px bg-base-border" />
+          {cara === "anadir" && (
+            <>
+              <div className="my-1.5 h-px bg-base-border" />
+              <button onClick={() => setCara("mas")} className={item}>
+                <Ellipsis className="w-4 h-4 text-accent-soft shrink-0" />
+                <span className="flex-1">{t("Más")}</span>
+                <span className="text-[10px] text-zinc-600">{t("plantillas y sesión")}</span>
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-zinc-600" />
+              </button>
+            </>
+          )}
+          {cara === "mas" && (
+            <>
+          <MenuAtras hacia={t("Añadir")} onClick={() => setCara("anadir")} />
           <div className="px-2 pt-0.5 pb-1 text-[10px] uppercase tracking-wider text-zinc-500">
             {t("Plantillas")}
           </div>
@@ -399,9 +457,16 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
             <Trash2 className="w-4 h-4 shrink-0" />
             <span className="flex-1">{t("Limpiar conversación")}</span>
           </button>
+            </>
+          )}
 
+          {/* `role="alert"`: el aviso sale de un fallo (una imagen que el modelo
+              no ve, un .md que no se puede leer) y sin él se queda mudo para un
+              lector de pantalla. */}
           {notice && (
-            <div className="px-2.5 py-1.5 mt-1 text-[11px] text-red-400">{notice}</div>
+            <div role="alert" className="px-2.5 py-1.5 mt-1 text-[11px] text-red-400">
+              {notice}
+            </div>
           )}
       </Popover>
     </div>

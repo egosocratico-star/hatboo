@@ -153,7 +153,7 @@ export default function MemoriaView() {
           )}
 
           {notas.length === 0 && (
-            <div className="rounded-lg border border-dashed border-base-border px-3 py-5 text-center">
+            <div className="rounded-lg border border-base-border/60 bg-base-raised px-3 py-5 text-center">
               <p className="text-sm text-zinc-500">{t("Sin notas todavía.")}</p>
               <p className="mt-1 text-xs text-zinc-600">{t("Puedes empezar por una de estas:")}</p>
               <div className="mt-2.5 flex flex-wrap justify-center gap-1.5">
@@ -175,7 +175,7 @@ export default function MemoriaView() {
           )}
 
           {q && visibles.length === 0 && (
-            <p className="rounded-lg border border-dashed border-base-border px-3 py-4 text-center text-xs text-zinc-500">
+            <p className="rounded-lg border border-base-border/60 bg-base-raised px-3 py-4 text-center text-xs text-zinc-500">
               {t("Ninguna nota contiene «{q}».", { q: filtro.trim() })}
             </p>
           )}

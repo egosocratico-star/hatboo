@@ -23,9 +23,13 @@
         if (t && TEMAS.indexOf(t) >= 0) {
           document.documentElement.dataset.theme = t;
         }
-        if (localStorage.getItem("hatboo-motion") === "reduced") {
-          document.documentElement.dataset.motion = "reduced";
+        // La densidad es el `font-size` base: si esperara al `invoke` de los
+        // ajustes, la interfaz se daría el primer bote de tamaño al aparecer.
+        if (localStorage.getItem("hatboo-densidad") === "compacta") {
+          document.documentElement.style.fontSize = "14.5px";
         }
+        var a = localStorage.getItem("hatboo-acento");
+        if (a && a !== "violeta") document.documentElement.dataset.acento = a;
       } catch (e) {}
     </script>
     <style>

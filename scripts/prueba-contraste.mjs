@@ -10,10 +10,12 @@ import { readFileSync } from "node:fs";
 
 const css = readFileSync(new URL("../src/index.css", import.meta.url), "utf8");
 
-/** Bloques `:root` y `[data-theme="..."]` con sus variables `R G B`. */
+/** Bloques `:root` y `[data-theme="..."]` con sus variables `R G B`.
+ *  El borde de delante evita que se cuele `html[data-acento="x"][data-theme="y"]`
+ *  como si fuera una paleta: esos son los bloques de acento, medida aparte. */
 function bloques() {
   const salida = [];
-  const re = /(?::root|\[data-theme="([a-z-]+)"\])\s*\{([^}]*)\}/g;
+  const re = /(?:^|[\s}])(?::root|\[data-theme="([a-z-]+)"\])\s*\{([^}]*)\}/gm;
   for (const m of css.matchAll(re)) {
     const vars = {};
     for (const v of m[2].matchAll(/--([\w-]+):\s*(\d+)\s+(\d+)\s+(\d+)/g)) {
@@ -22,6 +24,24 @@ function bloques() {
     salida.push({ nombre: m[1] ?? "oscuro (raíz)", vars });
   }
   return salida;
+}
+
+/** Los acentos fijos de `index.css`, con su variante clara si la tienen. */
+function acentos() {
+  const porNombre = new Map();
+  for (const m of css.matchAll(/html\[data-acento="([a-z]+)"\]([^{]*)\{([^}]*)\}/g)) {
+    const vars = {};
+    for (const v of m[3].matchAll(/--([\w-]+):\s*(\d+)\s+(\d+)\s+(\d+)/g)) {
+      vars[v[1]] = [Number(v[2]), Number(v[3]), Number(v[4])];
+    }
+    const extra = (m[2] || "").trim();
+    const paraTema = /data-theme="([a-z-]+)"/.exec(extra)?.[1] ?? null;
+    const actual = porNombre.get(m[1]) ?? { base: null, porTema: new Map() };
+    if (paraTema) actual.porTema.set(paraTema, vars);
+    else actual.base = vars;
+    porNombre.set(m[1], actual);
+  }
+  return [...porNombre.entries()].map(([nombre, a]) => ({ nombre, ...a }));
 }
 
 const lum = (rgb) => {
@@ -70,6 +90,32 @@ for (const { nombre, vars } of bloques()) {
     }
   }
   filas.push({ nombre, medida, malos });
+}
+
+const BLANCO = [255, 255, 255];
+const PALETAS = bloques();
+
+// El acento no es decorativo: `text-accent-soft` es texto y `--accent` es relleno
+// con blanco encima. Los cuatro fijos tienen que aguantar en TODAS las paletas,
+// así que se miden aquí en vez de fiarse del ojo del que lo elige.
+for (const a of acentos()) {
+  for (const { nombre, vars: paleta } of PALETAS) {
+    const clave = nombre === "oscuro (raíz)" ? "dark" : nombre;
+    const trío = a.porTema.get(clave) ?? a.base;
+    if (!trío || !paleta["surface"]) continue;
+    casos += 2;
+    const texto = razon(trío["accent-soft"], paleta["surface"]);
+    const relleno = razon(BLANCO, trío["accent"]);
+    const malos = [];
+    if (texto < 4.5) malos.push(`texto ${a.nombre} sobre ${nombre} = ${texto.toFixed(2)}`);
+    if (relleno < 4) malos.push(`blanco sobre ${a.nombre} = ${relleno.toFixed(2)}`);
+    filas.push({
+      nombre: `${a.nombre}/${nombre}`.slice(0, 18),
+      medida: [`texto:${texto.toFixed(2)}`, `blanco:${relleno.toFixed(2)}`],
+      malos,
+    });
+    if (malos.length) fallos += malos.length;
+  }
 }
 
 for (const f of filas) {

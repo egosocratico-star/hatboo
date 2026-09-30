@@ -9,11 +9,11 @@ llavero del sistema operativo.
 Escrito con **Tauri 2** (Rust) + **React 18** + **TypeScript** + **Tailwind** +
 **Zustand** + **SQLite** (`rusqlite`).
 
-> Estado: app personal en desarrollo, versión **0.5.0** para Windows. Funciona,
+> Estado: app personal en desarrollo, versión **0.6.0** para Windows. Funciona,
 > no hay autoactualización. Los binarios se publican como release de GitHub al
 > empujar una etiqueta `v*` — el flujo ya está probado y funcionando, ver la
 > última
-> [`v0.4.0`](https://github.com/egosocratico-star/hatboo/releases/tag/v0.4.0).
+> [`v0.5.0`](https://github.com/egosocratico-star/hatboo/releases/tag/v0.5.0).
 
 ---
 
@@ -150,9 +150,10 @@ Tema **oscuro**, **claro** o **Sistema** (sigue el de Windows mientras la app es
 abierta), y tamaño del texto del chat. Los colores están tokenizados en variables
 CSS, así que cambiar de tema no toca ningún componente.
 
-**Movimiento**: con **Reducido** se quitan animaciones y transiciones solo dentro
-de Hatboo, sin tocar el ajuste del sistema operativo. Con **Sistema** manda
-`prefers-reduced-motion`.
+**Movimiento**: Hatboo anima siempre. Hubo un ajuste **Reducido** (y un recorte
+que obedecía a `prefers-reduced-motion`) que se quitó en la 0.6.0: dejaba las
+transiciones en 0,01 ms sin quitar las iteraciones, y eso convertía cualquier
+`animate-pulse` en un estroboscopio. Si vuelve, tiene que traer las dos cosas.
 
 ## Atajos
 

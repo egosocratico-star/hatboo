@@ -22,9 +22,13 @@ export default function EmptyHint({
   accion?: ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-2.5 rounded-lg border border-dashed border-base-border px-3 py-2.5 text-xs text-zinc-500">
+    /* La caja discontinua es un hueco explicado, no una tarjeta: con el borde a
+       plena opacidad y 26 px de mascota competía con el botón de arriba y se leía
+       como dos controles del mismo peso. Borde al 55 %, radio de campo y la
+       mascota un punto más chica. */
+    <div className="flex items-start gap-2.5 rounded-campo border border-base-border/60 bg-base-raised px-2.5 py-2 text-xs text-zinc-500">
       {pose ? (
-        <Mascot state={pose} size={26} />
+        <Mascot state={pose} size={22} />
       ) : (
         Icono && <Icono className="mt-px h-3.5 w-3.5 shrink-0 text-accent-soft/70" />
       )}
