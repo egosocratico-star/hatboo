@@ -160,30 +160,46 @@ export function visionDeclarada(s: Settings, modelo: string): boolean {
   return (s.visionModelos ?? []).some((x) => x.trim().toLowerCase() === m);
 }
 
-/** Si el modelo activo admite imágenes. Lo usan el «+» del chat y lo que se
- *  adjunta al soltar archivos sobre la ventana: la puerta tiene que ser la misma. */
-export function soportaVision(
+/** De dónde sale el «sí» (o el «no») de la visión. Importa decirlo: un «sí» por
+ *  el nombre es una suposición, y un «no» porque no se leyó Ollama no es un
+ *  límite del modelo. §III.9 del Brain: el dato real manda sobre la estimación. */
+export type MotivoVision = "declarado" | "ollama" | "gama" | "nombre" | "sin-dato";
+
+export function motivoVision(
   settings: Settings | null,
   locales: LocalModel[] | null,
-): boolean {
-  if (!settings) return false;
+): MotivoVision {
+  if (!settings) return "sin-dato";
   const activo = modeloActivo(settings);
-  // Primero lo que él dijo: manda sobre cualquier adivinanza del nombre.
-  if (visionDeclarada(settings, activo)) return true;
+  if (visionDeclarada(settings, activo)) return "declarado";
   // Anthropic, OpenAI y Gemini ven imágenes en toda su gama.
   if (
     settings.activeProvider === "anthropic" ||
     settings.activeProvider === "openai" ||
     settings.activeProvider === "gemini"
   ) {
-    return true;
+    return "gama";
   }
   if (settings.activeProvider === "local") {
     const m = locales?.find((x) => x.name === settings.localModel);
-    if (m && m.capabilities.length > 0) return m.capabilities.includes("vision");
+    if (m && m.capabilities.length > 0) {
+      return m.capabilities.includes("vision") ? "ollama" : "sin-dato";
+    }
+    // Lista no leída, o un servidor que no declara (llama.cpp, LM Studio): ahí
+    // el nombre es lo único que hay, y si tampoco dice nada, se confiesa.
+    return CLAVES_VISION.some((k) => activo.toLowerCase().includes(k)) ? "nombre" : "sin-dato";
   }
-  const modelo = activo.toLowerCase();
-  return CLAVES_VISION.some((k) => modelo.includes(k));
+  return CLAVES_VISION.some((k) => activo.toLowerCase().includes(k)) ? "nombre" : "sin-dato";
+}
+
+/** Si el modelo activo admite imágenes. Lo usan el «+» del chat y lo que se
+ *  adjunta al soltar archivos sobre la ventana: la puerta tiene que ser la misma. */
+export function soportaVision(
+  settings: Settings | null,
+  locales: LocalModel[] | null,
+): boolean {
+  const motivo = motivoVision(settings, locales);
+  return motivo === "declarado" || motivo === "gama" || motivo === "ollama" || motivo === "nombre";
 }
 
 /** Base para `test_provider`: la editable del proveedor, o nada cuando la suya

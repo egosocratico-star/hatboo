@@ -401,7 +401,6 @@ export const en: Record<string, string> = {
   "sin modelo": "no model",
   "Sin plan: acciones de esta tarea": "No plan: actions in this task",
   "Sin salida.": "No output.",
-  "sin visión": "no vision",
   local: "local",
   "Solo se puede insertar a mano": "Can only be inserted by hand",
   "Tamaño del texto del chat": "Chat text size",
@@ -1021,7 +1020,6 @@ export const en: Record<string, string> = {
     "Describe the image: “an astronaut cat, watercolour”",
   "Se la pide a {m}, con la clave que ya tengas guardada. Cuesta dinero aparte del chat: el precio está en Ajustes → API.":
     "It asks {m} using the key you already saved. It costs money on top of the chat: the price is in Settings → API.",
-  "El motor de imágenes se elige en Ajustes → API.": "The image engine is chosen in Settings → API.",
   "Ajustes → API": "Settings → API",
 
   // Trazas del agente: el paso de generar imagen
@@ -1105,17 +1103,18 @@ export const en: Record<string, string> = {
   "Lo que responde ahora mismo, y lo que se le sabe.":
     "What answers right now, and what we know about it.",
   "Lee imágenes": "Reads images",
-  "Lo declaraste tú abajo.": "You declared it below.",
-  "Ollama declara que ve imágenes.": "Ollama declares it sees images.",
+  "Lo declaraste tú en el interruptor de al lado.": "You declared it with the switch next to this.",
+  "Ollama lo declara en su ficha.": "Ollama declares it in the model's record.",
   "Este proveedor las ve en toda su gama.": "This provider sees images across its whole range.",
-  "Deducido del nombre del modelo.": "Inferred from the model name.",
-  "Ollama no lo declara y el nombre tampoco lo dice.":
-    "Ollama doesn't declare it and the name doesn't say so either.",
-  "No lo sabemos: si tu modelo lee imágenes, márcalo.":
-    "We don't know: if your model reads images, mark it.",
+  "Deducido del nombre del modelo: es una suposición, no un dato.":
+    "Inferred from the model name: a guess, not a fact.",
+  "Sin dato: ni Ollama lo declara ni el nombre lo dice. Márcalo si tu modelo las lee.":
+    "No data: Ollama doesn't declare it and the name doesn't say so. Mark it if your model reads images.",
   "Apunta un modelo para poder decirlo.": "Point at a model first to be able to say.",
   "declarado": "declared",
   "por nombre": "by name",
+  "sin dato": "no data",
+  "por ficha": "by record",
   "Ventana de contexto": "Context window",
   "{n} tokens · sacado de {fuente}": "{n} tokens · taken from {fuente}",
   "el `num_ctx` con el que arranca Ollama": "the `num_ctx` Ollama starts it with",
@@ -1123,8 +1122,25 @@ export const en: Record<string, string> = {
   "la tabla pública del proveedor": "the provider's published table",
   "No la conocemos: el medidor se queda en tokens sin porcentaje.":
     "We don't know it: the meter stays on tokens with no percentage.",
-  "Hatboo no sabe que tu modelo lea imágenes. Si las lee, márcalo en Ajustes → API y modelos.":
-    "Hatboo doesn't know that your model reads images. If it does, mark it in Settings → API and models.",
+  // ---- El + del chat con imágenes por delante (0.6.0). ----
+  "sin marcar": "not marked",
+  "tu modelo": "your model",
+  "marcar": "mark it",
+  "Mi modelo sí lee imágenes": "My model does read images",
+  "«{n}» es una imagen y no sabemos si {m} las lee. El botón de abajo lo arregla.":
+    "“{n}” is an image and we don't know whether {m} reads them. The button below fixes that.",
+  "Captura adjuntada. No sabemos si {m} lee imágenes: márcalo si las lee.":
+    "Screenshot attached. We don't know if {m} reads images: mark it if it does.",
+  "Captura y la añade igual; Hatboo no sabe si tu modelo lee imágenes, y abajo está el botón para decirlo.":
+    "It captures and attaches anyway; Hatboo doesn't know if your model reads images, and the button below is where you say so.",
+  "{m} queda marcado como modelo que lee imágenes.":
+    "{m} is now marked as a model that reads images.",
+  "Motor de imágenes encendido: {m}.": "Image engine turned on: {m}.",
+  "encender {p}": "turn on {p}",
+  "{p} ya tiene la clave guardada y sabe dibujar. Se enciende aquí mismo, y cobra aparte del chat: {precio}.":
+    "{p} already has a saved key and knows how to draw. It turns on right here, and it bills apart from the chat: {precio}.",
+  "Dibujan solo Gemini y OpenAI, que son los dos motores escritos en Hatboo: Ollama no genera imágenes y Hugging Face todavía no está conectado. Se elige en Ajustes → API.":
+    "Only Gemini and OpenAI draw — the two engines written into Hatboo: Ollama generates no images and Hugging Face isn't wired up yet. You choose it in Settings → API.",
   "Aún no hay conversaciones. En cuanto escribas en el chat, aparecerá aquí.":
     "No conversations yet. As soon as you write in the chat, it shows up here.",
 };

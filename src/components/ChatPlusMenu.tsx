@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Download,
   Ellipsis,
+  Eye,
   Github,
   Paperclip,
   Plus,
@@ -18,7 +19,7 @@ import { useChatStore } from "../store/chatStore";
 import Popover from "./Popover";
 import MenuAtras from "./MenuAtras";
 import type { Attachment } from "../types";
-import { motorImagen, soportaVision } from "../proveedores";
+import { motorImagen, modeloActivo, soportaVision } from "../proveedores";
 
 interface Props {
   onPickFiles: (files: Attachment[]) => void;
@@ -47,6 +48,32 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
   const localModels = useChatStore((s) => s.localModels);
   const visionOk = soportaVision(settings, localModels);
   const motor = motorImagen(settings?.imageProvider ?? "");
+  const patchSettings = useChatStore((s) => s.patchSettings);
+  const modelo = settings ? modeloActivo(settings) : "";
+  /** Lo que pasó bien, para que el rojo quede solo para lo que falló. */
+  const [info, setInfo] = useState<string | null>(null);
+  /** Imágenes que no se adjuntaron porque el modelo no está marcado como vidente.
+   *  Se quedan aquí para que un clic las suelte, en vez de obligarle a volver a
+   *  abrir el diálogo de archivos. */
+  const [pendDeVision, setPendDeVision] = useState<Attachment[]>([]);
+  /** Si acaba de pasar algo con una imagen sin marcado: es lo que enseña el botón. */
+  const [avisoVision, setAvisoVision] = useState(false);
+
+  /** Declarar que el modelo activo lee imágenes y soltar lo que quedó preso. Escribe
+   *  en los ajustes de una vez (`patchSettings` guarda), porque un interruptor que
+   *  hay que ir a buscar a otra pantalla no lo mueve nadie. */
+  const declararVision = () => {
+    if (!settings || !modelo) return;
+    const lista = settings.visionModelos ?? [];
+    if (!lista.some((m) => m.toLowerCase() === modelo.trim().toLowerCase())) {
+      patchSettings({ visionModelos: [...lista, modelo.trim()] });
+    }
+    if (pendDeVision.length > 0) onPickFiles(pendDeVision);
+    setPendDeVision([]);
+    setAvisoVision(false);
+    setNotice(null);
+    setInfo(t("{m} queda marcado como modelo que lee imágenes.", { m: modelo }));
+  };
 
   // La lista con las capacidades se pide una vez y la comparte el chip del
   // modelo; aquí solo hace falta si el proveedor activo es local.
@@ -84,6 +111,8 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
     if (v) {
       setCara("anadir");
       setNotice(null);
+      setInfo(null);
+      setAvisoVision(false);
     }
   };
 
@@ -108,14 +137,13 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
     setBusy(true);
     try {
       const results: Attachment[] = [];
+      const pendientes: Attachment[] = [];
       const failures: string[] = [];
       for (const path of paths) {
         try {
           const a = await invoke<Attachment>("read_attachment", { path });
           if (a.imageMediaType && !visionOk) {
-            failures.push(
-              t("«{n}» es una imagen y el modelo actual no ve imágenes.", { n: a.name }),
-            );
+            pendientes.push(a);
             continue;
           }
           results.push(a);
@@ -124,7 +152,18 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
         }
       }
       if (results.length > 0) onPickFiles(results);
+      if (pendientes.length > 0) {
+        setPendDeVision((prev) => [...prev, ...pendientes]);
+        setAvisoVision(true);
+      }
       if (failures.length > 0) setNotice(failures[0]);
+      else if (pendientes.length > 0)
+        setNotice(
+          t("«{n}» es una imagen y no sabemos si {m} las lee. El botón de abajo lo arregla.", {
+            n: pendientes[0].name,
+            m: modelo || t("tu modelo"),
+          }),
+        );
     } finally {
       setBusy(false);
       close();
@@ -150,7 +189,12 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
   };
 
   /** Captura la pantalla entera y la adjunta. El nombre lo pone aquí, que es
-   *  donde hay hora local; el backend solo lo sanea. */
+   *  donde hay hora local; el backend solo lo sanea.
+   *
+   *  Sin modelo vidente declarado la captura SE ADJUNTA IGUAL: es suya, ya la
+   *  pidió, y negársela dejándola tirada en el portapapeles de Windows era lo
+   *  peor de las dos opciones. Lo que no se puede fingir es si el modelo la va
+   *  a leer, y por eso el menú se queda abierto con el botón para decirlo. */
   const capturarPantalla = async () => {
     setNotice(null);
     setOcupado(true);
@@ -158,7 +202,16 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
       const ahora = new Date().toISOString().slice(0, 16).replace("T", "_").replace(/:/g, "-");
       const adjunto = await invoke<Attachment>("capture_screen", { nombre: `captura-${ahora}` });
       onPickFiles([adjunto]);
-      close();
+      if (visionOk) {
+        close();
+      } else {
+        setAvisoVision(true);
+        setNotice(
+          t("Captura adjuntada. No sabemos si {m} lee imágenes: márcalo si las lee.", {
+            m: modelo || t("tu modelo"),
+          }),
+        );
+      }
     } catch (e) {
       setNotice(String(e));
     } finally {
@@ -220,6 +273,25 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
 
   const item =
     "w-full flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-200 hover:bg-base-raised rounded-lg transition-colors text-left";
+
+  /** Si el proveedor que ya usa para el texto también dibuja (Gemini u OpenAI),
+   *  no hay que ir a Ajustes a elegir lo que ya está delante. Son los dos únicos
+   *  motores escritos en el backend: Ollama no genera imágenes y Hugging Face
+   *  todavía no está conectado, así que aquí no se finge lo contrario. */
+  const motorDelActivo =
+    settings && (settings.activeProvider === "gemini" || settings.activeProvider === "openai")
+      ? motorImagen(settings.activeProvider)
+      : undefined;
+
+  const activarDelActivo = () => {
+    if (!motorDelActivo) return;
+    patchSettings({
+      imageProvider: motorDelActivo.id,
+      imageModel: motorDelActivo.modeloPorDefecto,
+      imageSize: "1024x1024",
+    });
+    setInfo(t("Motor de imágenes encendido: {m}.", { m: motorDelActivo.corto }));
+  };
 
   return (
     <div className="relative">
@@ -287,19 +359,19 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
               </button>
             </div>
           )}
-          {/* Sin visión el botón se queda DESHABILITADO, no ausente ni convertido
-              en un `div`: es una opción que existe y ahora no se puede, y un
-              `div` con pinta de botón no se puede ni enfocar. */}
+          {/* La captura está siempre disponible. Lo único que puede faltar es que
+              sepamos si tu modelo la va a leer, y eso se dice con la etiqueta y con
+              el botón de abajo — no con un mando muerto que además tapa el atajo. */}
           {cara === "anadir" && (
             <button
               onClick={() => void capturarPantalla()}
               className={item}
-              disabled={!visionOk || busy}
+              disabled={busy || ocupado}
               title={
                 visionOk
                   ? t("Captura la pantalla entera y la añade al mensaje.")
                   : t(
-                      "Hatboo no sabe que tu modelo lea imágenes. Si las lee, márcalo en Ajustes → API y modelos.",
+                      "Captura y la añade igual; Hatboo no sabe si tu modelo lee imágenes, y abajo está el botón para decirlo.",
                     )
               }
             >
@@ -308,7 +380,7 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
               />
               <span className="flex-1">{t("Captura")}</span>
               {!visionOk && (
-                <span className="text-[10px] text-zinc-500">{t("sin visión")}</span>
+                <span className="text-[10px] text-zinc-500">{t("sin marcar")}</span>
               )}
             </button>
           )}
@@ -328,6 +400,21 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
                 <span className="text-[10px] text-zinc-600">{motor.corto}</span>
                 <ChevronRight className="h-3.5 w-3.5 shrink-0 text-zinc-600" />
               </button>
+            ) : motorDelActivo ? (
+              <button
+                onClick={activarDelActivo}
+                className={item}
+                title={t(
+                  "{p} ya tiene la clave guardada y sabe dibujar. Se enciende aquí mismo, y cobra aparte del chat: {precio}.",
+                  { p: motorDelActivo.corto, precio: motorDelActivo.precio },
+                )}
+              >
+                <WandSparkles className="w-4 h-4 text-accent-soft shrink-0" />
+                <span className="flex-1">{t("Imagen")}</span>
+                <span className="shrink-0 text-[10px] text-zinc-500">
+                  {t("encender {p}", { p: motorDelActivo.corto })}
+                </span>
+              </button>
             ) : (
               <button
                 onClick={() => {
@@ -337,7 +424,9 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
                   close();
                 }}
                 className={item}
-                title={t("El motor de imágenes se elige en Ajustes → API.")}
+                title={t(
+                  "Dibujan solo Gemini y OpenAI, que son los dos motores escritos en Hatboo: Ollama no genera imágenes y Hugging Face todavía no está conectado. Se elige en Ajustes → API.",
+                )}
               >
                 <WandSparkles className="w-4 h-4 text-zinc-500 shrink-0" />
                 <span className="flex-1">{t("Imagen")}</span>
@@ -467,6 +556,18 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
             <div role="alert" className="px-2.5 py-1.5 mt-1 text-[11px] text-red-400">
               {notice}
             </div>
+          )}
+          {info && (
+            <p className="px-2.5 py-1.5 mt-1 text-[11px] leading-snug text-zinc-400">{info}</p>
+          )}
+          {/* El arreglo al lado del problema: sin esto tocaría ir a Ajustes, buscar
+              la ficha del modelo y volver con el archivo ya perdido. */}
+          {!visionOk && avisoVision && modelo && (
+            <button onClick={declararVision} className={`${item} mt-0.5`}>
+              <Eye className="w-4 h-4 shrink-0 text-accent-soft" />
+              <span className="flex-1">{t("Mi modelo sí lee imágenes")}</span>
+              <span className="shrink-0 text-[10px] text-zinc-500">{t("marcar")}</span>
+            </button>
           )}
       </Popover>
     </div>

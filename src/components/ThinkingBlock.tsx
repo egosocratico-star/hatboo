@@ -24,7 +24,7 @@ export default function ThinkingBlock({ reasoning, ms, streaming = false }: Prop
   const label = ms != null ? formatDuration(ms) : null;
 
   return (
-    <div className="mb-2">
+    <div className="mb-1.5">
       <button
         onClick={() => setOpen((o) => !o)}
         className="inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 -ml-1 text-[12px] text-zinc-500 hover:text-zinc-300 transition-colors"

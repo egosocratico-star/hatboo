@@ -17,8 +17,8 @@ import {
   MOTORES_VOZ,
   motorVoz,
   modeloActivo,
+  motivoVision,
   soportaVision,
-  visionDeclarada,
   ventanaContexto,
 } from "../../proveedores";
 
@@ -37,24 +37,32 @@ function Capacidades({
   const locales = useChatStore((s) => s.localModels);
   const modelo = modeloActivo(draft).trim();
   const ve = soportaVision(draft, locales);
-  const declarado = visionDeclarada(draft, modelo);
+  const motivo = motivoVision(draft, locales);
   const ctx = ventanaContexto(draft, locales);
 
-  // De dónde viene el «sí» de la visión: importa decirlo, porque un «sí» por
-  // nombre es una suposición y un «sí» de Ollama es un dato.
-  const origen = declarado
-    ? t("Lo declaraste tú abajo.")
-    : !ve
-      ? draft.activeProvider === "local"
-        ? t("Ollama no lo declara y el nombre tampoco lo dice.")
-        : t("No lo sabemos: si tu modelo lee imágenes, márcalo.")
-      : draft.activeProvider === "anthropic" ||
-          draft.activeProvider === "openai" ||
-          draft.activeProvider === "gemini"
-        ? t("Este proveedor las ve en toda su gama.")
-        : draft.activeProvider === "local"
-          ? t("Ollama declara que ve imágenes.")
-          : t("Deducido del nombre del modelo.");
+  // Cada «sí» dice de dónde sale, y cada «no» si es un límite del modelo o solo
+  // que Hatboo no lo pudo leer. §III.9: el dato real manda sobre la estimación.
+  const origen =
+    motivo === "declarado"
+      ? t("Lo declaraste tú en el interruptor de al lado.")
+      : motivo === "ollama"
+        ? t("Ollama lo declara en su ficha.")
+        : motivo === "gama"
+          ? t("Este proveedor las ve en toda su gama.")
+          : motivo === "nombre"
+            ? t("Deducido del nombre del modelo: es una suposición, no un dato.")
+            : modelo
+              ? t("Sin dato: ni Ollama lo declara ni el nombre lo dice. Márcalo si tu modelo las lee.")
+              : t("Apunta un modelo para poder decirlo.");
+
+  const etiquetaMotivo =
+    motivo === "declarado"
+      ? t("declarado")
+      : motivo === "sin-dato"
+        ? t("sin dato")
+        : motivo === "nombre"
+          ? t("por nombre")
+          : t("por ficha");
 
   const marcar = (on: boolean) => {
     const otro = (draft.visionModelos ?? []).filter(
@@ -84,7 +92,7 @@ function Capacidades({
             onChange={(e) => marcar(e.target.checked)}
             className="accent-violet-500"
           />
-          <span className="text-xs text-zinc-400">{declarado ? t("declarado") : t("por nombre")}</span>
+          <span className="text-xs text-zinc-400">{etiquetaMotivo}</span>
         </label>
       </div>
       <div className="h-px bg-base-border" />

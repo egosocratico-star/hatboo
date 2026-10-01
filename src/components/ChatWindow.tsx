@@ -407,7 +407,7 @@ export default function ChatWindow() {
           style={fontVars}
           className="h-full overflow-y-auto"
         >
-        <div className="max-w-3xl mx-auto px-6 py-6 space-y-6">
+        <div className="max-w-3xl mx-auto px-6 py-5 space-y-3.5">
           {messages.map((m, i) => {
             const isLastAssistant =
               m.role === "assistant" &&
