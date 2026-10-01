@@ -1,0 +1,135 @@
+{
+  "ollama": "0.35.0",
+  "libre_gb": 2.51,
+  "modelos": [
+    {
+      "id": "qwen3:1.7b",
+      "nube": false,
+      "disco_mb": 1359,
+      "arquitectura": "qwen3",
+      "cuantizacion": "Q4_K_M",
+      "parametros_B": 2.03,
+      "ctx_max_declarado": 40960,
+      "ctx_en_modelfile": "no",
+      "capabilities": [
+        "completion",
+        "tools",
+        "thinking"
+      ],
+      "template_en_modelfile": true
+    },
+    {
+      "id": "qwen2.5:1.5b",
+      "nube": false,
+      "disco_mb": 986,
+      "arquitectura": "qwen2",
+      "cuantizacion": "Q4_K_M",
+      "parametros_B": 1.54,
+      "ctx_max_declarado": 32768,
+      "ctx_en_modelfile": "no",
+      "capabilities": [
+        "completion",
+        "tools"
+      ],
+      "template_en_modelfile": true
+    },
+    {
+      "id": "deepseek-r1:1.5b",
+      "nube": false,
+      "disco_mb": 1117,
+      "arquitectura": "qwen2",
+      "cuantizacion": "Q4_K_M",
+      "parametros_B": 1.78,
+      "ctx_max_declarado": 131072,
+      "ctx_en_modelfile": "no",
+      "capabilities": [
+        "tools",
+        "thinking",
+        "completion"
+      ],
+      "template_en_modelfile": true
+    },
+    {
+      "id": "qwen2.5-coder:1.5b",
+      "nube": false,
+      "disco_mb": 986,
+      "arquitectura": "qwen2",
+      "cuantizacion": "Q4_K_M",
+      "parametros_B": 1.54,
+      "ctx_max_declarado": 32768,
+      "ctx_en_modelfile": "no",
+      "capabilities": [
+        "completion",
+        "tools",
+        "insert"
+      ],
+      "template_en_modelfile": true
+    },
+    {
+      "id": "llama3.2:1b",
+      "nube": false,
+      "disco_mb": 1321,
+      "arquitectura": "llama",
+      "cuantizacion": "Q8_0",
+      "parametros_B": 1.24,
+      "ctx_max_declarado": 131072,
+      "ctx_en_modelfile": "no",
+      "capabilities": [
+        "completion",
+        "tools"
+      ],
+      "template_en_modelfile": true
+    },
+    {
+      "id": "gemma3:1b",
+      "nube": false,
+      "disco_mb": 815,
+      "arquitectura": "gemma3",
+      "cuantizacion": "Q4_K_M",
+      "parametros_B": 1,
+      "ctx_max_declarado": 32768,
+      "ctx_en_modelfile": "no",
+      "capabilities": [
+        "completion"
+      ],
+      "template_en_modelfile": true
+    },
+    {
+      "id": "nemotron-3-nano:30b-cloud",
+      "nube": true,
+      "disco_mb": 0
+    },
+    {
+      "id": "gpt-oss:120b-cloud",
+      "nube": true,
+      "disco_mb": 0
+    },
+    {
+      "id": "nemotron-3-ultra:cloud",
+      "nube": true,
+      "disco_mb": 0
+    },
+    {
+      "id": "gemma4:cloud",
+      "nube": true,
+      "disco_mb": 0
+    },
+    {
+      "id": "qwen3.5:0.8b",
+      "nube": false,
+      "disco_mb": 1036,
+      "arquitectura": "qwen35",
+      "cuantizacion": "Q8_0",
+      "parametros_B": 0.87,
+      "ctx_max_declarado": 262144,
+      "ctx_en_modelfile": "no",
+      "capabilities": [
+        "completion",
+        "vision",
+        "tools",
+        "thinking"
+      ],
+      "template_en_modelfile": true
+    }
+  ]
+}

@@ -1,0 +1,152 @@
+{
+  "ollama": "0.35.0",
+  "maquina_gb": 8.45,
+  "modelos": [
+    {
+      "id": "gemma3:1b",
+      "ctx": 2048,
+      "no_cabe": true,
+      "libre_gb": 0.79,
+      "falta_gb": 1.32
+    },
+    {
+      "id": "gemma3:1b",
+      "ctx": 8192,
+      "no_cabe": true,
+      "libre_gb": 0.07,
+      "falta_gb": 1.72
+    },
+    {
+      "id": "qwen2.5:1.5b",
+      "ctx": 2048,
+      "no_cabe": true,
+      "libre_gb": 0.32,
+      "falta_gb": 1.49
+    },
+    {
+      "id": "qwen2.5:1.5b",
+      "ctx": 8192,
+      "no_cabe": true,
+      "libre_gb": 1.14,
+      "falta_gb": 1.89
+    },
+    {
+      "id": "qwen2.5-coder:1.5b",
+      "ctx": 2048,
+      "disco_mb": 986,
+      "ram_ollama_mb": 1109,
+      "vram_mb": 0,
+      "ctx_asignado": 2048,
+      "carga_ms": 6144,
+      "ttft_ms": 6760,
+      "libre_antes": 1.55,
+      "libre_despues": 0.63,
+      "caida_gb": 0.92
+    },
+    {
+      "id": "qwen2.5-coder:1.5b",
+      "ctx": 8192,
+      "no_cabe": true,
+      "libre_gb": 1.75,
+      "falta_gb": 1.89
+    },
+    {
+      "id": "qwen3.5:0.8b",
+      "ctx": 2048,
+      "disco_mb": 1036,
+      "ram_ollama_mb": 1063,
+      "vram_mb": 0,
+      "ctx_asignado": 2048,
+      "carga_ms": 5955,
+      "ttft_ms": 26987,
+      "libre_antes": 1.75,
+      "libre_despues": 0.69,
+      "caida_gb": 1.06
+    },
+    {
+      "id": "qwen3.5:0.8b",
+      "ctx": 8192,
+      "disco_mb": 1036,
+      "ram_ollama_mb": 1197,
+      "vram_mb": 0,
+      "ctx_asignado": 8192,
+      "carga_ms": 7170,
+      "ttft_ms": 27662,
+      "libre_antes": 1.98,
+      "libre_despues": 0.71,
+      "caida_gb": 1.27
+    },
+    {
+      "id": "deepseek-r1:1.5b",
+      "ctx": 2048,
+      "disco_mb": 1117,
+      "ram_ollama_mb": 1240,
+      "vram_mb": 0,
+      "ctx_asignado": 2048,
+      "carga_ms": 6627,
+      "ttft_ms": 7167,
+      "libre_antes": 2.03,
+      "libre_despues": 0.87,
+      "caida_gb": 1.16
+    },
+    {
+      "id": "deepseek-r1:1.5b",
+      "ctx": 8192,
+      "disco_mb": 1117,
+      "ram_ollama_mb": 1499,
+      "vram_mb": 0,
+      "ctx_asignado": 8192,
+      "carga_ms": 4857,
+      "ttft_ms": 5413,
+      "libre_antes": 2.07,
+      "libre_despues": 0.73,
+      "caida_gb": 1.34
+    },
+    {
+      "id": "llama3.2:1b",
+      "ctx": 2048,
+      "disco_mb": 1321,
+      "ram_ollama_mb": 1450,
+      "vram_mb": 0,
+      "ctx_asignado": 2048,
+      "carga_ms": 6131,
+      "ttft_ms": 6925,
+      "libre_antes": 2.11,
+      "libre_despues": 0.72,
+      "caida_gb": 1.39
+    },
+    {
+      "id": "llama3.2:1b",
+      "ctx": 8192,
+      "no_cabe": true,
+      "libre_gb": 1.99,
+      "falta_gb": 2.22
+    },
+    {
+      "id": "qwen3:1.7b",
+      "ctx": 2048,
+      "disco_mb": 1359,
+      "ram_ollama_mb": 1645,
+      "vram_mb": 0,
+      "ctx_asignado": 2048,
+      "carga_ms": 7145,
+      "ttft_ms": 18176,
+      "libre_antes": 1.99,
+      "libre_despues": 0.63,
+      "caida_gb": 1.36
+    },
+    {
+      "id": "qwen3:1.7b",
+      "ctx": 8192,
+      "disco_mb": 1359,
+      "ram_ollama_mb": 2419,
+      "vram_mb": 0,
+      "ctx_asignado": 8192,
+      "carga_ms": 7125,
+      "ttft_ms": 18915,
+      "libre_antes": 2.47,
+      "libre_despues": 0.55,
+      "caida_gb": 1.92
+    }
+  ]
+}

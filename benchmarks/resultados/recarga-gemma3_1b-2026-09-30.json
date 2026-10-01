@@ -1,0 +1,90 @@
+{
+  "modelo": "gemma3:1b",
+  "ollama": "0.35.0",
+  "filas": [
+    {
+      "ctx": 2048,
+      "ttft_ms": 414.9,
+      "total_ms": 45565.1,
+      "carga_ms": 5.4992,
+      "prefill_ms": 350.225,
+      "decode_ms": 45146.197,
+      "prompt_tok": 20,
+      "gen_tok": 787,
+      "tok_s": 17.4,
+      "salida": 2625
+    },
+    {
+      "ctx": 2048,
+      "ttft_ms": 233.5,
+      "total_ms": 78180.6,
+      "carga_ms": 10.7641,
+      "prefill_ms": 198.016,
+      "decode_ms": 77937.311,
+      "prompt_tok": 20,
+      "gen_tok": 894,
+      "tok_s": 11.5,
+      "salida": 3019
+    },
+    {
+      "ctx": 4096,
+      "ttft_ms": 4126.2,
+      "total_ms": 68294.8,
+      "carga_ms": 3746.343,
+      "prefill_ms": 371.22,
+      "decode_ms": 64154.979,
+      "prompt_tok": 20,
+      "gen_tok": 787,
+      "tok_s": 12.3,
+      "salida": 2625
+    },
+    {
+      "ctx": 4096,
+      "ttft_ms": 249.9,
+      "total_ms": 61614.4,
+      "carga_ms": 18.288,
+      "prefill_ms": 208.402,
+      "decode_ms": 61358.474,
+      "prompt_tok": 20,
+      "gen_tok": 894,
+      "tok_s": 14.6,
+      "salida": 3019
+    },
+    {
+      "ctx": 8192,
+      "ttft_ms": 4201.2,
+      "total_ms": 65009.9,
+      "carga_ms": 3771.2314,
+      "prefill_ms": 421.397,
+      "decode_ms": 60799.606,
+      "prompt_tok": 20,
+      "gen_tok": 787,
+      "tok_s": 12.9,
+      "salida": 2625
+    },
+    {
+      "ctx": 8192,
+      "ttft_ms": 150.6,
+      "total_ms": 56000.4,
+      "carga_ms": 10.9932,
+      "prefill_ms": 124.645,
+      "decode_ms": 55842.365,
+      "prompt_tok": 20,
+      "gen_tok": 894,
+      "tok_s": 16,
+      "salida": 3019
+    },
+    {
+      "ctx": 2048,
+      "ttft_ms": 4183.1,
+      "total_ms": 55233.7,
+      "carga_ms": 3723.3776,
+      "prefill_ms": 448.98,
+      "decode_ms": 51041.692,
+      "prompt_tok": 20,
+      "gen_tok": 787,
+      "tok_s": 15.4,
+      "salida": 2625
+    }
+  ]
+}
