@@ -122,8 +122,10 @@ mod tests {
 
     #[test]
     fn sin_motor_apuntado_no_hay_tool() {
-        let mut s = Settings::default();
-        s.image_provider = String::new();
+        let mut s = Settings {
+            image_provider: String::new(),
+            ..Default::default()
+        };
         assert!(GenerateImageTool::desde_ajustes(&s).is_none());
         s.image_provider = "   ".into();
         assert!(GenerateImageTool::desde_ajustes(&s).is_none());

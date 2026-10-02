@@ -589,9 +589,10 @@ fn las_estadisticas_cuentan_chats_dias_y_rachas() {
         .as_millis() as i64;
     let hoy = ahora / DIA * DIA;
     let ocho = "12345678";
-    for _ in 0..2 {
-        mensaje_en(&conn, &uno.id, ocho, hoy + 1000);
-    }
+    // «Uno» lleva un mensaje hoy y tres repartidos por el historial: cuatro en
+    // total, para que «Dos» gane el chat más largo de verdad y no por un empate
+    // a cinco, donde `ORDER BY n DESC` no decide nada.
+    mensaje_en(&conn, &uno.id, ocho, hoy + 1000);
     for _ in 0..5 {
         mensaje_en(&conn, &dos.id, ocho, hoy + 2000);
     }
@@ -602,11 +603,11 @@ fn las_estadisticas_cuentan_chats_dias_y_rachas() {
     mensaje_en(&conn, &uno.id, ocho, hoy - 5 * DIA);
 
     let s = db::perfil_estadisticas(&conn, 0).unwrap();
-    assert_eq!(s.mensajes, 10);
+    assert_eq!(s.mensajes, 9);
     assert_eq!(s.chats, 2, "la conversación vacía no cuenta como chat");
-    assert_eq!(s.tokens_estimados, 20, "80 caracteres entre cuatro");
+    assert_eq!(s.tokens_estimados, 18, "80 caracteres entre cuatro");
     assert_eq!(s.dia_mas_activo, Some(hoy));
-    assert_eq!(s.dia_mas_activo_mensajes, 7);
+    assert_eq!(s.dia_mas_activo_mensajes, 6);
     assert_eq!(s.chat_mas_largo.as_deref(), Some("Dos"));
     assert_eq!(s.chat_mas_largo_mensajes, 5);
     assert_eq!(s.racha_actual, 3, "hoy, ayer y anteayer");

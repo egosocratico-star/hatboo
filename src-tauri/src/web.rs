@@ -5,7 +5,6 @@ use std::sync::OnceLock;
 /// Búsqueda web sin API key: se scrapea la versión HTML de DuckDuckGo.
 /// Es un camino frágil (depende del markup del buscador), así que cualquier
 /// fallo se devuelve como `Err` y el chat continúa sin contexto web.
-
 const ENDPOINT: &str = "https://html.duckduckgo.com/html/?q=";
 /// DuckDuckGo responde 403 a agentes que delatan un cliente no-navegador.
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";

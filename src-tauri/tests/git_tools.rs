@@ -35,8 +35,7 @@ async fn git_tools_roundtrip() {
     let clean: serde_json::Value = GitStatusTool
         .execute(json!({}), &dir)
         .await
-        .unwrap()
-        .into();
+        .unwrap();
     assert_eq!(clean["branch"], "main");
     assert_eq!(clean["clean"], true);
 
@@ -45,16 +44,14 @@ async fn git_tools_roundtrip() {
     let status: serde_json::Value = GitStatusTool
         .execute(json!({}), &dir)
         .await
-        .unwrap()
-        .into();
+        .unwrap();
     assert_eq!(status["clean"], false);
     assert_eq!(status["changes"].as_array().unwrap().len(), 1);
 
     let diff: serde_json::Value = GitDiffTool
         .execute(json!({ "path": "a.txt" }), &dir)
         .await
-        .unwrap()
-        .into();
+        .unwrap();
     assert_eq!(diff["empty"], false);
     let diff_text = diff["diff"].as_str().unwrap();
     assert!(diff_text.contains("+mundo"), "diff inesperado: {diff_text}");
@@ -63,16 +60,14 @@ async fn git_tools_roundtrip() {
     let commit: serde_json::Value = GitCommitTool
         .execute(json!({ "message": "segunda linea", "paths": ["a.txt"] }), &dir)
         .await
-        .unwrap()
-        .into();
+        .unwrap();
     assert!(commit["committed"].as_str().unwrap().len() >= 4);
 
     // Log debe tener 2 commits.
     let log: serde_json::Value = GitLogTool
         .execute(json!({}), &dir)
         .await
-        .unwrap()
-        .into();
+        .unwrap();
     let commits = log["commits"].as_array().unwrap();
     assert_eq!(commits.len(), 2);
     assert_eq!(commits[0]["message"], "segunda linea");
@@ -81,8 +76,7 @@ async fn git_tools_roundtrip() {
     let diff2: serde_json::Value = GitDiffTool
         .execute(json!({}), &dir)
         .await
-        .unwrap()
-        .into();
+        .unwrap();
     assert_eq!(diff2["empty"], true);
 
     std::fs::remove_dir_all(&dir).ok();

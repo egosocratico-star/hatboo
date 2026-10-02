@@ -218,7 +218,7 @@ pub(crate) fn needs_approval(approval_level: &str, risk: RiskLevel) -> bool {
 mod tests {
     use super::{
         es_saludo, es_tool_de_plan, fuentes_block, needs_approval, respuesta_de_saludo,
-        system_prompt, RiskLevel,
+        system_prompt, PromptDeSistema, RiskLevel,
     };
 
     #[test]
@@ -244,13 +244,12 @@ mod tests {
         let raiz = root.canonicalize().unwrap();
         let con = system_prompt(
             &raiz,
-            "approve_for_me",
-            "Bicho",
-            "· Explica qué hace cada paso antes de hacerlo.\n",
-            false,
-            "",
-            "",
-            0,
+            &PromptDeSistema {
+                approval_level: "approve_for_me",
+                assistant_name: "Bicho",
+                skills: "· Explica qué hace cada paso antes de hacerlo.\n",
+                ..Default::default()
+            },
         );
         assert!(con.contains("Explica qué hace cada paso"));
         assert!(con.contains("SIN relajar ninguna regla anterior"));
@@ -260,12 +259,25 @@ mod tests {
         // La regla 4 del sandbox sigue ahí igualmente.
         assert!(con.contains("nunca intentes salir de ella"));
 
-        let sin = system_prompt(&raiz, "approve_for_me", "", "", false, "", "", 0);
+        let sin = system_prompt(
+            &raiz,
+            &PromptDeSistema {
+                approval_level: "approve_for_me",
+                ..Default::default()
+            },
+        );
         assert!(!sin.contains("SIN relajar"));
         assert!(!sin.contains("El usuario se llama"));
         // El chip de código también llega al agente.
         assert!(!sin.contains("Modo código activo"));
-        let con_codigo = system_prompt(&raiz, "approve_for_me", "", "", true, "", "", 0);
+        let con_codigo = system_prompt(
+            &raiz,
+            &PromptDeSistema {
+                approval_level: "approve_for_me",
+                code_mode: true,
+                ..Default::default()
+            },
+        );
         assert!(con_codigo.contains("Modo código activo"));
         assert!(con_codigo.contains("nunca intentes salir de ella"));
     }
@@ -273,16 +285,20 @@ mod tests {
     #[test]
     fn las_reglas_del_proyecto_tampoco_relajan_el_sandbox() {
         let raiz = std::path::Path::new(".").canonicalize().unwrap();
-        let sin = system_prompt(&raiz, "approve_for_me", "", "", false, "", "", 0);
+        let sin = system_prompt(
+            &raiz,
+            &PromptDeSistema {
+                approval_level: "approve_for_me",
+                ..Default::default()
+            },
+        );
         let con = system_prompt(
             &raiz,
-            "approve_for_me",
-            "",
-            "",
-            false,
-            "Usa pnpm y no toques el lockfile.",
-            "",
-            0,
+            &PromptDeSistema {
+                approval_level: "approve_for_me",
+                rules: "Usa pnpm y no toques el lockfile.",
+                ..Default::default()
+            },
         );
         assert!(con.contains("Reglas de este proyecto"));
         assert!(con.contains("Usa pnpm y no toques el lockfile"));
@@ -290,7 +306,14 @@ mod tests {
         assert!(con.contains("nunca intentes salir de ella"));
         // Sin archivo (o con espacios) el prompt tiene que quedar igual byte a byte.
         assert_eq!(
-            system_prompt(&raiz, "approve_for_me", "", "", false, "   ", "", 0),
+            system_prompt(
+                &raiz,
+                &PromptDeSistema {
+                    approval_level: "approve_for_me",
+                    rules: "   ",
+                    ..Default::default()
+                },
+            ),
             sin
         );
     }
@@ -347,16 +370,32 @@ mod tests {
     }
 }
 
-pub(crate) fn system_prompt(
-    project_root: &Path,
-    approval_level: &str,
-    assistant_name: &str,
-    skills: &str,
-    code_mode: bool,
-    rules: &str,
-    memoria: &str,
-    tz_offset_min: i32,
-) -> String {
+/// Lo que el system prompt del agente necesita saber, aparte de la raíz del
+/// proyecto. Eran ocho argumentos sueltos, y en las llamadas salían sopas de
+/// `""`, `""`, `0` donde cambiar el orden de `rules` y `memoria` no hacía ni
+/// ruido: con campos nombrados eso no se puede escribir mal. La raíz se queda
+/// fuera del struct a propósito — no tiene un `""` razonable con el que confundirla.
+#[derive(Default)]
+pub(crate) struct PromptDeSistema<'a> {
+    pub approval_level: &'a str,
+    pub assistant_name: &'a str,
+    pub skills: &'a str,
+    pub code_mode: bool,
+    pub rules: &'a str,
+    pub memoria: &'a str,
+    pub tz_offset_min: i32,
+}
+
+pub(crate) fn system_prompt(project_root: &Path, p: &PromptDeSistema<'_>) -> String {
+    let PromptDeSistema {
+        approval_level,
+        assistant_name,
+        skills,
+        code_mode,
+        rules,
+        memoria,
+        tz_offset_min,
+    } = *p;
     let listing = list_dir_brief(project_root);
     let approval_rule = match approval_level {
         "ask_always" => "El usuario aprueba TODAS tus acciones (incluidas lecturas); no te sorprendas si cada tool call pide confirmación.".to_string(),
@@ -699,7 +738,7 @@ async fn run_loop(
     let redactar = settings.redact_secrets
         && matches!(
             settings.active_provider.as_str(),
-            "anthropic" | "openai" | "openrouter" | "gemini" | "hf"
+            "anthropic" | "openai" | "openrouter" | "gemini" | "hf" | "groq"
         );
     let mut definitions = meta_tool_definitions();
     definitions.extend(agent_tools.iter().map(|t| t.definition()));
@@ -711,13 +750,15 @@ async fn run_loop(
                 "{}{}",
                 system_prompt(
                     project_root,
-                    approval_level,
-                    assistant_name,
-                    &skills_prompt,
-                    settings.code_mode,
-                    &crate::commands::project_rules_for_prompt(project_root),
-                    &memoria_prompt,
-                    settings.tz_offset_min,
+                    &PromptDeSistema {
+                        approval_level,
+                        assistant_name,
+                        skills: &skills_prompt,
+                        code_mode: settings.code_mode,
+                        rules: &crate::commands::project_rules_for_prompt(project_root),
+                        memoria: &memoria_prompt,
+                        tz_offset_min: settings.tz_offset_min,
+                    },
                 ),
                 fuentes_block(&fuentes),
             ),
@@ -1039,13 +1080,12 @@ async fn handle_agent_tool(
             emit_step_result(
                 app,
                 conversation_id,
-                &call.name,
-                false,
-                "Rechazada por el usuario",
-                0,
-                false,
-                None,
-                None,
+                Paso {
+                    tool_name: &call.name,
+                    ok: false,
+                    brief: "Rechazada por el usuario",
+                    ..Default::default()
+                },
             )
             .await;
             return Ok(
@@ -1144,13 +1184,15 @@ async fn handle_agent_tool(
     emit_step_result(
         app,
         conversation_id,
-        &call.name,
-        ok,
-        &brief,
-        duracion_ms,
-        creado,
-        datos,
-        diff,
+        Paso {
+            tool_name: &call.name,
+            ok,
+            brief: &brief,
+            duration_ms: duracion_ms,
+            creado,
+            data: datos,
+            diff,
+        },
     )
     .await;
     Ok((output_json, ok))
@@ -1199,17 +1241,29 @@ async fn respalda_antes_de_pisar(
     let _ = tokio::fs::write(respaldo_de(&carpeta, tool_call_id), contenido).await;
 }
 
-async fn emit_step_result(
-    app: &tauri::AppHandle,
-    conversation_id: &str,
-    tool_name: &str,
+/// Lo que se le cuenta al frontend de un paso ya ejecutado: son literalmente los
+/// campos del payload, menos la conversación y las tareas, que se ponen al emitir.
+#[derive(Default)]
+struct Paso<'a> {
+    tool_name: &'a str,
     ok: bool,
-    brief: &str,
+    brief: &'a str,
     duration_ms: i64,
     creado: bool,
     data: Option<Value>,
     diff: Option<String>,
-) {
+}
+
+async fn emit_step_result(app: &tauri::AppHandle, conversation_id: &str, paso: Paso<'_>) {
+    let Paso {
+        tool_name,
+        ok,
+        brief,
+        duration_ms,
+        creado,
+        data,
+        diff,
+    } = paso;
     let state = app.state::<AppState>();
     let tasks = state
         .db

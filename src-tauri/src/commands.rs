@@ -64,13 +64,15 @@ pub fn system_prompt_of(app: State<AppState>, conversation_id: String) -> Result
     };
     Ok(crate::agent::loop_runner::system_prompt(
         &skills.2,
-        &skills.3,
-        &aj.assistant_name,
-        &skills.0,
-        aj.code_mode,
-        &project_rules_for_prompt(&skills.2),
-        &skills.1,
-        aj.tz_offset_min,
+        &crate::agent::loop_runner::PromptDeSistema {
+            approval_level: &skills.3,
+            assistant_name: &aj.assistant_name,
+            skills: &skills.0,
+            code_mode: aj.code_mode,
+            rules: &project_rules_for_prompt(&skills.2),
+            memoria: &skills.1,
+            tz_offset_min: aj.tz_offset_min,
+        },
     ))
 }
 
@@ -102,7 +104,7 @@ fn titulo_breve(texto: &str) -> String {
         .map(|(i, c)| i + c.len_utf8())
         .unwrap_or(34);
     let mut cabeza = &limpio[..corte];
-    if let Some((ultimo, _)) = cabeza.match_indices(' ').last() {
+    if let Some((ultimo, _)) = cabeza.match_indices(' ').next_back() {
         // Solo se queda con la palabra anterior si no deja un título ridículo.
         if ultimo > 12 {
             cabeza = &cabeza[..ultimo];
@@ -651,12 +653,6 @@ pub async fn speak_message(
     audio_data_uri(&dir, &cached.display().to_string())
 }
 
-/// Ids que ofrece el router de Hugging Face, para el buscador del selector.
-#[tauri::command]
-pub async fn list_hf_models(endpoint: String) -> Result<Vec<String>, String> {
-    providers::list_hf_models(&endpoint).await
-}
-
 /// Los modelos que deja usar la clave guardada de un proveedor. La lista la da
 /// el propio proveedor: Hatboo no sabe ni adivina qué puede cada cuenta.
 #[tauri::command]
@@ -1199,7 +1195,7 @@ fn guardar_imagen(
             )
         }
     };
-    let bytes = std::fs::read(&canonical).map_err(|e| format!("No se pudo leer: {e}"))?;
+    let bytes = std::fs::read(canonical).map_err(|e| format!("No se pudo leer: {e}"))?;
     if bytes.len() > IMAGE_MAX_BYTES {
         return Err(format!(
             "La imagen pesa {} MB; el máximo es 4 MB.",
@@ -1637,7 +1633,7 @@ pub fn factory_reset(app: State<AppState>, token: String) -> Result<(), String> 
     }
     // Las claves viven en el llavero del sistema, no en la base de datos: hay
     // que borrarlas aquí para que el restablecimiento sea de verdad completo.
-    for provider in ["anthropic", "openai", "openrouter", "gemini", "hf"] {
+    for provider in ["anthropic", "openai", "openrouter", "gemini", "hf", "groq"] {
         let _ = providers::delete_api_key(provider);
     }
     Ok(())
@@ -2367,6 +2363,11 @@ pub async fn check_tool_support(app: State<'_, AppState>) -> Result<bool, String
         // más: se da por bueno y el loop falla a la vista si el modelo no llama a
         // las tools.
         "hf" | "gemini" => Ok(true),
+        // Los modelos principales de Groq (llama-3.x, gpt-oss, qwen3) documentan
+        // uso de herramientas, pero su catálogo también trae cosas que no —un
+        // prompt guard o un TTS—, así que se da por bueno y el loop lo cuenta en
+        // la traza si el modelo elegido no llama a ninguna.
+        "groq" => Ok(true),
         "local" => Ok(crate::providers::tool_calling::local_supports_tools(
             &settings.local_endpoint,
             &settings.local_model,
@@ -2644,8 +2645,10 @@ mod tests {
 
     #[test]
     fn el_nombre_del_usuario_no_es_el_del_asistente() {
-        let mut aj = state::Settings::default();
-        aj.assistant_name = "Azrael".into();
+        let aj = state::Settings {
+            assistant_name: "Azrael".into(),
+            ..Default::default()
+        };
         let p = chat_system_prompt(&aj, "", "");
         assert!(p.contains("Eres Hatboo"));
         assert!(p.contains("Se llama «Azrael»"));
@@ -2681,8 +2684,10 @@ mod tests {
             "{por_defecto}"
         );
 
-        let mut aj = state::Settings::default();
-        aj.web_search = true;
+        let aj = state::Settings {
+            web_search: true,
+            ..Default::default()
+        };
         let con_busqueda = chat_system_prompt(&aj, "", "");
         assert!(con_busqueda.contains("Búsqueda web: activada"));
         assert!(!con_busqueda.contains("Búsqueda web: apagada"));
@@ -2690,10 +2695,12 @@ mod tests {
 
     #[test]
     fn trato_idioma_y_nota_llegan_al_bloque_de_usuario() {
-        let mut aj = state::Settings::default();
-        aj.user_address = "usted".into();
-        aj.answer_language = "en".into();
-        aj.user_notes = "Estudio programación.".into();
+        let aj = state::Settings {
+            user_address: "usted".into(),
+            answer_language: "en".into(),
+            user_notes: "Estudio programación.".into(),
+            ..Default::default()
+        };
         let p = chat_system_prompt(&aj, "", "");
         assert!(p.contains("Trátalo de usted."));
         assert!(p.contains("Responde en inglés."));
@@ -3026,5 +3033,39 @@ mod tests {
         assert!(leer_vista_previa(&binario).is_err());
 
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Ruta 1 de `benchmarks/fase0.md` §7: el arnés de Fase 0 emula la puerta de la
+    /// app, y para eso necesita el system prompt real. Copiado a mano se deriva en
+    /// cuanto toque una de las capas, así que se vuelca desde el código:
+    /// `HATBOO_VOLCAR_PROMPT=1 cargo test --lib volcar_system_prompt`.
+    /// Sin la variable esta prueba no hace nada (no escribe ni falla en la batería).
+    #[test]
+    fn volcar_system_prompt_para_el_arnes() {
+        let Some(destino) = std::env::var("HATBOO_VOLCAR_PROMPT").ok() else {
+            return;
+        };
+        let aj = state::Settings::default();
+        let raiz = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let chat = chat_system_prompt(&aj, "", "");
+        let agente = crate::agent::loop_runner::system_prompt(
+            raiz,
+            &crate::agent::loop_runner::PromptDeSistema::default(),
+        );
+        let texto = format!(
+            "# System prompt de Hatboo, volcado desde el código\n\n\
+             Generado por `volcar_system_prompt_para_el_arnes` (src-tauri/src/commands.rs), {hecho}.\n\n\
+             **Es una copia y puede derivar.** Si cambia el código, se vuelve a generar con:\n\
+             `HATBOO_VOLCAR_PROMPT=1 cargo test --manifest-path src-tauri/Cargo.toml --lib volcar_system_prompt`\n\n\
+             Ni una de las dos versiones lleva tools, historial de sesión, skills ni\n\
+             `memoria_prompt`: los tres argumentos se pasan vacíos a propósito, para que\n\
+             la línea base sea la del chat pelado de la app. El prompt de agente además\n\
+             lista el CONTENIDO DEL DIRECTORIO de `src-tauri` porque esa es la raíz que se\n\
+             le pasó: en otro proyecto el listing cambia y el prefill también.\n\n\
+             ## Chat (`chat_system_prompt`)\n\n```\n{chat}\n```\n\n\
+             ## Agente (`system_prompt`)\n\n```\n{agente}\n```\n",
+            hecho = crate::behavior::hoy(aj.tz_offset_min),
+        );
+        std::fs::write(&destino, texto).expect("el volcado tiene que escribirse");
     }
 }

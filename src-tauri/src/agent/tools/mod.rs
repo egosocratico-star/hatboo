@@ -181,10 +181,12 @@ mod tests {
     use crate::state::Settings;
 
     fn nombres(run_command: bool, web_search: bool, motor: &str) -> Vec<String> {
-        let mut s = Settings::default();
-        s.run_command_enabled = run_command;
-        s.web_search = web_search;
-        s.image_provider = motor.to_string();
+        let s = Settings {
+            run_command_enabled: run_command,
+            web_search,
+            image_provider: motor.to_string(),
+            ..Default::default()
+        };
         build_tools(&s, &[])
             .iter()
             .map(|t| t.name().to_string())
@@ -227,10 +229,12 @@ mod tests {
     }
 
     fn con_fuente(ruta: &str, tipo: &str, prueba: impl Fn(Vec<String>)) {
-        let mut s = Settings::default();
-        s.run_command_enabled = false;
-        s.web_search = false;
-        s.image_provider = String::new();
+        let s = Settings {
+            run_command_enabled: false,
+            web_search: false,
+            image_provider: String::new(),
+            ..Default::default()
+        };
         let nombres: Vec<String> = build_tools(&s, &[fuente(ruta, tipo)])
             .iter()
             .map(|t| t.name().to_string())

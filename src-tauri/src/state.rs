@@ -1,6 +1,7 @@
 use crate::providers::tool_calling::ToolCallingProvider;
 use crate::providers::{
-    AiProvider, AnthropicProvider, LocalProvider, OpenAiProvider, GEMINI_BASE, OPENROUTER_BASE,
+    AiProvider, AnthropicProvider, LocalProvider, OpenAiProvider, GEMINI_BASE, GROQ_BASE,
+    OPENROUTER_BASE,
 };
 use rusqlite::Connection;
 use std::collections::HashMap;
@@ -61,6 +62,9 @@ pub struct Settings {
     pub openrouter_model: String,
     #[serde(default = "default_gemini_model")]
     pub gemini_model: String,
+    /// Groq: base fija también (`providers::GROQ_BASE`), solo se guarda el modelo.
+    #[serde(default = "default_groq_model")]
+    pub groq_model: String,
     pub local_model: String,
     /// Modelos que él declaró que ven imágenes, con el nombre tal cual lo
     /// escribe el proveedor. La heurística de `soportaVision` acierta las
@@ -231,6 +235,15 @@ fn default_gemini_model() -> String {
     "gemini-2.0-flash".to_string()
 }
 
+/// `openai/gpt-oss-120b` es de los pocos de Groq que llevan límite publicado del
+/// plan de desarrollador; los `llama-3.3-70b-versatile` y `llama-3.1-8b-instant`
+/// salen con «contact with sales», y un 404 «you do not have access» lo
+/// confirmó. Aun así el valor de verdad es la lista que devuelve `/models` con
+/// su clave, que es lo que enseña ahora el selector.
+fn default_groq_model() -> String {
+    "openai/gpt-oss-120b".to_string()
+}
+
 fn default_files_width() -> i64 {
     240
 }
@@ -309,6 +322,7 @@ impl Default for Settings {
             hf_model: default_hf_model(),
             openrouter_model: default_openrouter_model(),
             gemini_model: default_gemini_model(),
+            groq_model: default_groq_model(),
             local_model: "llama3.2".to_string(),
             vision_modelos: Vec::new(),
             theme: "dark".to_string(),
@@ -473,6 +487,13 @@ pub fn provider_for(
             model,
             esfuerzo,
         )?)),
+        "groq" => Ok(Box::new(openai_en_base(
+            "groq",
+            "Groq",
+            GROQ_BASE,
+            model,
+            esfuerzo,
+        )?)),
         "local" => Ok(Box::new(
             LocalProvider::new(&settings.local_endpoint, model).with_reasoning(esfuerzo),
         )),
@@ -492,6 +513,7 @@ pub fn build_provider(state: &AppState, esfuerzo: &str) -> Result<Box<dyn AiProv
         "hf" => settings.hf_model.clone(),
         "openrouter" => settings.openrouter_model.clone(),
         "gemini" => settings.gemini_model.clone(),
+        "groq" => settings.groq_model.clone(),
         _ => settings.local_model.clone(),
     };
     provider_for(state, &settings.active_provider, &modelo, esfuerzo)
@@ -540,6 +562,13 @@ pub fn build_tool_provider(state: &AppState) -> Result<Box<dyn ToolCallingProvid
             &settings.gemini_model,
             effort,
         )?)),
+        "groq" => Ok(Box::new(openai_en_base(
+            "groq",
+            "Groq",
+            GROQ_BASE,
+            &settings.groq_model,
+            effort,
+        )?)),
         "local" => Ok(Box::new(
             LocalProvider::new(&settings.local_endpoint, &settings.local_model)
                 .with_reasoning(effort),
@@ -559,7 +588,7 @@ mod tests {
         assert_eq!(esfuerzo_efectiva("local", "none"), "none");
         // En la nube ese campo es una lotería según el router: se trata como «no
         // pedirlo», que es lo que no puede romper nada.
-        for nube in ["openai", "anthropic", "gemini", "openrouter", "hf"] {
+        for nube in ["openai", "anthropic", "gemini", "openrouter", "hf", "groq"] {
             assert_eq!(esfuerzo_efectiva(nube, "none"), "off", "se coló en {nube}");
         }
         // Los demás niveles pasan tal cual por todos lados.

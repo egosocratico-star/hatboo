@@ -490,6 +490,7 @@ export const en: Record<string, string> = {
   // idiomas de la lista se escriben siempre en su propio idioma: es la única
   // forma de que la lista sirva a quien no lee el resto de la interfaz.
   OpenAI: "OpenAI",
+  Groq: "Groq",
   Skills: "Skills",
   Emoji: "Emoji",
   Off: "Off",
@@ -765,10 +766,11 @@ export const en: Record<string, string> = {
   "Abrir Ajustes → API y modelos": "Open Settings → API and models",
   "{m} sirve para charlar; para crear o editar archivos hace falta uno de 7B o más.": "{m} is fine for chat; creating or editing files needs 7B or more.",
   "Cambiar modelo": "Change model",
-  "Consultando Hugging Face…": "Asking Hugging Face…",
-  "No se pudo listar los modelos de Hugging Face.": "Could not list Hugging Face models.",
-  "Hugging Face responde pero no lista modelos: revisa el token y su permiso de Inference Providers.": "Hugging Face answers but lists no models: check the token and its Inference Providers permission.",
-  "Vía Hugging Face": "Via Hugging Face",
+  "Consultando {p}…": "Asking {p}…",
+  "No se pudo listar los modelos de {p}.": "Could not list {p} models.",
+  "{p} responde pero no lista modelos: revisa la clave guardada en Ajustes → API.":
+    "{p} answers but lists no models: check the key saved in Settings → API.",
+  "Vía {p}": "Via {p}",
   "El catálogo con buscador está en el chip del modelo, junto al compositor.": "The searchable catalog is in the model chip, next to the composer.",
   "Endpoint compatible con OpenAI": "OpenAI-compatible endpoint",
   "Por defecto el router de Hugging Face; vale también para cualquier servidor propio que hable /v1/chat/completions.": "Defaults to the Hugging Face router; any own server speaking /v1/chat/completions works too.",
@@ -984,6 +986,8 @@ export const en: Record<string, string> = {
     "One key for hundreds of models, free ones included.",
   "Gemini, de Google: contexto enorme y capa gratuita.":
     "Gemini, from Google: huge context and a free tier.",
+  "Inferencia en chip propio: muy rápida, con plan gratuito de límites por minuto.":
+    "Inference on its own chips: very fast, with a free tier that has per-minute limits.",
   "Modelos abiertos tras el router de Hugging Face.":
     "Open models behind the Hugging Face router.",
   "En este PC: nada sale de tu equipo.": "On this PC: nothing leaves your machine.",

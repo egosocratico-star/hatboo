@@ -99,6 +99,7 @@ export type ProviderId =
   | "openai"
   | "openrouter"
   | "gemini"
+  | "groq"
   | "hf"
   | "local";
 
@@ -112,6 +113,8 @@ export interface Settings {
   openaiModel: string;
   openrouterModel: string;
   geminiModel: string;
+  /** Modelo de Groq; su base está fija en el backend. */
+  groqModel: string;
   localModel: string;
   /** Modelos declarados a mano como capaces de ver imágenes. La heurística por
    *  nombre acierta las familias conocidas y falla con el resto; esto es la

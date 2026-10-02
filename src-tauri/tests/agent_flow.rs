@@ -46,7 +46,10 @@ async fn agent_tool_loop_with_real_model() {
     f.write_all(b"linea 1\nlinea 2\n").unwrap();
 
     let provider = LocalProvider::new(ENDPOINT, MODEL);
-    let agent_tools = tools::build_tools(false, false);
+    // `build_tools` cambió de forma: ahora recibe los ajustes (y las fuentes) en
+    // vez de dos booleanos sueltos. Los defaults son `run_command_enabled: false`
+    // y `web_search: false`, o sea lo mismo que se pedía antes a mano.
+    let agent_tools = tools::build_tools(&hatboo_lib::state::Settings::default(), &[]);
     let definitions: Vec<_> = agent_tools.iter().map(|t| t.definition()).collect();
 
     let mut messages = vec![

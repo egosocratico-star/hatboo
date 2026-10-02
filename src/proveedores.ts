@@ -5,6 +5,7 @@ import {
   Gem,
   HardDrive,
   Route,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
 import type { LocalModel, ProviderId, Settings } from "./types";
@@ -15,6 +16,7 @@ export type CampoModelo =
   | "openaiModel"
   | "openrouterModel"
   | "geminiModel"
+  | "groqModel"
   | "hfModel"
   | "localModel";
 
@@ -77,6 +79,16 @@ export const PROVEEDORES: readonly Proveedor[] = [
     needsKey: true,
     modelo: "geminiModel",
     ejemplo: "gemini-2.0-flash",
+  },
+  {
+    id: "groq",
+    label: "Groq",
+    corto: "Groq",
+    icono: Zap,
+    resumen: "Inferencia en chip propio: muy rápida, con plan gratuito de límites por minuto.",
+    needsKey: true,
+    modelo: "groqModel",
+    ejemplo: "llama-3.3-70b-versatile",
   },
   {
     id: "hf",

@@ -1115,7 +1115,7 @@ pub fn add_source(conn: &Connection, project_id: &str, ruta: &str, tipo: &str) -
         "carpeta" | "archivo" => tipo,
         _ => return Err("El tipo de fuente no es válido.".into()),
     };
-    if let Some(existing) = conn
+    if let Ok(existing) = conn
         .query_row(
             "SELECT id, project_id, ruta, tipo, creado_en FROM sources
              WHERE project_id = ?1 AND ruta = ?2",
@@ -1130,7 +1130,6 @@ pub fn add_source(conn: &Connection, project_id: &str, ruta: &str, tipo: &str) -
                 })
             },
         )
-        .ok()
     {
         return Ok(existing);
     }
@@ -1283,10 +1282,9 @@ pub fn perfil_estadisticas(conn: &Connection, tz_offset_min: i32) -> Result<Esta
         None
     };
     let mut racha_actual = 0;
-    let mut d = match inicio {
-        Some(x) => x,
-        None => 0,
-    };
+    // `unwrap_or_default` es el mismo 0 de antes: `inicio` no está cuando no hay
+    // ningún día con actividad, y la racha entonces no arranca.
+    let mut d: i64 = inicio.unwrap_or_default();
     while inicio.is_some() && por_dia.contains_key(&d) {
         racha_actual += 1;
         d -= 1;

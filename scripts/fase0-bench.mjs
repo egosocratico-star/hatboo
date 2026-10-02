@@ -5,6 +5,7 @@
 //   node scripts/fase0-bench.mjs describe
 //   node scripts/fase0-bench.mjs pilot   --model gemma3:1b
 //   node scripts/fase0-bench.mjs suite   --model gemma3:1b --reps 3
+//   node scripts/fase0-bench.mjs suite   --model gemma3:1b --reps 3 --ruta app
 //   node scripts/fase0-bench.mjs recarga --model gemma3:1b
 //
 // temperature 0 y seed 42 fijos, como pide el protocolo; lo que se guarda en
@@ -43,6 +44,10 @@ const CFG = {
   // num_predict: el `max_output_tokens` del Plan (§VIII). El piloto midió que el
   // coste lo manda la longitud de la respuesta, no la latencia.
   toks: Number(bander("toks", 0)),
+  // `proveedor` = /api/generate pelado (lo que se midió el 30-09). `app` = la
+  // puerta por la que habla Hatboo (/v1/chat/completions) con su system prompt
+  // real: es la línea base que pide §9. Ver benchmarks/fase0.md §7.
+  ruta: bander("ruta", "proveedor"),
   temperatura: 0,
   seed: 42,
 };
@@ -144,6 +149,103 @@ async function corrida(modelo, texto, cfg) {
   };
 }
 
+/** La ruta de la app: `/v1/chat/completions` con el system prompt real de Hatboo
+ *  delante. Es lo que hace `providers/local.rs` (OpenAiProvider con base_url de
+ *  Ollama), y por eso es la línea base que pide §9. Dos cosas que esta puerta no
+ *  puede hacer y hay que decir en el informe:
+ *   - `options:{num_ctx}` está probado IGNORADO: el contexto lo decide Ollama
+ *     (gemma3:1b cargó a 32768 y qwen3:1.7b a 40960, 6,4 GB).
+ *   - No declara `eval_duration` ni `load_duration`: prefill, decode y carga
+ *     quedan null, y tok/s se deriva de `usage` y del tiempo medido aquí.
+ *  `temperature` y `seed` sí se honran (medido: dos llamadas idénticas, 285 tok
+ *  las dos). La app no los manda; el protocolo de §0 sí, y se mandan. */
+async function corridaApp(modelo, texto, cfg, system) {
+  const mensajes = system
+    ? [{ role: "system", content: system }, { role: "user", content: texto }]
+    : [{ role: "user", content: texto }];
+  const t0 = performance.now();
+  const res = await fetch(`${OLLAMA}/v1/chat/completions`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      model: modelo,
+      messages: mensajes,
+      stream: true,
+      temperature: cfg.temperatura,
+      seed: cfg.seed,
+      // Sin esto el stream de /v1 no trae `usage` y no hay tok/s medido.
+      stream_options: { include_usage: true },
+    }),
+    signal: AbortSignal.timeout(600_000),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+
+  const lector = res.body.getReader();
+  const dec = new TextDecoder();
+  let colchon = "";
+  let uso = null;
+  let ttft = null;
+  let salida = "";
+  let razon = "";
+  for (;;) {
+    const { value, done } = await lector.read();
+    if (done) break;
+    colchon += dec.decode(value, { stream: true });
+    let corte;
+    while ((corte = colchon.indexOf("\n")) >= 0) {
+      const linea = colchon.slice(0, corte).trim();
+      colchon = colchon.slice(corte + 1);
+      if (!linea.startsWith("data:")) continue;
+      const payload = linea.slice(5).trim();
+      if (!payload || payload === "[DONE]") continue;
+      const o = JSON.parse(payload);
+      const d = o.choices?.[0]?.delta || {};
+      const pieza = d.content || "";
+      if (ttft === null && pieza) ttft = performance.now() - t0;
+      salida += pieza;
+      // qwen3 y compañía piensan por defecto por esta puerta, y eso también cuesta.
+      razon += d.reasoning || d.reasoning_content || d.thinking || "";
+      if (o.usage) uso = o.usage;
+    }
+  }
+  const total = performance.now() - t0;
+  const decode_ms = ttft === null ? null : total - ttft;
+  return {
+    ttft_ms: r1(ttft),
+    total_ms: r1(total),
+    carga_ms: null,
+    prefill_ms: null,
+    decode_ms: r1(decode_ms),
+    prompt_tok: uso?.prompt_tokens ?? null,
+    gen_tok: uso?.completion_tokens ?? null,
+    tok_s: uso?.completion_tokens && decode_ms > 0
+      ? r1(uso.completion_tokens / (decode_ms / 1e3))
+      : null,
+    razonamiento_chars: razon.length,
+    salida: salida.length,
+  };
+}
+
+/** El system prompt volcado desde el código. `## Chat` es el del chat y `##
+ *  Agente` el del modo trabajo; la categoría decide, con la misma regla que
+ *  `modo_de` en el arnés del crate: saludo y ambigüedad van por chat, lo demás
+ *  por agente. */
+function promptsDeLaApp() {
+  const ruta = path.join(RAIZ, "benchmarks", "system-prompt-app.md");
+  const texto = readFileSync(ruta, "utf8");
+  const parte = (titulo) => {
+    const i = texto.indexOf(`## ${titulo} (`);
+    if (i < 0) throw new Error(`el volcado no tiene «${titulo}»: regenéralo`);
+    const m = texto.slice(i).match(/```\n([\s\S]*?)\n```/);
+    if (!m) throw new Error(`el bloque de «${titulo}» está vacío`);
+    return m[1];
+  };
+  return { chat: parte("Chat"), agente: parte("Agente") };
+}
+
+const MODO_POR_CATEGORIA = (categoria) =>
+  categoria === "saludo" || categoria === "ambiguedad" ? "chat" : "agente";
+
 async function version() {
   try {
     const t = await (await fetch(`${OLLAMA}/api/version`, { signal: AbortSignal.timeout(5000) })).text();
@@ -215,8 +317,15 @@ function muestreo(prompts, porCat) {
 // ---- pilot / suite: la misma ruta de código, distinto volumen. ----
 async function correSuite({ piloto }) {
   const todas = suite();
+  // `--ruta app` cambia la puerta y el cuerpo del pedido: system prompt real de
+  // la app y /v1/chat/completions. Las dos cosas se eligen por categoría con la
+  // misma regla que usa el crate para saber si es chat o trabajo.
+  const app = CFG.ruta === "app" ? promptsDeLaApp() : null;
+  const corre = app
+    ? (p) => corridaApp(CFG.modelo, p.texto, CFG, app[MODO_POR_CATEGORIA(p.categoria)])
+    : (p) => corrida(CFG.modelo, p.texto, CFG);
   const lista = piloto ? muestreo(todas, CFG.porCat) : CFG.limite > 0 ? todas.slice(0, CFG.limite) : todas;
-  console.log(`modelo ${CFG.modelo} · ${lista.length} prompts × ${CFG.reps} repes · ctx ${CFG.ctx} temp ${CFG.temperatura} seed ${CFG.seed}${CFG.toks > 0 ? ` · tope ${CFG.toks} tok de salida` : " · sin tope de salida"}`);
+  console.log(`modelo ${CFG.modelo} · ${lista.length} prompts × ${CFG.reps} repes · ruta ${CFG.ruta} · temp ${CFG.temperatura} seed ${CFG.seed}${app ? " · ctx al arbitrio de Ollama (esta puerta no admite num_ctx)" : ` · ctx ${CFG.ctx}`}${CFG.toks > 0 ? ` · tope ${CFG.toks} tok de salida` : " · sin tope de salida"}`);
   console.log(`umbral de RAM ${CFG.minLibre} GB libres · libre ahora ${r2(libreGB())} GB`);
 
   const cargados = await json(`${OLLAMA}/api/ps`);
@@ -228,7 +337,9 @@ async function correSuite({ piloto }) {
       return;
     }
     console.log("cargando (no se cuenta: es el calentamiento)…");
-    const w = await corrida(CFG.modelo, "di solo: listo", { ...CFG, keepAlive: "300s" });
+    const w = app
+      ? await corridaApp(CFG.modelo, "di solo: listo", CFG, app.chat)
+      : await corrida(CFG.modelo, "di solo: listo", { ...CFG, keepAlive: "300s" });
     console.log(`  carga ${Math.round(w.carga_ms || 0)} ms · TTFT ${Math.round(w.ttft_ms || 0)} ms`);
   }
 
@@ -246,11 +357,11 @@ async function correSuite({ piloto }) {
       const antes = r2(libreGB());
       let r;
       try {
-        r = await corrida(CFG.modelo, p.texto, CFG);
+        r = await corre(p);
       } catch (e) {
         r = { error: String(e).slice(0, 200) };
       }
-      filas.push({ id: p.id, categoria: p.categoria, idioma: p.idioma, conjunto: p.conjunto, rep, libre_antes: antes, libre_despues: r2(libreGB()), espero_ms: g.espero_ms, ...r });
+      filas.push({ id: p.id, categoria: p.categoria, idioma: p.idioma, conjunto: p.conjunto, modo: app ? MODO_POR_CATEGORIA(p.categoria) : null, rep, libre_antes: antes, libre_despues: r2(libreGB()), espero_ms: g.espero_ms, ...r });
       const hechas = filas.length;
       const medio = (Date.now() - t0) / hechas;
       console.log(
@@ -261,7 +372,7 @@ async function correSuite({ piloto }) {
 
   const ps = (await json(`${OLLAMA}/api/ps`)).models.find((m) => m.name === CFG.modelo);
   mkdirSync(SALIDA, { recursive: true });
-  const marca = `${piloto ? "piloto" : "suite"}-${CFG.modelo.replace(/[^\w.]+/g, "_")}-${CFG.toks > 0 ? `top${CFG.toks}-` : "sintope-"}${hoy()}`;
+  const marca = `${piloto ? "piloto" : "suite"}-${CFG.ruta}-${CFG.modelo.replace(/[^\w.]+/g, "_")}-${CFG.toks > 0 ? `top${CFG.toks}-` : "sintope-"}${hoy()}`;
   const ruta = path.join(SALIDA, `${marca}.json`);
   const ok = filas.filter((f) => !f.error);
   const resumen = {
@@ -269,12 +380,14 @@ async function correSuite({ piloto }) {
     modelo: CFG.modelo,
     ollama: await version(),
     duracion_s: r1((Date.now() - t0) / 1000),
-    sesion: { ctx: CFG.ctx, temperatura: CFG.temperatura, seed: CFG.seed, reps: CFG.reps, tope_salida: CFG.toks, min_libre: CFG.minLibre, min_uso: CFG.minUso },
+    sesion: { ctx: app ? null : CFG.ctx, ctx_pedido: app ? "esta puerta ignora num_ctx: lo fija Ollama (se lee en en_memoria.ctx)" : `${CFG.ctx} via options`, ruta: CFG.ruta, temperatura: CFG.temperatura, seed: CFG.seed, reps: CFG.reps, tope_salida: CFG.toks, min_libre: CFG.minLibre, min_uso: CFG.minUso },
     maquina: { ram_total_gb: r2(os.totalmem() / 1e9), ncleos: os.cpus().length, libre_al_terminar: r2(libreGB()) },
     en_memoria: ps ? { ram_mb: Math.round(ps.size / 1e6), vram_mb: Math.round(ps.size_vram / 1e6), ctx: ps.context_length } : null,
     errores: filas.length - ok.length,
     corte_por_ram: corte,
-    nota: "Línea base del proveedor: /api/generate directo, sin prompt de sistema, sin tools y sin pasar por la app. Es el suelo de coste; el camino de Hatboo añade su system prompt encima.",
+    nota: app
+      ? "Línea base de la APP (ruta 1 de fase0.md §7): /v1/chat/completions con el system prompt real volcado desde el código (benchmarks/system-prompt-app.md), sin tools, sin historial y sin tope de salida, que es lo que hace Hatboo hoy. El ctx lo decide Ollama porque esta puerta ignora num_ctx. No es la app: le faltan las tools del modo trabajo, el historial de la sesión y la UI."
+      : "Línea base del proveedor: /api/generate directo, sin prompt de sistema, sin tools y sin pasar por la app. Es el suelo de coste; el camino de Hatboo añade su system prompt encima.",
     por_categoria: Object.fromEntries(
       [...new Set(filas.map((f) => f.categoria))].map((c) => {
         const f = ok.filter((x) => x.categoria === c);

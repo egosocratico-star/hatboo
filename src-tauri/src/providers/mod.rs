@@ -243,7 +243,7 @@ pub async fn list_ollama_models(endpoint: &str) -> Result<Vec<OllamaModel>, Stri
     // sin declarar nada.
     for m in &mut models {
         let name = m.name.clone();
-        let (caps, ventana, es_num_ctx) = show_info(&client, &base, &name).await;
+        let (caps, ventana, es_num_ctx) = show_info(&client, base, &name).await;
         m.capabilities = caps;
         m.context_tokens = ventana;
         m.context_es_num_ctx = es_num_ctx;
@@ -331,6 +331,10 @@ pub const OPENROUTER_BASE: &str = "https://openrouter.ai/api/v1";
 /// Gemini expone una capa compatible con OpenAI bajo `/v1beta/openai`, así que
 /// se reutiliza `OpenAiProvider` en vez de escribir un cliente propio.
 pub const GEMINI_BASE: &str = "https://generativelanguage.googleapis.com/v1beta/openai";
+
+/// Groq también habla el dialecto de OpenAI; la suya no es `/v1` a secas, sino
+/// `/openai/v1`, que es lo que publica su documentación de compatibilidad.
+pub const GROQ_BASE: &str = "https://api.groq.com/openai/v1";
 
 /// Prueba la conexión de un proveedor sin enviar un mensaje real.
 /// Devuelve un mensaje legible con el resultado.
@@ -426,6 +430,11 @@ pub async fn test_connection(
                 "Google Gemini",
             )
             .await
+        }
+        "groq" => {
+            let key = get_api_key("groq")
+                .ok_or_else(|| "Falta la API key de Groq.".to_string())?;
+            check_openai_style(&client, &format!("{GROQ_BASE}/models"), &key, model, "Groq").await
         }
         other => Err(format!("Proveedor desconocido: {other}")),
     }
@@ -525,6 +534,19 @@ pub async fn list_provider_models(provider: &str, endpoint: &str) -> Result<Vec<
                     .get(format!("{GEMINI_BASE}/models"))
                     .bearer_auth(&key),
                 "Google Gemini",
+            )
+            .await?;
+            Ok(modelos_estilo_openai(&value))
+        }
+        "groq" => {
+            let key =
+                get_api_key("groq").ok_or_else(|| "Falta la API key de Groq.".to_string())?;
+            let client = http_client()?;
+            let value = get_json(
+                client
+                    .get(format!("{GROQ_BASE}/models"))
+                    .bearer_auth(&key),
+                "Groq",
             )
             .await?;
             Ok(modelos_estilo_openai(&value))

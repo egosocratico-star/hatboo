@@ -335,6 +335,46 @@ fn assistant_blocks(m: &AgentMessage) -> Vec<Value> {
     blocks
 }
 
+/// Sondea si un endpoint local (Ollama) declara soporte de tools para el modelo.
+pub async fn local_supports_tools(endpoint: &str, model: &str) -> bool {
+    let base = endpoint.trim_end_matches('/');
+    let client = reqwest::Client::new();
+
+    // Ollama moderno: POST /api/show
+    if let Ok(resp) = client
+        .post(format!("{base}/api/show"))
+        .json(&json!({ "name": model }))
+        .send()
+        .await
+    {
+        if let Ok(value) = resp.json::<Value>().await {
+            if let Some(caps) = value["capabilities"].as_array() {
+                return caps.iter().any(|c| c.as_str() == Some("tools"));
+            }
+        }
+    }
+    // Ollama antiguo: GET /api/show?name=
+    if let Ok(resp) = client
+        .get(format!("{base}/api/show?name={model}"))
+        .send()
+        .await
+    {
+        if let Ok(value) = resp.json::<Value>().await {
+            if let Some(caps) = value["capabilities"].as_array() {
+                return caps.iter().any(|c| c.as_str() == Some("tools"));
+            }
+            // Modelos antiguos de Ollama: la presencia de request_template
+            // con placeholders de tools es una señal razonable.
+            if let Some(tmpl) = value["request_template"].as_str() {
+                if tmpl.contains(".Tools") {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -419,44 +459,4 @@ mod tests {
         let p = p.with_reasoning("medium");
         assert_eq!(p.thinking_budget(), Some(6000));
     }
-}
-
-/// Sondea si un endpoint local (Ollama) declara soporte de tools para el modelo.
-pub async fn local_supports_tools(endpoint: &str, model: &str) -> bool {
-    let base = endpoint.trim_end_matches('/');
-    let client = reqwest::Client::new();
-
-    // Ollama moderno: POST /api/show
-    if let Ok(resp) = client
-        .post(format!("{base}/api/show"))
-        .json(&json!({ "name": model }))
-        .send()
-        .await
-    {
-        if let Ok(value) = resp.json::<Value>().await {
-            if let Some(caps) = value["capabilities"].as_array() {
-                return caps.iter().any(|c| c.as_str() == Some("tools"));
-            }
-        }
-    }
-    // Ollama antiguo: GET /api/show?name=
-    if let Ok(resp) = client
-        .get(format!("{base}/api/show?name={model}"))
-        .send()
-        .await
-    {
-        if let Ok(value) = resp.json::<Value>().await {
-            if let Some(caps) = value["capabilities"].as_array() {
-                return caps.iter().any(|c| c.as_str() == Some("tools"));
-            }
-            // Modelos antiguos de Ollama: la presencia de request_template
-            // con placeholders de tools es una señal razonable.
-            if let Some(tmpl) = value["request_template"].as_str() {
-                if tmpl.contains(".Tools") {
-                    return true;
-                }
-            }
-        }
-    }
-    false
 }

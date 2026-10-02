@@ -50,8 +50,11 @@ export default function ProviderModelPicker() {
   const [probe, setProbe] = useState<Probe>(null);
   const localModels = useChatStore((s) => s.localModels);
   const localModelsEndpoint = useChatStore((s) => s.localModelsEndpoint);
-  const [hfModels, setHfModels] = useState<string[] | null>(null);
-  const [loadingHf, setLoadingHf] = useState(false);
+  const [nubeModelos, setNubeModelos] = useState<string[] | null>(null);
+  /** De qué proveedor es la lista leída: al cambiar de proveedor hay que volver
+   *  a pedir, si no se quedaría el catálogo de Groq bajo Anthropic. */
+  const [nubeDe, setNubeDe] = useState<string>("");
+  const [cargandoNube, setCargandoNube] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
   const [filtro, setFiltro] = useState("");
   const [expulsando, setExpulsando] = useState<string | null>(null);
@@ -93,18 +96,26 @@ export default function ProviderModelPicker() {
     }
   };
 
-  /** Ids del router de Hugging Face; sin token no hay lista que pedir. */
-  const refreshHf = async () => {
+  /** Ids que deja usar la clave guardada del proveedor activo. Se pregunta a él,
+   *  no a un catálogo escrito a mano: es la única forma de que lo que se elige
+   *  exista de verdad. Sin clave la llamada falla y abajo queda el hueco para
+   *  escribir el nombre. */
+  const refrescarNube = async () => {
     if (!settings) return;
-    setLoadingHf(true);
+    const proveedor = settings.activeProvider;
+    setCargandoNube(true);
     try {
-      setHfModels(
-        await invoke<string[]>("list_hf_models", { endpoint: settings.hfEndpoint }),
-      );
+      const lista = await invoke<string[]>("list_provider_models", {
+        provider: proveedor,
+        endpoint: endpointDe(settings, proveedor),
+      });
+      setNubeModelos(lista);
+      setNubeDe(proveedor);
     } catch {
-      setHfModels(null);
+      setNubeModelos(null);
+      setNubeDe(proveedor);
     } finally {
-      setLoadingHf(false);
+      setCargandoNube(false);
     }
   };
 
@@ -115,7 +126,11 @@ export default function ProviderModelPicker() {
       (localModels === null || localModelsEndpoint !== settings.localEndpoint)
     )
       void refreshOllama();
-    if (settings.activeProvider === "hf" && hfModels === null) void refreshHf();
+    if (
+      settings.activeProvider !== "local" &&
+      (nubeModelos === null || nubeDe !== settings.activeProvider)
+    )
+      void refrescarNube();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, settings?.activeProvider]);
 
@@ -146,10 +161,11 @@ export default function ProviderModelPicker() {
 
   const model = modeloActivo(settings);
   const esLocal = settings.activeProvider === "local";
-  const cargando = loadingModels || loadingHf;
+  const cargando = loadingModels || cargandoNube;
+  const cortos = CORTOS[settings.activeProvider];
   /** Fila normalizada: Ollama manda objetos con el tamaño y las capacidades
-   *  declaradas, y el router de Hugging Face solo ids, así que la lista se
-   *  pinta desde una forma común. */
+   *  declaradas, y la nube solo ids, así que la lista se pinta desde una forma
+   *  común. */
   const todas: FilaModelo[] = esLocal
     ? (localModels ?? []).map((m) => ({
         nombre: m.name,
@@ -157,7 +173,7 @@ export default function ProviderModelPicker() {
         nube: esNube(m.name),
         caps: capsVisibles(m.capabilities),
       }))
-    : (hfModels ?? []).map((n) => ({
+    : (nubeModelos ?? []).map((n) => ({
         nombre: n,
         nivel: nivelPorNombre(n),
         nube: true,
@@ -332,74 +348,66 @@ export default function ProviderModelPicker() {
           <div className="text-[10px] uppercase tracking-wider text-zinc-600 px-2 pt-2 pb-0.5">
             {t("Modelo ({p})", { p: CORTOS[settings.activeProvider] })}
           </div>
-          {esLocal || settings.activeProvider === "hf" ? (
-            <div className="px-1 pb-1 space-y-1">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-600" />
-                <input
-                  value={filtro}
-                  onChange={(e) => setFiltro(e.target.value)}
-                  placeholder={t("Buscar modelos…")}
-                  className={`${CAMPO} py-1.5 pl-8 pr-2 text-xs`}
-                />
+          <div className="px-1 pb-1 space-y-1">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-600" />
+              <input
+                value={filtro}
+                onChange={(e) => setFiltro(e.target.value)}
+                placeholder={t("Buscar modelos…")}
+                className={`${CAMPO} py-1.5 pl-8 pr-2 text-xs`}
+              />
+            </div>
+            {cargando && (
+              <div className="flex items-center gap-2 px-1.5 py-1 text-[11px] text-zinc-500">
+                <RefreshCw className="w-3 h-3 animate-spin" />
+                {esLocal ? t("Consultando Ollama…") : t("Consultando {p}…", { p: cortos })}
               </div>
-              {cargando && (
-                <div className="flex items-center gap-2 px-1.5 py-1 text-[11px] text-zinc-500">
-                  <RefreshCw className="w-3 h-3 animate-spin" />
-                  {esLocal ? t("Consultando Ollama…") : t("Consultando Hugging Face…")}
-                </div>
-              )}
-              {!cargando && (esLocal ? localModels : hfModels) === null && (
+            )}
+            {!cargando && (esLocal ? localModels === null : nubeModelos === null) && (
+              <div className="px-1.5 py-1 text-[11px] text-zinc-500">
+                {esLocal
+                  ? t("No se pudo listar los modelos de Ollama.")
+                  : t("No se pudo listar los modelos de {p}.", { p: cortos })}
+              </div>
+            )}
+            {!cargando &&
+              (esLocal ? localModels !== null : nubeModelos !== null) &&
+              todas.length === 0 && (
                 <div className="px-1.5 py-1 text-[11px] text-zinc-500">
                   {esLocal
-                    ? t("No se pudo listar los modelos de Ollama.")
-                    : t("No se pudo listar los modelos de Hugging Face.")}
+                    ? t("Ollama responde pero no tiene modelos descargados.")
+                    : t("{p} responde pero no lista modelos: revisa la clave guardada en Ajustes → API.", {
+                        p: cortos,
+                      })}
                 </div>
               )}
-              {!cargando &&
-                (esLocal ? localModels : hfModels) !== null &&
-                todas.length === 0 && (
-                  <div className="px-1.5 py-1 text-[11px] text-zinc-500">
-                    {esLocal
-                      ? t("Ollama responde pero no tiene modelos descargados.")
-                      : t("Hugging Face responde pero no lista modelos: revisa el token y su permiso de Inference Providers.")}
+            {!cargando && todas.length > 0 && filtradas.length === 0 && (
+              <div className="px-1.5 py-1 text-[11px] text-zinc-500">
+                {t("Sin coincidencias para «{q}».", { q: filtro.trim() })}
+              </div>
+            )}
+            {!cargando && filtradas.length > 0 && (
+              <div className="max-h-56 space-y-0.5 overflow-y-auto">
+                {enPc.length > 0 && (
+                  <div className="px-2 pt-1 pb-0.5 text-[10px] uppercase tracking-wider text-zinc-600">
+                    {t("En este PC")}
                   </div>
                 )}
-              {!cargando && todas.length > 0 && filtradas.length === 0 && (
-                <div className="px-1.5 py-1 text-[11px] text-zinc-500">
-                  {t("Sin coincidencias para «{q}».", { q: filtro.trim() })}
-                </div>
-              )}
-              {!cargando && filtradas.length > 0 && (
-                <div className="max-h-56 space-y-0.5 overflow-y-auto">
-                  {enPc.length > 0 && (
-                    <div className="px-2 pt-1 pb-0.5 text-[10px] uppercase tracking-wider text-zinc-600">
-                      {t("En este PC")}
+                {enPc.map(fila)}
+                {enNube.length > 0 && (
+                  <>
+                    <div className="px-2 pt-2 pb-0.5 text-[10px] uppercase tracking-wider text-zinc-600">
+                      {esLocal ? t("Vía Ollama Cloud") : t("Vía {p}", { p: cortos })}
                     </div>
-                  )}
-                  {enPc.map(fila)}
-                  {enNube.length > 0 && (
-                    <>
-                      <div className="px-2 pt-2 pb-0.5 text-[10px] uppercase tracking-wider text-zinc-600">
-                        {esLocal ? t("Vía Ollama Cloud") : t("Vía Hugging Face")}
-                      </div>
-                      {enNube.map(fila)}
-                    </>
-                  )}
-                </div>
-              )}
-              {aviso && (
-                <p className="px-1.5 pb-0.5 text-[11px] leading-snug text-zinc-500">{aviso}</p>
-              )}
-              <button
-                onClick={() => void (esLocal ? refreshOllama() : refreshHf())}
-                className="w-full flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] text-zinc-500 hover:text-zinc-200 hover:bg-base-hover/60 transition-colors"
-              >
-                <RefreshCw className="w-3 h-3" /> {t("Recargar lista")}
-              </button>
-            </div>
-          ) : (
-            <div className="px-1 pb-1">
+                    {enNube.map(fila)}
+                  </>
+                )}
+              </div>
+            )}
+            {/* Sin lista leída no hay de dónde elegir, y escribir el nombre a
+                mano es lo único que queda: se ofrece en vez de dejar el hueco. */}
+            {!esLocal && !cargando && (nubeModelos === null || todas.length === 0) && (
               <input
                 key={`${settings.activeProvider}-${model}`}
                 defaultValue={model}
@@ -416,8 +424,17 @@ export default function ProviderModelPicker() {
                 className="w-full rounded-lg border border-base-border bg-base px-2.5 py-1.5 text-xs font-mono outline-none focus:border-accent/70"
                 placeholder={t("nombre del modelo")}
               />
-            </div>
-          )}
+            )}
+            {aviso && (
+              <p className="px-1.5 pb-0.5 text-[11px] leading-snug text-zinc-500">{aviso}</p>
+            )}
+            <button
+              onClick={() => void (esLocal ? refreshOllama() : refrescarNube())}
+              className="w-full flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] text-zinc-500 hover:text-zinc-200 hover:bg-base-hover/60 transition-colors"
+            >
+              <RefreshCw className="w-3 h-3" /> {t("Recargar lista")}
+            </button>
+          </div>
 
           <div className="border-t border-base-border mt-1 pt-1">
             <button

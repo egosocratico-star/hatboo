@@ -61,7 +61,6 @@ pub fn run() {
             commands::clasifica_soltadas,
             commands::attachment_image,
             commands::list_local_models,
-            commands::list_hf_models,
             commands::list_provider_models,
             commands::generate_image,
             commands::regenerate_image,

@@ -151,11 +151,40 @@ El plan maestro usa la métrica pero **no define `s` ni los `w_*`**, y §11 se l
 - Sin tools, sin historial de sesión, sin verificación, sin recuperación, sin base de datos ni UI.
 - Un solo modelo y una sola repetición.
 
-Tres rutas para cerrarlo, con su coste, para que él elija:
+Tres rutas para cerrarlo, con su coste. **El 02-10 eligió la 1** y abajo está lo que salió; la 2 sigue abierta y la 3 sigue sin puente:
 
 1. **Emular la ruta de la app** desde el mismo arnés: `/v1/chat/completions` + el system prompt real de Hatboo copiado a un archivo, con su fecha y el aviso de que es una copia que puede derivar. Barato (~15 min), sigue sin ser la app.
 2. **Leer la traza de la propia app**: §7 pide latencia, TTFT, tok/s y RAM por corrida, y hoy Hatboo persiste `provider`, `thinking_ms` y `created_at` por mensaje, pero **no la duración total de la generación**. Añadir una columna `duration_ms` al mensaje (el hueco entre su mensaje y el de Hatboo solo es aproximado) convertiría su uso real en línea base sin simular nada. Es tocar el backend.
 3. **Conducir la app desde fuera** para correr los 180 prompts por su camino real: no hay puente — su ventana no es un destino CDP medible.
+
+### 7.1 La ruta 1, corrida (02-10)
+
+`npm run fase0 -- suite --model gemma3:1b --reps 3 --ruta app` → **180 corridas en 60,4 min**, 176 válidas y 4 timeouts de 600 s (`archivo-08` rep 1 y `riesgo-10` las tres repes: la respuesta colgó del todo). Crudo en `resultados/suite-app-gemma3_1b-sintope-2026-10-02.json`.
+
+El system prompt no se transcribió: lo vuelca el propio código con `HATBOO_VOLCAR_PROMPT=1 cargo test --lib volcar_system_prompt` (`commands.rs::volcar_system_prompt_para_el_arnes`), y `benchmarks/system-prompt-app.md` lleva su fecha y el aviso de que es copia. Saludo y ambigüedad van por el prompt de chat; código, archivo, riesgo y tool por el del agente, con la misma regla que `modo_de` en el arnés del crate.
+
+| | proveedor pelado (§1) | **puerta de la app (§7.1)** |
+|---|---|---|
+| tokens de entrada | 19 | **1019** de chat · **1345** de agente |
+| TTFT mediana | 474 ms | **154 ms** |
+| total mediano | — (mediana 31,6 s/corrida) | **1164 ms** (p25 637 · p75 4009 · p95 38254 · máx 114907) |
+| tokens de salida (mediana) | 604 | **18** (p95 498 · máx 1190) |
+| tok/s | 17,45 | **16,8** |
+| residente | 878 MB a ctx 2048 | **1009 MB a ctx 32768** |
+
+Por categoría (mediana de `total_ms` / tokens de salida): saludo 583 / 6 · ambigüedad 672 / 6 · tool 1227 / 18 · riesgo 1454 / 22 · archivo 2891 / 48 · **código 12880 / 128**.
+
+Lo que se puede afirmar y lo que no:
+
+- **La diferencia de salida no es comparable limpia.** §1 fueron 12 prompts × 1 rep; esto, 60 × 3. Aun así el salto de 604 a 18 tokens de mediana es de otra escala, y el mecanismo está a la vista: el prompt de Hatboo pide «Breve por defecto» y «sin preámbulos», y el modelo obedece. Como el 98 % del coste lo mandan los tokens de salida, **la línea base de la app es más barata que el proveedor pelado, no más cara** — 60,4 min por 180 corridas frente a los 94,9 min que proyectaba la suite por la puerta cruda.
+- **El coste real de la capa de identidad es el prefill**: +998 tokens de entrada por turno (1019 frente a 19). Prefill es lo barato en esta máquina (§1: 6 s de 379), así que se paga en TTFT y no en decode.
+- **`num_ctx` no lo puede fijar la app por esta puerta.** Probado: `options:{num_ctx:2048}` se ignora y el modelo se queda en 32768 (gemma3) / 40960 (qwen3:1.7b, **6437 MB**). El contexto lo decide Ollama.
+- **`temperature` y `seed` sí se honran** (dos llamadas idénticas, 285 tokens las dos en la sonda). La app no los manda; el protocolo de §0 los exige y la emulación los manda: la app real es más ruidosa que lo medido aquí.
+- El stream de `/v1` no trae `usage` sin `stream_options:{include_usage:true}`, y no declara `load/prompt_eval/eval_duration`: prefill, decode y carga quedan `null` y el tok/s se deriva de `usage` contra el reloj del arnés.
+- **gemma3:1b no razona por esta puerta** (0 caracteres de `reasoning` de mediana). qwen3:1.7b sí: en la sonda soltó razonamiento y 285 tokens para un «di solo: listo». Ese es el coste de elegir un modelo que piensa por defecto, y lo mide la corrida de ese modelo, no esta.
+- RAM: libre mínima **0,50 GB** durante la corrida, sin esperas (3 ms acumulados en 180 comprobaciones) y sin corte. El modelo ya estaba residente; el guard de carga (1,6 GB libres) solo se exige al cargar.
+- Sigue sin ser la app: sin tools del modo trabajo (el prompt las describe, pero nadie las ejecuta), sin historial de sesión, sin verificación, sin UI. La ruta 2 (`duration_ms` por mensaje) es la única que cerraría eso.
+
 
 ## 8. Coste de correr la suite entera
 
@@ -189,8 +218,16 @@ Y una condición del protocolo: **con la máquina en calma**. El ruido de §5 es
 
 | pide la Fase 0 | estado |
 |---|---|
-| Bench | **arnés y suite hechos** (`scripts/fase0-bench.mjs` + `benchmarks/base.json`, 60 prompts 42/18) |
-| Línea base | **hecha del proveedor, no de la app** (§7): ese es el hueco real que queda |
+| Bench | **arnés y suite hechos** (`scripts/fase0-bench.mjs` + `benchmarks/base.json`, 60 prompts 42/18), ahora con **dos puertas**: `--ruta proveedor` y `--ruta app` |
+| Línea base | **hecha por las dos rutas**: proveedor (§1, 12 prompts) y app (§7.1, 60 × 3 = 180 corridas en 60,4 min, 4 timeouts). La ruta 2 de §7 (`duration_ms` por mensaje) sigue abierta: es la única que mide SU uso real |
+| Suite corrida | **1 de los 7 modelos** (gemma3:1b, el que cupo por la puerta de la app). Faltan los otros 6; la proyección por modelo se puede hacer ya con la media medida: 60,4 min |
 | RAM real por modelo | **hecha** (§2), con 4 combinaciones que no cupieron registradas como tales |
 | Pesos de Efficiency | **fijados** (§6); `w_c` en API y `w_t` dependen de la Fase 5 y del bench de API |
 | Umbral 5 % | **confirmado y acotado** (§5): 5 % al agregado, ±35 % por corrida |
+
+Tres cosas que añade la corrida por la puerta de la app, y ninguna es decorativa:
+
+- **`num_ctx` no lo puede fijar la app con Ollama por `/v1`.** Probado: `options:{num_ctx}` se ignora; gemma3 carga a 32768 y qwen3:1.7b a 40960 (**6437 MB**, que en 8,45 GB no es un piloto, es un atasco). La escalera de §1 (2048/4096/8192 por nivel) **hoy no es aplicable desde Hatboo**: para mandarle un contexto al modelo local hay que volver a `/api/generate` o escribir un `Modelfile`. Es trabajo de la tanda del adaptador, no del Brain.
+- **La capa de identidad cuesta prefill y ahorra salida.** +998 tokens de entrada por turno (1019 frente a 19) y **18 tokens de salida de mediana frente a 604** del piloto del proveedor. Por categoría, app frente a §1: saludo 0,58 s / 1,7 s · ambigüedad 0,67 / 1,9 · tool 1,23 / 55,6 · riesgo 1,45 / 34,6 · archivo 2,89 / 48,5 · código 12,9 / 47,5. Como el 98 % del coste lo mandan los tokens de salida, **la línea base real de la app es más barata que el proveedor pelado**, no más cara. Cuidado con leerlo como mérito: §1 fueron 12 prompts × 1 rep y esto 60 × 3; la forma no es idéntica, y el mecanismo es que el prompt de Hatboo pide brevedad y el modelo obedece.
+- **La meta de §9 «latencia N0/N1 ≤ 50 %» no se puede cumplir llamando al modelo.** La línea base de N0/N1 por la puerta de la app es 583 ms (saludo) y 672 ms (ambigüedad) de mediana, y la mitad son 292 y 336 ms. Con TTFT medido en 168 ms y 6 tokens de salida a ~14 tok/s, el suelo de un turno que contesta el modelo está en el orden de esos 583 ms: recortarlo a la mitad significa **no llamarlo**, que es la opción (b) del saludo (letra fija en el crate) y sigue sin elegir. Lo que sí puede bajar el Brain es el resto: no retener 1009 MB y no pagar los 3,7 s de recarga.
+
