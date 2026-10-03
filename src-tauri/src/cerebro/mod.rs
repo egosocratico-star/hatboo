@@ -32,6 +32,11 @@ pub mod medidas;
 #[cfg(feature = "cerebro")]
 pub mod almacen;
 
+/// Las manos del modo trabajo: el Brain decide y aquí se ejecutan sus llamadas,
+/// con la aprobación que ya usa el bucle y el sandbox de las tools de siempre.
+#[cfg(feature = "cerebro")]
+pub mod herramientas;
+
 #[cfg(feature = "cerebro")]
 mod real;
 #[cfg(feature = "cerebro")]
