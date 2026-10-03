@@ -291,7 +291,7 @@ impl ResourceProbe for Sonda {
 /// falta: sin `ram_mb_by_ctx` el Governor descarta todo local (§X del Canon: lo
 /// que no está medido no se afirma), y sin el resto el Selector no sabe qué puede
 /// pedirle al modelo.
-async fn function_registry(desde: &OllamaProvider) -> Result<Registry, String> {
+pub(crate) async fn function_registry(desde: &OllamaProvider) -> Result<Registry, String> {
     let mut modelos = desde
         .list_models()
         .await

@@ -37,6 +37,10 @@ pub mod almacen;
 #[cfg(feature = "cerebro")]
 pub mod herramientas;
 
+/// El brazo: una corrida completa del modo trabajo administrada por el Brain.
+#[cfg(feature = "cerebro")]
+pub mod trabajo;
+
 #[cfg(feature = "cerebro")]
 mod real;
 #[cfg(feature = "cerebro")]

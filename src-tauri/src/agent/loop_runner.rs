@@ -115,7 +115,7 @@ fn reasoning_resumen(blocks: &[Value]) -> String {
 /// `tool_name = razonamiento`: es la misma pseudo-línea que monta el frontend
 /// mientras se trabaja, y así la traza reconstruida al reabrir la sesión no
 /// pierde el «Pensó…».
-fn emit_reasoning(app: &tauri::AppHandle, conversation_id: &str, blocks: &[Value]) {
+pub(crate) fn emit_reasoning(app: &tauri::AppHandle, conversation_id: &str, blocks: &[Value]) {
     let text = reasoning_resumen(blocks);
     if text.is_empty() {
         return;
@@ -740,6 +740,28 @@ async fn run_loop(
             settings.active_provider.as_str(),
             "anthropic" | "openai" | "openrouter" | "gemini" | "hf" | "groq"
         );
+    // El Brain administra el turno de trabajo: decide, firma el Plan y ejecuta
+    // con las mismas tools y el mismo modal de siempre. Solo con el interruptor
+    // puesto y el proveedor local; en cualquier otro caso el bucle de abajo es
+    // exactamente el de siempre. Si el Brain falla, el `?` devuelve el error por
+    // el mismo camino que cualquier fallo del bucle.
+    if settings.brain_enabled && settings.active_provider == "local" {
+        let resumen = crate::cerebro::trabajo::correr(crate::cerebro::trabajo::TurnoDeTrabajo {
+            app: app.clone(),
+            conv: conversation_id.to_string(),
+            raiz: project_root.to_path_buf(),
+            nivel: approval_level.to_string(),
+            assistant_name: assistant_name.to_string(),
+            user_request: user_request.to_string(),
+            settings,
+            agent_tools,
+            redactar,
+            data_dir: state.data_dir.clone(),
+        })
+        .await?;
+        finish_done(app, conversation_id, &resumen).await?;
+        return Ok(());
+    }
     let mut definitions = meta_tool_definitions();
     definitions.extend(agent_tools.iter().map(|t| t.definition()));
 
@@ -996,7 +1018,7 @@ async fn handle_update_step(
     Ok((json!({ "ok": true }).to_string(), true))
 }
 
-async fn handle_agent_tool(
+pub(crate) async fn handle_agent_tool(
     app: &tauri::AppHandle,
     conversation_id: &str,
     project_root: &Path,
