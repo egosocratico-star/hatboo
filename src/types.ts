@@ -172,6 +172,16 @@ export interface Settings {
   notifyOnFinish: boolean;
   /** El agente espera a que el usuario revise el plan antes de ejecutarlo. */
   reviewPlan: boolean;
+  /** El chat pasa por el crate `hatboo-brain`: decide el nivel, firma un Plan y
+   *  recorta el contexto antes de llamar al modelo. Apagado por defecto, y solo
+   *  actúa con el proveedor local y sin imágenes en el turno. */
+  brainEnabled: boolean;
+  /** MB de RAM libre que el Governor deja intocados. 1500 es lo que fija §11 del
+   *  plan; con esa cifra, en un portátil de 8,45 GB no cabe ningún modelo local. */
+  brainMargenMb: number;
+  /** Guarda una línea por turno con el texto del usuario ya redactado, en
+   *  `<datos>/brain/decisiones.jsonl`. Apagado por defecto: son datos propios. */
+  brainDataset: boolean;
   redactSecrets: boolean;
   /** Nombres de carpeta que se saltan el árbol, la búsqueda y el agente. La lista
    *  vive en Rust (`agent/ignore.rs`) y es LA MISMA para los tres. */
@@ -485,4 +495,25 @@ export interface PendingApproval {
   toolName: string;
   input: Record<string, unknown>;
   preview: string;
+}
+
+/** Lo que decidió el crate `hatboo-brain` en el turno que acaba de responder.
+ *  Los valores de `nivel`, `contrato`, `verificacion` y `estadoSalida` los escribe
+ *  el crate en español: se muestran tal cual, sin traducirlos a medias. */
+export interface TrazaCerebro {
+  nivel: string;
+  intent: string;
+  riesgo: string;
+  contrato: string;
+  modelo: string;
+  porque: string;
+  numCtx: number;
+  salidaMax: number;
+  verificacion: string;
+  estadoSalida: string;
+  reintentos: number;
+  duracionMs: number;
+  /** Si el crate retiró la respuesta por fallar su contrato: el motivo. Vacío =
+   *  la respuesta quedó en pie. */
+  retraccion: string | null;
 }

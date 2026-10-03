@@ -2064,6 +2064,7 @@ dependencies = [
  "async-trait",
  "base64 0.22.1",
  "futures-util",
+ "hatboo-brain",
  "image",
  "keyring",
  "regex",
@@ -2083,6 +2084,20 @@ dependencies = [
  "uuid",
  "walkdir",
  "xcap",
+]
+
+[[package]]
+name = "hatboo-brain"
+version = "0.1.0"
+source = "git+https://github.com/egosocratico-star/hatboo-brain?branch=main#69de00e3b5f662f891ec5873e6a696713b65e6dc"
+dependencies = [
+ "async-trait",
+ "futures-util",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tokio",
 ]
 
 [[package]]

@@ -93,6 +93,56 @@ export default function AjustesAgente({
             </span>
           </span>
         </label>
+        <label className="flex items-start gap-3 rounded-xl border border-base-border bg-base-card px-3 py-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={!!draft.brainEnabled}
+            onChange={(e) => setDraft({ ...draft, brainEnabled: e.target.checked })}
+            className="mt-0.5 accent-violet-500"
+          />
+          <span className="space-y-0.5">
+            <span className="block text-sm text-zinc-200">
+              {t("Cerebro aparte para el chat")}
+            </span>
+            <span className="block text-xs text-zinc-500">
+              {t("El chat pasa por el crate que decide el nivel, firma un Plan y recorta el contexto antes de llamar al modelo. Solo actúa con el proveedor local y sin imágenes en el mensaje: con una nube activa, con una imagen adjunta, o si el Brain se cae antes de la primera letra, se responde por el camino de siempre y la nota de encima del compositor dice por qué.")}
+            </span>
+          </span>
+        </label>
+        <label className="flex items-start gap-3 rounded-xl border border-base-border bg-base-card px-3 py-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={(draft.brainMargenMb ?? 1500) <= 250}
+            onChange={(e) =>
+              setDraft({ ...draft, brainMargenMb: e.target.checked ? 250 : 1500 })
+            }
+            className="mt-0.5 accent-violet-500"
+          />
+          <span className="space-y-0.5">
+            <span className="block text-sm text-zinc-200">
+              {t("Margen de RAM bajo (250 MB)")}
+            </span>
+            <span className="block text-xs text-zinc-500">
+              {t("La spec fija 1500 MB libres que no se tocan, y con esa cifra en 8,45 GB no cabe ningún modelo local: el Brain cortaría todos los pedidos. Marcado se bajan a 250 MB, que es lo medido para que quepan gemma3:1b y qwen3.5:0.8b. Es salirse de la spec y deja la máquina al borde: apaga los programas de antes.")}
+            </span>
+          </span>
+        </label>
+        <label className="flex items-start gap-3 rounded-xl border border-base-border bg-base-card px-3 py-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={!!draft.brainDataset}
+            onChange={(e) => setDraft({ ...draft, brainDataset: e.target.checked })}
+            className="mt-0.5 accent-violet-500"
+          />
+          <span className="space-y-0.5">
+            <span className="block text-sm text-zinc-200">
+              {t("Guardar el dataset de decisiones")}
+            </span>
+            <span className="block text-xs text-zinc-500">
+              {t("Una línea por turno en brain/decisiones.jsonl dentro de la carpeta de datos, con tu mensaje ya redactado: las claves y los tokens salen sustituidos, pero el texto es tuyo y se queda en el disco. Apagado no se escribe nada. Es el único modo de afinar el decisor con decisiones propias.")}
+            </span>
+          </span>
+        </label>
         <div className="rounded-xl border border-base-border bg-base-card px-3 py-3">
           <p className="text-xs font-medium text-zinc-300">
             {t("Carpetas ignoradas")}

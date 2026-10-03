@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useChatStore } from "../store/chatStore";
-import type { ClaseError, Message } from "../types";
+import type { ClaseError, Message, TrazaCerebro } from "../types";
 
 interface ChunkEvent {
   conversationId: string;
@@ -32,6 +32,13 @@ interface StoppedEvent {
 interface ReasoningEvent {
   conversationId: string;
   delta: string;
+}
+
+/** Lo que firmó `hatboo-brain` para este turno. Llega dos veces: con el Plan
+ *  firmado (a mitad de respuesta) y al terminar, con el estado de la salida. */
+interface BrainEvent {
+  conversationId: string;
+  traza: TrazaCerebro;
 }
 
 interface StatusEvent {
@@ -65,6 +72,10 @@ export function useStreaming() {
         } else {
           store.setSearchStatus(false, payload.detail ?? "La búsqueda web falló.");
         }
+      }),
+      listen<BrainEvent>("chat:brain", ({ payload }) => {
+        const store = useChatStore.getState();
+        if (payload.conversationId === store.activeId) store.setBrain(payload.traza);
       }),
       listen<DoneEvent>("chat:done", ({ payload }) => {
         const store = useChatStore.getState();

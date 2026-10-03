@@ -112,6 +112,23 @@ pub struct Settings {
     /// resultado al modelo. Sin API key; requiere salida a internet.
     #[serde(default)]
     pub web_search: bool,
+    /// El cerebro del crate `hatboo-brain`: decide, firma un Plan y recorta el
+    /// contexto antes de llamar al modelo. Apagado por defecto, y aunque se
+    /// encienda solo actúa con el proveedor local y sin imágenes en el turno.
+    #[serde(default)]
+    pub brain_enabled: bool,
+    /// Margen de RAM libre que hay que dejar intocada. §11 del plan lo fija en
+    /// 1500 MB; con esa cifra, en esta máquina de 8,45 GB no cabe ningún modelo
+    /// local y el Brain corta todo. Se expone aquí justamente para poder bajarlo
+    /// y ver el Brain trabajar, sabiendo que es salirse de lo que fija la spec.
+    #[serde(default = "default_brain_margen")]
+    pub brain_margen_mb: u64,
+    /// El dataset de decisiones (§15.9): guarda una línea por turno con TU texto
+    /// ya redactado (claves, tokens y rutas de secreto salen sustituidas) en
+    /// `<datos>/brain/decisiones.jsonl`. Apagado por defecto y sin él no se
+    /// escribe nada: es el único camino a afinar un decisor con datos propios.
+    #[serde(default)]
+    pub brain_dataset: bool,
     /// Tamaño del texto de las respuestas del chat: `sm` | `md` | `lg`.
     #[serde(default = "default_chat_font_size")]
     pub chat_font_size: String,
@@ -293,6 +310,12 @@ fn default_reasoning() -> String {
     "off".to_string()
 }
 
+/// El margen de §11 del plan: 1500 MB libres que no se tocan. Es el valor de la
+/// spec, no un ajuste medido aquí.
+fn default_brain_margen() -> u64 {
+    1500
+}
+
 /// El cuadrado es el único tamaño que los dos motores entienden igual.
 fn default_image_size() -> String {
     "1024x1024".to_string()
@@ -339,6 +362,9 @@ impl Default for Settings {
             default_approval_level: default_approval_level(),
             code_mode: false,
             web_search: false,
+            brain_enabled: false,
+            brain_margen_mb: default_brain_margen(),
+            brain_dataset: false,
             chat_font_size: default_chat_font_size(),
             chat_font_family: default_chat_font_family(),
             densidad: default_densidad(),

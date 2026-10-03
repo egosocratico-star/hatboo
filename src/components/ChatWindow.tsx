@@ -20,6 +20,8 @@ export default function ChatWindow() {
   const streamingReasoning = useChatStore((s) => s.streamingReasoning);
   const searching = useChatStore((s) => s.searching);
   const searchNote = useChatStore((s) => s.searchNote);
+  /** Lo que firmó `hatboo-brain` para el turno en curso; `null` si no pasó por él. */
+  const brain = useChatStore((s) => s.brain);
   const startedAt = useChatStore((s) => s.startedAt);
   const thinkingMs = useChatStore((s) => s.thinkingMs);
   const status = useChatStore((s) => s.status);
@@ -451,6 +453,18 @@ export default function ChatWindow() {
                 )}
                 {searchNote && !searching && (
                   <p className="mb-1 text-[12px] text-amber-400/80">{searchNote}</p>
+                )}
+                {/* Qué decidió el crate: nivel, contrato, modelo y el presupuesto
+                    firmado. El motivo completo va en el título, porque lo escribe el
+                    crate en su propio idioma y no es una cadena de la interfaz. */}
+                {brain && (
+                  <p className="mb-1 text-[12px] text-violet-400/80" title={brain.porque || undefined}>
+                    {t("Cerebro")} · {brain.nivel} · {brain.contrato} · {brain.modelo} ·{" "}
+                    {brain.numCtx}
+                    {" → "}
+                    {brain.salidaMax}
+                    {brain.retraccion && <> · {t("respuesta retirada")}</>}
+                  </p>
                 )}
                 {/* El bloque de razonamiento ocupa SIEMPRE el mismo sitio del
                     árbol. Estaba montado en dos huecos distintos —uno mientras no

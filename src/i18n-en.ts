@@ -255,6 +255,9 @@ export const en: Record<string, string> = {
   "No hay nada que guardar": "Nothing to save",
   "Guardar ajustes": "Save settings",
   "Guardar como archivo .md": "Save as a .md file",
+  "Guardar el dataset de decisiones": "Save the decision dataset",
+  "Una línea por turno en brain/decisiones.jsonl dentro de la carpeta de datos, con tu mensaje ya redactado: las claves y los tokens salen sustituidos, pero el texto es tuyo y se queda en el disco. Apagado no se escribe nada. Es el único modo de afinar el decisor con decisiones propias.":
+    "One line per turn in brain/decisiones.jsonl inside the data folder, with your message already redacted: keys and tokens come out replaced, but the text is yours and stays on disk. Off means nothing is written. It's the only way to tune the decider with your own decisions.",
   "Guardar la plantilla como archivo": "Save the template as a file",
   "hace {n} días": "{n} days ago",
   "hace {n} h": "{n} h ago",
@@ -318,6 +321,9 @@ export const en: Record<string, string> = {
     "Focus mode: chat only, no sidebar or panels (Ctrl+.)",
   "Mostrar en el explorador de archivos": "Show in file explorer",
   "Mostrar la salida": "Show output",
+  "Margen de RAM bajo (250 MB)": "Low RAM margin (250 MB)",
+  "La spec fija 1500 MB libres que no se tocan, y con esa cifra en 8,45 GB no cabe ningún modelo local: el Brain cortaría todos los pedidos. Marcado se bajan a 250 MB, que es lo medido para que quepan gemma3:1b y qwen3.5:0.8b. Es salirse de la spec y deja la máquina al borde: apaga los programas de antes.":
+    "The spec reserves 1500 MB of free RAM, and with that figure no local model fits in 8.45 GB: the brain would cut every request. Marked, it drops to 250 MB, which is what was measured to fit gemma3:1b and qwen3.5:0.8b. It steps outside the spec and leaves the machine at the edge: close what you had open first.",
   "Nivel de aprobación: {l} — {h}": "Approval level: {l} — {h}",
   "no ejecuta nada todavía": "doesn't run anything yet",
   "No hay proyecto abierto: se guarda como nivel por defecto de los proyectos nuevos.":
@@ -386,6 +392,7 @@ export const en: Record<string, string> = {
     "Review the code for bugs, uncovered cases and security issues. Prioritise by severity, cite file and line, and don't propose style changes.",
   "Revisar el plan antes de ejecutarlo": "Review the plan before running it",
   "Revisión de código": "Code review",
+  "respuesta retirada": "answer withdrawn",
   "Rust · SQLite · keyring": "Rust · SQLite · keyring",
   "Salir de Acceso total": "Leave Full access",
   "Salir del modo foco (Ctrl+.)": "Leave focus mode (Ctrl+.)",
@@ -549,6 +556,10 @@ export const en: Record<string, string> = {
     "Lets the agent run shell commands inside the project. Off by default. When enabled, whether each command asks for approval is decided by the project's approval level (Work view).",
   "Cuando el agente propone los pasos se para y te los enseña: puedes reescribirlos, quitar alguno o añadir pasos, y con lo que salga de ahí se queda el plan. Sin esto ejecuta tal cual.":
     "When the agent proposes its steps it stops and shows them to you: you can rewrite them, drop some or add more, and whatever comes out becomes the plan. Without this it runs as-is.",
+  "Cerebro": "Brain",
+  "Cerebro aparte para el chat": "A separate brain for the chat",
+  "El chat pasa por el crate que decide el nivel, firma un Plan y recorta el contexto antes de llamar al modelo. Solo actúa con el proveedor local y sin imágenes en el mensaje: con una nube activa, con una imagen adjunta, o si el Brain se cae antes de la primera letra, se responde por el camino de siempre y la nota de encima del compositor dice por qué.":
+    "The chat goes through the crate that picks the level, signs a Plan and trims the context before calling the model. It only acts with the local provider and no images in the message: with a cloud provider active, with an attachment, or if the brain fails before the first character, the answer comes the usual way and the note above the composer says why.",
   "El nivel de aprobación se ajusta por proyecto en la vista de Trabajo.":
     "The approval level is set per project in the Work view.",
   "«Sistema» sigue el claro/oscuro de Windows mientras la app esté abierta. Las paletas de debajo son fijas y se aplican al pulsarlas.":

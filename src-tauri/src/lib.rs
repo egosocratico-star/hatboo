@@ -2,6 +2,7 @@ pub mod agent;
 pub mod behavior;
 pub mod backup;
 pub mod chat;
+pub mod cerebro;
 pub mod commands;
 pub mod db;
 pub mod machine;

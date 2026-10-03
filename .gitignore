@@ -5,3 +5,10 @@ src-tauri/gen/schemas
 
 # Artefacto generado por scripts/i18n-claves.mjs
 scripts/claves.json
+
+# Config local de Cargo: `git-fetch-with-cli` + `[patch]` al brain del lado. Va en
+# la raíz porque Cargo busca `.cargo/config.toml` subiendo desde el directorio
+# actual, y `npm run check` corre desde aquí. Se ignora el directorio entero porque
+# el fichero se renombra para tenerlo apagado; si se commiteara con el `[patch]`
+# activo, el `Cargo.lock` acabaría apuntando a una ruta de este portátil.
+.cargo/

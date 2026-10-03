@@ -9,6 +9,7 @@ import type {
   Message,
   Settings,
   Skill,
+  TrazaCerebro,
 } from "../types";
 
 export type View = "chat" | "settings" | "work" | "projects";
@@ -29,6 +30,9 @@ interface ChatStore {
   thinkingMs: number | null;
   /** Aviso de la búsqueda web (sin resultados / fallo). */
   searchNote: string | null;
+  /** Qué decidió el crate `hatboo-brain` en el turno en curso. `null` = este
+   *  turno no pasó por él (interruptor apagado, proveedor de nube, o imagen). */
+  brain: TrazaCerebro | null;
   status: Status;
   /** Se está generando una imagen ahora mismo: el motor de nube tarda segundos. */
   imageBusy: boolean;
@@ -124,6 +128,8 @@ interface ChatStore {
   appendChunk: (delta: string) => void;
   appendReasoning: (delta: string) => void;
   setSearchStatus: (searching: boolean, note: string | null) => void;
+  /** Llega con el Plan firmado (a mitad de respuesta) y otra vez al terminar. */
+  setBrain: (traza: TrazaCerebro) => void;
   finishStreaming: (message: Message) => void;
   /** El stream se paró. `message` trae lo que llegó a escribirse, si quedó algo
    *  y ya está guardado: sin eso la burbuja se queda en el limbo hasta recargar. */
@@ -138,6 +144,7 @@ const BLANK_STREAM = {
   searching: false,
   thinkingMs: null as number | null,
   searchNote: null as string | null,
+  brain: null as TrazaCerebro | null,
   startedAt: 0,
 };
 
@@ -588,6 +595,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   setSearchStatus: (searching, note) => set({ searching, searchNote: note }),
+
+  setBrain: (traza) => set({ brain: traza }),
 
   finishStreaming: (message) => {
     clearBuffer();

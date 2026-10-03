@@ -321,8 +321,32 @@ pub(crate) fn spawn_chat_stream(
         let mut forward_error: Option<(ErrorClase, String)> = None;
         let mut cancelled = false;
 
+        // El interruptor del cerebro: con la feature `cerebro` compilada y el
+        // ajuste encendido, quien decide y firma el Plan es `hatboo-brain`.
+        // `aplicable` devuelve `false` sin la feature, con un proveedor de nube
+        // activo o si el turno trae imágenes, y entonces lo de abajo es
+        // exactamente la línea de siempre.
+        let usa_cerebro = crate::cerebro::aplicable(&settings, &messages);
+        let proveedor: std::sync::Arc<dyn crate::providers::AiProvider> =
+            std::sync::Arc::from(provider);
+        let ajustes = settings.clone();
+        let dir_datos = state.data_dir.clone();
+        let app_cerebro = app_for_task.clone();
+        let conv_cerebro = conv_id.clone();
         let stream_task = tauri::async_runtime::spawn(async move {
-            provider.stream_response(messages, tx).await
+            if usa_cerebro {
+                return crate::cerebro::turno(
+                    app_cerebro,
+                    conv_cerebro,
+                    ajustes,
+                    proveedor,
+                    messages,
+                    dir_datos,
+                    tx,
+                )
+                .await;
+            }
+            proveedor.stream_response(messages, tx).await
         });
 
         let mut cancel_rx = cancel_rx;
