@@ -947,6 +947,116 @@ fn image_files_in(
     Ok(files)
 }
 
+/// Lo que cabe en la vista «Adjuntos» de Ajustes: la lista y si se quedó corta.
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PaginaAdjuntos {
+    pub adjuntos: Vec<Adjunto>,
+    /// `true` cuando hubo más mensajes con adjuntos tras el corte. Sin esto, la
+    /// pantalla afirmaría «esto es todo lo que subiste» siendo un fragmento.
+    pub hay_mas: bool,
+}
+
+/// Los adjuntos de **todas** las conversaciones, del más reciente al más
+/// antiguo, para la vista «Adjuntos» de Ajustes.
+///
+/// Se recorre la tabla porque `attachments` es JSON: no hay índice posible sobre
+/// lo que el usuario sube. El coste es un parseo por mensaje con adjuntos, y el
+/// `limite` lo acota — se piden `limite` mensajes, y se lee uno de más solo para
+/// poder decir si queda algo detrás.
+pub fn pagina_de_adjuntos(conn: &Connection, limite: i64) -> Result<PaginaAdjuntos, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT m.id, m.conversation_id, m.role, m.created_at, m.attachments, c.title
+               FROM messages m JOIN conversations c ON c.id = m.conversation_id
+              WHERE m.attachments IS NOT NULL
+              ORDER BY m.created_at DESC
+              LIMIT ?1",
+        )
+        .map_err(|e| e.to_string())?;
+    let filas = stmt
+        .query_map(params![limite + 1], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+                r.get::<_, i64>(3)?,
+                r.get::<_, Option<String>>(4)?,
+                r.get::<_, String>(5)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?;
+    let mut salida: Vec<Adjunto> = Vec::new();
+    let mut mensajes = 0_i64;
+    for fila in filas {
+        let (mensaje_id, conversacion_id, rol, creado_en, raw, titulo) =
+            fila.map_err(|e| e.to_string())?;
+        mensajes += 1;
+        if mensajes > limite {
+            break;
+        }
+        for (puesto, a) in parse_json_column::<Attachment>(raw).into_iter().enumerate() {
+            salida.push(Adjunto {
+                id: format!("{mensaje_id}#{puesto}"),
+                adelanto: adelanto_del_texto(&a.text),
+                es_imagen: a.is_image(),
+                nombre: a.name,
+                media_type: a.image_media_type,
+                archivo: a.image_file,
+                mensaje_id: mensaje_id.clone(),
+                rol: rol.clone(),
+                creado_en,
+                conversacion_id: conversacion_id.clone(),
+                titulo: titulo.clone(),
+            });
+        }
+    }
+    Ok(PaginaAdjuntos {
+        hay_mas: mensajes > limite,
+        adjuntos: salida,
+    })
+}
+
+/// Una fila de la vista «Adjuntos»: lo que se subió, con la conversación de la
+/// que salió. El binario de las imágenes no está en la BD —es una ruta bajo
+/// `data_dir/attachments`—, así que viaja la ruta y el frontend pide los bytes
+/// con `attachment_image`, que es lo único que comprueba que sigan dentro.
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Adjunto {
+    /// Único en la lista: el mensaje de origen y el puesto que ocupa en él.
+    pub id: String,
+    pub nombre: String,
+    pub es_imagen: bool,
+    pub media_type: Option<String>,
+    /// Ruta bajo `data_dir/attachments`. Los bytes se piden con
+    /// `attachment_image`, que es lo único que comprueba que sigan dentro.
+    pub archivo: Option<String>,
+    /// Las primeras líneas del texto extraído. No viaja el documento entero:
+    /// una vista que liste 300 adjuntos no puede arrastrar 300 archivos.
+    pub adelanto: String,
+    pub mensaje_id: String,
+    pub rol: String,
+    pub creado_en: i64,
+    pub conversacion_id: String,
+    pub titulo: String,
+}
+
+/// El arranque del texto, cortado en un límite de palabra para que la vista no
+/// se rompa en mitad de una frase.
+fn adelanto_del_texto(texto: &str) -> String {
+    const LIMITE: usize = 180;
+    let limpio = texto.trim();
+    if limpio.chars().count() <= LIMITE {
+        return limpio.to_string();
+    }
+    let cabeza: String = limpio.chars().take(LIMITE).collect();
+    match cabeza.rfind(char::is_whitespace) {
+        Some(corte) if corte > 40 => cabeza[..corte].to_string() + "…",
+        _ => cabeza + "…",
+    }
+}
+
 /// Conversación, rol y marca de tiempo de un mensaje.
 pub fn message_position(
     conn: &Connection,
@@ -1951,6 +2061,82 @@ pub fn delete_skill(conn: &Connection, id: &str) -> Result<(), String> {
     conn.execute("DELETE FROM skills WHERE id = ?1", params![id])
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// Las ocho plantillas de arranque: `(id, nombre, prompt)`. El `id` con prefijo
+/// `semilla-` es lo que las hace reconocibles: una creada por el usuario nunca
+/// choca con ellas, y las de Ajustes → Datos distinguen qué es de serie.
+pub const SKILLS_DE_ARRANQUE: &[(&str, &str, &str)] = &[
+    (
+        "semilla-resume-archivo",
+        "Resume archivo",
+        "Resume el archivo que te di: primero las tres o cinco ideas centrales y después el recorrido sección por sección. No añadas nada que no esté en el texto; si un punto no queda claro, di que no queda claro en vez de completarlo por tu cuenta.",
+    ),
+    (
+        "semilla-explica-error",
+        "Explica error",
+        "Explica el error que te muestro: qué dice en una frase, cuál es la causa más probable en mi caso concreto y cómo comprobarla en dos minutos. Después la corrección, y di qué parte del diagnóstico es suposición.",
+    ),
+    (
+        "semilla-email",
+        "Email",
+        "Escribe el correo con lo que te cuente: asunto, saludo, cuerpo en tres o cinco frases y despedida. Tono profesional pero natural, sin relleno ni cortesía de más, y una sola petición clara en el cuerpo.",
+    ),
+    (
+        "semilla-codigo",
+        "Código",
+        "Escribe el código que pido y nada más: primero el bloque completo y que compile, después dos o tres líneas con las decisiones que no son obvias. Marca lo que habría que probar y qué caso de borde no cubriste.",
+    ),
+    (
+        "semilla-revisa-diff",
+        "Revisa diff",
+        "Revisa el diff como lo haría un compañero: bugs y casos sin cubrir primero, después legibilidad, y al final lo opcional. Di archivo y línea. Si no ves problemas, dilo en vez de inventarlos.",
+    ),
+    (
+        "semilla-traduce",
+        "Traduce",
+        "Traduce el texto manteniendo el sentido y el registro, no palabra por palabra. Deja en el original los nombres propios, el código y las unidades, y avisa cuando una expresión no tenga traducción directa.",
+    ),
+    (
+        "semilla-plan-proyecto",
+        "Plan de proyecto",
+        "Convierte lo que te pido en un plan: objetivos medibles, fases en orden diciendo qué tiene que estar hecho antes de cada una, riesgos con su señal de aviso, y lo que se queda fuera del alcance. Sin relleno motivacional.",
+    ),
+    (
+        "semilla-busca-web",
+        "Busca en la web",
+        "Si tienes búsqueda web disponible en este turno, búscala antes de responder: cita la fuente de cada afirmación que no sea de sentido común y di de qué fecha es. Si no la tienes, no finjas haber buscado: dime qué comprobarías y dónde.",
+    ),
+];
+
+/// Instala el pack de ocho en una base recién creada. **Solo si la tabla de
+/// skills está vacía**, que es lo que significa «al primer arranque» y no
+/// «restablecer»: a cambio de no pisar nunca lo del usuario, una plantilla
+/// borrada a mano no reaparece al reiniciar. Devuelve cuántas entraron.
+///
+/// Van **apagadas** las ocho, a propósito: una skill encendida viaja en el
+/// system prompt de cada respuesta, así que encenderlas por defecto sería
+/// gastar tokens en todo sin que nadie lo pidiera. Se activan en Ajustes →
+/// Skills, y desde el menú «+» se insertan en el mensaje estén o no encendidas.
+pub fn seed_skills(conn: &Connection) -> Result<usize, String> {
+    let hay_alguna = conn
+        .prepare("SELECT 1 FROM skills LIMIT 1")
+        .map_err(|e| e.to_string())?
+        .exists([])
+        .map_err(|e| e.to_string())?;
+    if hay_alguna {
+        return Ok(0);
+    }
+    let mut puestas = 0;
+    for (id, nombre, prompt) in SKILLS_DE_ARRANQUE {
+        puestas += conn
+            .execute(
+                "INSERT OR IGNORE INTO skills (id, name, prompt, enabled, created_at) VALUES (?1, ?2, ?3, 0, ?4)",
+                params![id, nombre, prompt, now_ms()],
+            )
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(puestas)
 }
 
 // ---------- Memoria escrita por el usuario ----------

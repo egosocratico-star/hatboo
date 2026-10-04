@@ -639,3 +639,138 @@ fn la_zona_horaria_mueve_el_dia_de_un_mensaje_tarde() {
 
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn las_skills_de_arranque_entran_una_vez_y_no_pisan_lo_del_usuario() {
+    let dir = std::env::temp_dir().join(format!("hatboo-test-{}", uuid::Uuid::new_v4()));
+    let conn = db::connect(&dir.join("test.db")).expect("connect+migrate");
+
+    assert!(db::list_skills(&conn).unwrap().is_empty(), "una base recién creada no trae nada");
+    assert_eq!(db::seed_skills(&conn).unwrap(), 8);
+
+    let tras = db::list_skills(&conn).unwrap();
+    assert_eq!(tras.len(), 8);
+    assert!(
+        tras.iter().all(|s| s.id.starts_with("semilla-")),
+        "las de serie se reconocen por el id, no por el nombre (que se puede editar)"
+    );
+    assert!(
+        tras.iter().all(|s| !s.enabled),
+        "entran apagadas: una skill encendida viaja en el system prompt de todo"
+    );
+    assert!(tras.iter().all(|s| !s.name.trim().is_empty() && !s.prompt.trim().is_empty()));
+
+    // Reabrir la app no duplica.
+    assert_eq!(db::seed_skills(&conn).unwrap(), 0);
+    assert_eq!(db::list_skills(&conn).unwrap().len(), 8);
+
+    // El usuario edita una de serie: la semilla no la pisa al reiniciar.
+    let una = db::list_skills(&conn).unwrap()[0].clone();
+    db::save_skill(
+        &conn,
+        &db::Skill {
+            id: una.id.clone(),
+            name: "Mi versión".into(),
+            prompt: "Como a mí me sirve".into(),
+            enabled: true,
+            created_at: 0,
+        },
+    )
+    .unwrap();
+    assert_eq!(db::seed_skills(&conn).unwrap(), 0);
+    let editada = db::list_skills(&conn)
+        .unwrap()
+        .into_iter()
+        .find(|s| s.id == una.id)
+        .unwrap();
+    assert_eq!(editada.name, "Mi versión");
+    assert!(editada.enabled, "su decisión de encenderla se respeta");
+
+    // Y una borrada a propósito no resucita: por eso el criterio es «tabla
+    // vacía» y no «falta esta id».
+    db::delete_skill(&conn, "semilla-email").unwrap();
+    assert_eq!(db::seed_skills(&conn).unwrap(), 0);
+    assert!(db::list_skills(&conn).unwrap().iter().all(|s| s.id != "semilla-email"));
+
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn la_vista_de_adjuntos_dice_quien_lo_subio() {
+    let dir = std::env::temp_dir().join(format!("hatboo-test-{}", uuid::Uuid::new_v4()));
+    let conn = db::connect(&dir.join("test.db")).expect("connect+migrate");
+
+    let una = db::create_conversation(&conn, "Uno", None).unwrap();
+    let otra = db::create_conversation(&conn, "Otra", None).unwrap();
+    db::add_message_with_attachments(
+        &conn,
+        &una.id,
+        "user",
+        "mira esto",
+        None,
+        &[db::Attachment::text("notas.md".into(), "# Título\n\ncuerpo".into())],
+    )
+    .unwrap();
+    db::add_message(&conn, &una.id, "assistant", "ok", Some("local")).unwrap();
+    db::add_message_with_attachments(
+        &conn,
+        &otra.id,
+        "user",
+        "y esta foto",
+        None,
+        &[db::Attachment {
+            name: "foto.png".into(),
+            image_media_type: Some("image/png".into()),
+            image_file: Some("/datos/attachments/foto.png".into()),
+            ..Default::default()
+        }],
+    )
+    .unwrap();
+
+    let pagina = db::pagina_de_adjuntos(&conn, 300).unwrap();
+    assert!(!pagina.hay_mas, "con dos mensajes no hay corte que anunciar");
+    let lista = pagina.adjuntos;
+    assert_eq!(lista.len(), 2, "un mensaje sin adjuntos no sale en la lista");
+    // Del más reciente al más antiguo, y con la conversación de origen en cada
+    // fila: sin eso la vista es una montaña de archivos sin contexto.
+    assert_eq!(lista[0].nombre, "foto.png");
+    assert_eq!(lista[0].titulo, "Otra");
+    assert_eq!(lista[0].conversacion_id, otra.id);
+    assert!(lista[0].es_imagen);
+    assert_eq!(lista[0].rol, "user");
+    assert_eq!(lista[1].nombre, "notas.md");
+    assert_eq!(lista[1].titulo, "Uno");
+    assert!(!lista[1].es_imagen);
+    assert_eq!(lista[1].adelanto, "# Título\n\ncuerpo");
+    assert!(
+        lista[0].id != lista[1].id,
+        "el id lleva el mensaje y el puesto, o la lista se desordena en React"
+    );
+
+    // El límite acota por mensaje con adjuntos, y se puede decir que quedó más.
+    let corto = db::pagina_de_adjuntos(&conn, 1).unwrap();
+    assert_eq!(corto.adjuntos.len(), 1);
+    assert!(corto.hay_mas, "queda otro mensaje detrás: sin esto la vista miente");
+
+    // El adelanto se corta en palabra, no en mitad de una.
+    let largo = "a".repeat(20) + " " + &"palabra ".repeat(60);
+    db::add_message_with_attachments(
+        &conn,
+        &una.id,
+        "user",
+        "otro",
+        None,
+        &[db::Attachment::text("largo.txt".into(), largo)],
+    )
+    .unwrap();
+    let tras_largo = db::pagina_de_adjuntos(&conn, 300).unwrap().adjuntos;
+    let adelanto = &tras_largo[0].adelanto;
+    assert!(adelanto.ends_with('…'), "cortado: {adelanto}");
+    assert!(adelanto.chars().count() <= 181, "{} chars", adelanto.chars().count());
+    assert!(
+        adelanto.ends_with("palabra…"),
+        "corta en límite de palabra, no en mitad: {adelanto}"
+    );
+
+    let _ = std::fs::remove_dir_all(dir);
+}

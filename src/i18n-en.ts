@@ -1161,4 +1161,27 @@ export const en: Record<string, string> = {
     "Only Gemini and OpenAI draw — the two engines written into Hatboo: Ollama generates no images and Hugging Face isn't wired up yet. You choose it in Settings → API.",
   "Aún no hay conversaciones. En cuanto escribas en el chat, aparecerá aquí.":
     "No conversations yet. As soon as you write in the chat, it shows up here.",
+
+  // ---- Vista de Adjuntos (Ajustes → Adjuntos). ----
+  "Adjuntos": "Attachments",
+  "Lo que subiste al chat, con la conversación de la que salió.":
+    "What you uploaded to the chat, with the conversation it came from.",
+  "Las imágenes se guardan en disco y el texto, ya extraído. Se van al borrar el mensaje o la conversación: no hay forma de quitar un adjunto suelto.":
+    "Images are kept on disk and text is kept already extracted. They go when you delete the message or the conversation: there is no way to remove a single attachment.",
+  "Buscar por archivo o conversación…": "Search by file or conversation…",
+  "imagen": "image",
+  "texto": "text",
+  "No se pudo leer la lista:": "The list could not be read:",
+  "Ya no está en la carpeta de adjuntos de Hatboo.": "It is no longer in Hatboo's attachments folder.",
+  "Nada coincide con lo que escribiste.": "Nothing matches what you typed.",
+  "Prueba con el nombre del archivo o con el título de la conversación.":
+    "Try the file name or the conversation title.",
+  "Todavía no subiste nada.": "You have not uploaded anything yet.",
+  "El clip del compositor adjunta archivos de texto e imágenes.":
+    "The composer's clip attaches text files and images.",
+  "Todos los adjuntos que encuentra la lista.": "Every attachment the list finds.",
+  "La lista corta en los mensajes más recientes; hay más detrás.":
+    "The list cuts off at the most recent messages; there are more behind.",
+  "La lista corta en los mensajes con adjuntos más recientes; puede haber más antiguos detrás.":
+    "The list cuts off at the most recent messages with attachments; older ones may be behind.",
 };

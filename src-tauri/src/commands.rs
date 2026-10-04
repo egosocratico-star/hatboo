@@ -844,6 +844,18 @@ pub fn delete_artifact(app: State<AppState>, id: String) -> Result<(), String> {
     db::borrar_artifact(&conn, &id)
 }
 
+/// Lo que se subió en cualquier conversación, con su origen: la vista
+/// «Adjuntos» de Ajustes. `limite` es por mensajes con adjuntos, no por
+/// adjuntos; uno puede traer varios.
+#[tauri::command]
+pub fn list_attachments(
+    app: State<AppState>,
+    limite: Option<i64>,
+) -> Result<db::PaginaAdjuntos, String> {
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    db::pagina_de_adjuntos(&conn, limite.unwrap_or(300))
+}
+
 /// Las fuentes vinculadas a un proyecto, con la ruta tal como se guardó.
 #[tauri::command]
 pub fn list_sources(app: State<AppState>, project_id: String) -> Result<Vec<db::Fuente>, String> {

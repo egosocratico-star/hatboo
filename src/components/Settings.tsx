@@ -20,6 +20,7 @@ import {
   Info,
   Keyboard,
   Palette,
+  Paperclip,
   RefreshCw,
   Search,
   SlidersHorizontal,
@@ -33,6 +34,7 @@ import { useChatStore } from "../store/chatStore";
 import { useWorkStore } from "../store/workStore";
 import SkillsSettings from "./SkillsSettings";
 import MemoriaView from "./MemoriaView";
+import AdjuntosView from "./AdjuntosView";
 import { applyAccent, applyDensity, applyTheme } from "../theme";
 import { type Settings as SettingsType, type StorageInfo } from "../types";
 import { PROVEEDORES } from "../proveedores";
@@ -43,6 +45,7 @@ type CategoryId =
   | "skills"
   | "profile"
   | "memoria"
+  | "adjuntos"
   | "shortcuts"
   | "about"
   | "general"
@@ -63,6 +66,7 @@ const CATEGORIES: Array<{
   { id: "skills", label: "Skills", icon: Sparkles, ready: true },
   { id: "profile", label: "Perfil", icon: User, ready: true },
   { id: "memoria", label: "Memoria", icon: Brain, ready: true },
+  { id: "adjuntos", label: "Adjuntos", icon: Paperclip, ready: true },
   { id: "system", label: "Sistema", icon: HardDrive, ready: true },
   { id: "data", label: "Datos", icon: Database, ready: true },
   { id: "shortcuts", label: "Atajos", icon: Keyboard, ready: true },
@@ -306,6 +310,11 @@ export default function Settings() {
           {/* Guarda sola: cada nota se escribe en SQLite al añadirla, no hay un
               borrador global que perder al cambiar de pestaña. */}
           {cat === "memoria" && <MemoriaView />}
+
+          {/* Solo lectura. La app no tiene forma de quitar un adjunto suelto —
+              se va con su mensaje o su conversación—, así que aquí no hay
+              botones de borrar que no podrían cumplir. */}
+          {cat === "adjuntos" && <AdjuntosView />}
 
           {cat === "shortcuts" && <AjustesAtajos />}
 

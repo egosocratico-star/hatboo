@@ -26,6 +26,10 @@ pub fn run() {
             // Quitar conversaciones de chat vacías de arranques anteriores.
             // Si falla no se impide abrir la app: solo es limpieza.
             let _ = db::prune_empty_chat_conversations(&conn);
+            // Las ocho plantillas de serie. Solo entran si la tabla está vacía
+            // —primer arranque, no restablecimiento—, así que reabrir la app no
+            // pisa ni resucita nada de lo que el usuario tocó.
+            let _ = db::seed_skills(&conn);
             app.manage(AppState::new(conn, data_dir));
             Ok(())
         })
@@ -46,6 +50,7 @@ pub fn run() {
             commands::select_message_variant,
             commands::save_artifact,
             commands::list_artifacts,
+            commands::list_attachments,
             commands::delete_artifact,
             commands::perfil_estadisticas,
             commands::list_sources,
