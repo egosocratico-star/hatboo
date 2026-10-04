@@ -32,7 +32,7 @@ const NIV = 255;
 /** Las dos fuerzas que hay hornedas en `src/assets/grano-*.svg`. Son dos porque la
  *  banda de textura se cumple con dos y cada tile cuesta un archivo y una línea de
  *  CSS por paleta; tres no aportaban nada que no hicieran estas dos. */
-const FUERZAS = [0.15, 0.45];
+const FUERZAS = [0.15, 0.3, 0.45];
 
 /** Banda de textura sobre la tarjeta: por debajo no se ve; por encima se lee como
  *  suciedad. La cota la fija Nord, que es la paleta que más textura saca. */

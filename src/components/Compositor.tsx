@@ -88,7 +88,7 @@ export default function Compositor({
   };
 
   return (
-    <div className="relative rounded-entrada border border-base-border bg-base-card shadow-flotante px-3.5 pt-3 pb-2.5 ring-accent/25 transition-[border-color,box-shadow] focus-within:border-accent/60 focus-within:ring-2">
+    <div className="relative rounded-entrada border border-layer/10 bg-base-card shadow-flotante px-3.5 pt-3 pb-2.5 ring-accent/25 transition-[border-color,box-shadow] focus-within:border-accent/60 focus-within:ring-2">
       {slash.abierto && (
         <SlashPopover lista={slash.lista} indice={slash.indice} onPick={slash.elegir} />
       )}

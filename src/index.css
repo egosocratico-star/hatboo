@@ -11,15 +11,15 @@
 :root {
   /* Cuatro radios: la insignia, el campo, la tarjeta y la caja de
    * entrada, que es la que manda en el chat. Nada de 18 px sueltos. */
-  /* Una escala de curvas, no cuatro valores sueltos. Cada radio es el anterior
-     + el salto del anterior, así las esquinas guardan proporción al crecer la
-     superficie. Subieron todos un punto respecto a la escala vieja (6/10/16/24)
-     porque con superficies planas son las curvas las que dan la sensación de
-     blando, no el brillo. */
+  /* La escala se aprieta a la franja 12–16 px del rediseño: la caja de entrada
+     deja la píldora (28) por un rectángulo suave (14), y la tarjeta baja de 20
+     a 16 para que una caja recta no quede al lado de tarjetas mucho más curvas.
+     Así el botón redondo de enviar contrasta dentro de la caja en vez de repetir
+     la misma curva. */
   --radio-chip: 8px;
   --radio-campo: 12px;
-  --radio-tarjeta: 20px;
-  --radio-entrada: 28px;
+  --radio-tarjeta: 16px;
+  --radio-entrada: 14px;
   /* La única curva de desaceleración de la app: arranque rápido, final largo.
      Se elige aquí para que un panel, un popover y una fila frene igual. */
   --curva-suave: cubic-bezier(0.32, 0.72, 0, 1);
@@ -50,7 +50,7 @@
     0 22px 56px -14px rgb(var(--shade) / 0.55);
 
   /* ============================================================
-     Grano. Dos teselas de ruido de 256 px y UNA fuerza por paleta,
+     Grano. Tres teselas de ruido de 256 px y UNA fuerza por paleta,
      porque la textura que sale depende del tono, no del gusto:
      mezclado con `overlay` el salto es 2·min(b,1−b)·0,294·F, así que
      Nord saca 5,2 niveles con la fuerza suave y el oscuro de Hatboo
@@ -63,6 +63,7 @@
      apagando el píxel y solo se texturizan las tarjetas.
      ============================================================ */
   --grano-suave: url("./assets/grano-suave.svg");
+  --grano-medio: url("./assets/grano-medio.svg");
   --grano-fuerte: url("./assets/grano-fuerte.svg");
   /* Ningún tema hereda grano: lo pide cada paleta. Así un tema nuevo no lo
      recibe por descuido. */
@@ -164,28 +165,30 @@
    componente. Los valores van como "R G B" para que Tailwind pueda
    meterles opacidad (rgb(var(--x) / <alpha-value>)).
 
-   El tema oscuro reproduce EXACTAMENTE los literales que había antes
-   a pelo en el config: cambiar de tema no debe apreciarse en él.
+   El tema oscuro es el gris industrial neutro del rediseño (#18181c el fondo,
+   #202024 la barra y las tarjetas, #2a2a2e el borde): grises sin tinte azul,
+   con la misma relación fondo < barra < tarjeta de siempre. El acento se
+   queda violeta.
    ============================================================ */
 :root {
   color-scheme: dark;
 
-  --surface: 11 11 16; /* #0b0b10 */
+  --surface: 24 24 28; /* #18181c */
   /* Dos alturas, no cinco: el fondo y la tarjeta. `raised` es la MISMA altura
      que `card` a propósito — paneles, popovers y tarjetas son el mismo plano y
      se separan con el filete, no con más brillo. `code` se queda distinto
      porque el código y los diffs necesitan leerse como otro material. */
-  --surface-raised: 24 24 32;
+  --surface-raised: 32 32 36;
   /* Nivel 2: tarjetas, menús y modales. Sin este paso la app se pintaba con
      `bg-base/40`, `bg-base/60`, `bg-base-raised/70`…: quince opacidades
      distintas para decir lo mismo, y superficies que quedaban al mismo nivel
      que el fondo. Dos niveles, opacos, y se acabó la picaresca. */
-  --surface-card: 24 24 32; /* #181820 */
-  --surface-border: 34 34 46; /* #22222e */
-  --surface-hover: 26 26 36; /* #1a1a24 */
+  --surface-card: 32 32 36; /* #202024 */
+  --surface-border: 42 42 46; /* #2a2a2e */
+  --surface-hover: 30 30 34; /* #1e1e22 */
   /* Bloques de código: antes eran `bg-black/50` sobre el panel, que en claro
      dejaría texto casi negro sobre bloque casi negro. */
-  --surface-code: 8 8 12;
+  --surface-code: 16 16 20;
 
   --accent: 139 92 246; /* #8b5cf6 */
   --accent-soft: 167 139 250; /* #a78bfa */
@@ -569,9 +572,10 @@
    deriva del tono y el peor píxel contra los suelos de contraste); si
    se añade un tema, ese script dice cuál le toca.
    ============================================================ */
-/* oscuro: 6,4 niv en tarjeta · 2,9 en fondo */
+/* oscuro: la tarjeta gris #202024 pide la fuerza media (0,30); la fuerte
+   texturiza de más y se pasa de la banda de 8 niv. */
 :root {
-  --grano: var(--grano-fuerte);
+  --grano: var(--grano-medio);
 }
 /* sin grano, medido: `overlay` sobre blanco puro es identidad (0,0 niv) */
 [data-theme="light"] {
@@ -581,9 +585,9 @@
 [data-theme="space"] {
   --grano: var(--grano-fuerte);
 }
-/* 3,6 niv con la suave; con la fuerte se iría a 10,8 */
+/* 7,2 niv con la media; la fuerte se iría a 10,8 */
 [data-theme="tokyo"] {
-  --grano: var(--grano-suave);
+  --grano: var(--grano-medio);
 }
 /* 5,2 niv; es la paleta más clara de las oscuras y la que más textura saca */
 [data-theme="nord"] {

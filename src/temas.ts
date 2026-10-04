@@ -58,10 +58,10 @@ export const MODOS: Tema[] = [
   {
     id: "dark",
     nombre: "Oscuro",
-    nota: "El de siempre, negro azulado",
+    nota: "Gris industrial, acento violeta",
     oscuro: true,
-    fondo: "#0b0b10",
-    panel: "#181820",
+    fondo: "#18181c",
+    panel: "#202024",
     acento: "#8b5cf6",
     texto: "#f4f4f5",
   },
