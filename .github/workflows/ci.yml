@@ -20,6 +20,8 @@ jobs:
           cache: npm
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -32,9 +34,21 @@ jobs:
       - name: Frontend (tsc + vite)
         run: npm run build
 
+      # La puerta que destapa lo que las de abajo no miran: `--all-targets`
+      # COMPILA `agent_flow`, `local_provider` y `keyring`, que aquí no se corren
+      # (piden Ollama o el llavero real). Sin este paso esas tres pueden dejar de
+      # compilar y la CI seguir verde — ya pasó: `agent_flow` estuvo meses roto
+      # porque ningún gate lo construía. Con `-D warnings` además no entra un lint
+      # silencioso; en local está a cero con las features por defecto (`cerebro`).
+      - name: Clippy (todos los targets, advertencias cortan)
+        run: >
+          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets
+          -- -D warnings
+
       # A propósito fuera: agent_flow y local_provider hablan con un Ollama en
       # marcha, y keyring usa el llavero real de la máquina. Son pruebas de
-      # integración locales por diseño, no de CI.
+      # integración locales por diseño, no de CI. Lo que sí hace el paso de arriba
+      # es compilarlas.
       - name: Pruebas de Rust
         run: >
           cargo test --manifest-path src-tauri/Cargo.toml --no-fail-fast
