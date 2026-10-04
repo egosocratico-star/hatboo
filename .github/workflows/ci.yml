@@ -14,20 +14,6 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # `hatboo-brain` es un repo privado y es dependencia del backend, así que
-      # sin credencial Cargo no puede ni resolver el grafo. Se le da un PAT de
-      # solo lectura (`secrets.HATBOO_BRAIN_TOKEN`, fine-grained, con Access a
-      # ese repo) y se inyecta en la URL solo para esa ruta. Con `libgit2` esto no
-      # funcionaría: `git-fetch-with-cli` es lo que hace que Cargo use el `git` de
-      # siempre y le sirva el `insteadOf`.
-      - name: Acceso al brain (repo privado)
-        shell: bash
-        env:
-          PAT: ${{ secrets.HATBOO_BRAIN_TOKEN }}
-        run: |
-          git config --global url."https://x-access-token:${PAT}@github.com/egosocratico-star/hatboo-brain".insteadOf "https://github.com/egosocratico-star/hatboo-brain"
-          echo "CARGO_NET_GIT_FETCH_WITH_CLI=true" >> "$GITHUB_ENV"
-
       - uses: actions/setup-node@v5
         with:
           node-version: 24

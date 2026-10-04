@@ -20,12 +20,11 @@ cerebro = ["dep:hatboo-brain"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-# El brain es privado y entra por `git`, no por `path`: un `path` relativo nunca
+# El brain es público y entra por `git`, no por `path`: un `path` relativo nunca
 # vale a la vez en su portátil (`../../../../hatboo-brain`) y en el runner
-# (`D:\a\hatboo\hatboo\src-tauri`), y Cargo no expande variables ahí. El CI lo
-# autoriza con un PAT de solo lectura (`secrets.HATBOO_BRAIN_TOKEN`) y
-# `git-fetch-with-cli`. Para iterar sobre el crate sin empujarlo existe
-# `src-tauri/.cargo/config.toml` con un `[patch]` al copia-local, y ese fichero
+# (`D:\a\hatboo\hatboo\src-tauri`), y Cargo no expande variables ahí. Para iterar
+# sobre el crate sin empujarlo existe `.cargo/config.toml.parche` (renombrar a
+# `config.toml` para activarlo), con un `[patch]` al copia-local; ese fichero
 # está fuera del repo a propósito: el `Cargo.lock` sí se comparte.
 hatboo-brain = { git = "https://github.com/egosocratico-star/hatboo-brain", branch = "main", optional = true }
 tauri = { version = "2", features = [] }

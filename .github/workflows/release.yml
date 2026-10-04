@@ -27,15 +27,6 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # Igual que en `ci.yml`: el brain es privado y sin PAT Cargo no resuelve.
-      - name: Acceso al brain (repo privado)
-        shell: bash
-        env:
-          PAT: ${{ secrets.HATBOO_BRAIN_TOKEN }}
-        run: |
-          git config --global url."https://x-access-token:${PAT}@github.com/egosocratico-star/hatboo-brain".insteadOf "https://github.com/egosocratico-star/hatboo-brain"
-          echo "CARGO_NET_GIT_FETCH_WITH_CLI=true" >> "$GITHUB_ENV"
-
       - uses: actions/setup-node@v5
         with:
           node-version: 24
