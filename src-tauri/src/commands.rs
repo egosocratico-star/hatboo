@@ -2980,6 +2980,7 @@ mod tests {
                 snippet: String::new(),
             }],
             feedback: None,
+            brain_datos: None,
             parent_id: None,
             variantas: None,
         };

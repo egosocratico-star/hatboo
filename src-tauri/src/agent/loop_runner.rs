@@ -39,9 +39,9 @@ fn notify(app: &tauri::AppHandle, title: &str, body: &str) {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct PlanPayload {
-    conversation_id: String,
-    tasks: Vec<db::Task>,
+pub(crate) struct PlanPayload {
+    pub(crate) conversation_id: String,
+    pub(crate) tasks: Vec<db::Task>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -743,24 +743,42 @@ async fn run_loop(
     // El Brain administra el turno de trabajo: decide, firma el Plan y ejecuta
     // con las mismas tools y el mismo modal de siempre. Solo con el interruptor
     // puesto y el proveedor local; en cualquier otro caso el bucle de abajo es
-    // exactamente el de siempre. Si el Brain falla, el `?` devuelve el error por
-    // el mismo camino que cualquier fallo del bucle.
+    // exactamente el de siempre. Si el Brain se cae **antes de ejecutar nada**
+    // (Ollama apagado, el modelo sin medir, las reglas rotas) se avisa y se
+    // responde por el bucle de siempre: el interruptor no puede costar una tarea.
+    // Si ya tocó el disco, repetir sería trabajo doble y el error sube tal cual.
     if settings.brain_enabled && settings.active_provider == "local" {
-        let resumen = crate::cerebro::trabajo::correr(crate::cerebro::trabajo::TurnoDeTrabajo {
+        match crate::cerebro::trabajo::correr(crate::cerebro::trabajo::TurnoDeTrabajo {
             app: app.clone(),
             conv: conversation_id.to_string(),
             raiz: project_root.to_path_buf(),
             nivel: approval_level.to_string(),
             assistant_name: assistant_name.to_string(),
             user_request: user_request.to_string(),
-            settings,
-            agent_tools,
+            // Copias propias: si el Brain falla temprano, abajo quedan `settings`
+            // y `agent_tools` intactos para el bucle de siempre.
+            settings: settings.clone(),
+            agent_tools: tools::build_tools(&settings, &fuentes),
             redactar,
             data_dir: state.data_dir.clone(),
         })
-        .await?;
-        finish_done(app, conversation_id, &resumen).await?;
-        return Ok(());
+        .await
+        {
+            Ok(resumen) => {
+                finish_done(app, conversation_id, &resumen).await?;
+                return Ok(());
+            }
+            Err(crate::cerebro::trabajo::FalloTrabajo::AntesDeEjecutar(motivo)) => {
+                notify(
+                    app,
+                    "Hatboo respondió por el camino normal",
+                    &format!("el Brain no pudo montar el turno: {motivo}"),
+                );
+            }
+            Err(crate::cerebro::trabajo::FalloTrabajo::DespuesDeEjecutar(motivo)) => {
+                return Err(motivo);
+            }
+        }
     }
     let mut definitions = meta_tool_definitions();
     definitions.extend(agent_tools.iter().map(|t| t.definition()));

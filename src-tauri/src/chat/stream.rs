@@ -320,6 +320,9 @@ pub(crate) fn spawn_chat_stream(
         let started = std::time::Instant::now();
         let mut forward_error: Option<(ErrorClase, String)> = None;
         let mut cancelled = false;
+        // Lo que el Brain decidió y midió en este turno (estado + métricas), para
+        // guardarlo con el mensaje. `None` si no pasó por él.
+        let mut cerebro_datos: Option<String> = None;
 
         // El interruptor del cerebro: con la feature `cerebro` compilada y el
         // ajuste encendido, quien decide y firma el Plan es `hatboo-brain`.
@@ -346,7 +349,7 @@ pub(crate) fn spawn_chat_stream(
                 )
                 .await;
             }
-            proveedor.stream_response(messages, tx).await
+            proveedor.stream_response(messages, tx).await.map(|_| None)
         });
 
         let mut cancel_rx = cancel_rx;
@@ -397,7 +400,7 @@ pub(crate) fn spawn_chat_stream(
 
         if !cancelled {
             match stream_task.await {
-                Ok(Ok(())) => {}
+                Ok(Ok(estado)) => cerebro_datos = estado,
                 Ok(Err(e)) => forward_error = Some((ErrorClase::de(&e), e.to_string())),
                 Err(e) => forward_error = Some((
                     ErrorClase::Otro,
@@ -428,6 +431,7 @@ pub(crate) fn spawn_chat_stream(
                         reasoning: (!reasoning.trim().is_empty()).then_some(reasoning),
                         thinking_ms,
                         web_sources,
+                        brain_datos: cerebro_datos,
                         ..Default::default()
                     };
                     match conn {

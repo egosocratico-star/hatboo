@@ -65,7 +65,7 @@ pub async fn turno(
     _messages: Vec<crate::providers::ChatMessage>,
     _data_dir: std::path::PathBuf,
     _tx: tokio::sync::mpsc::Sender<crate::providers::StreamDelta>,
-) -> Result<(), crate::providers::ProviderError> {
+) -> Result<Option<String>, crate::providers::ProviderError> {
     Err(crate::providers::ProviderError::Malformed(
         "el cerebro no está compilado: falta la feature `cerebro`".into(),
     ))

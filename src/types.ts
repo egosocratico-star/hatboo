@@ -80,6 +80,9 @@ export interface Message {
   thinkingMs?: number | null;
   webSources?: WebSource[];
   feedback?: "up" | "down" | null;
+  /** Lo que decidió y midió el Brain (`{estado, ms, toks}` en JSON). `null` =
+   *  esta respuesta no pasó por él. */
+  brainDatos?: string | null;
   /** El mensaje al que responde este; `null` solo en el primero del hilo. */
   parentId?: string | null;
   /** Cuántas versiones hay escritas en este punto del hilo, cuál está puesta y
@@ -513,7 +516,4 @@ export interface TrazaCerebro {
   estadoSalida: string;
   reintentos: number;
   duracionMs: number;
-  /** Si el crate retiró la respuesta por fallar su contrato: el motivo. Vacío =
-   *  la respuesta quedó en pie. */
-  retraccion: string | null;
 }

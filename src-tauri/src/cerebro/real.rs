@@ -59,9 +59,6 @@ pub struct Traza {
     pub estado_salida: String,
     pub reintentos: u8,
     pub duracion_ms: u64,
-    /// Si el crate retiró la respuesta a mitad de stream, el motivo. Con esto la
-    /// interfaz puede decir «lo corté» en vez de dejar un texto a medias.
-    pub retraccion: Option<String>,
 }
 
 /// Payload del evento `chat:brain`.
@@ -70,6 +67,20 @@ pub struct Traza {
 pub struct TrazaEvento {
     pub conversation_id: String,
     pub traza: Traza,
+}
+
+/// Lo que se guarda con la respuesta del Brain para el chip honesto: el estado de
+/// verificación y las métricas reales del turno (milisegundos y tokens de salida,
+/// ambos del crate). Va en JSON en la columna `brain_datos`.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DatosCerebro {
+    estado: String,
+    ms: u64,
+    toks: Option<u64>,
+    nivel: String,
+    modelo: String,
+    porque: String,
 }
 
 /// Lo que el Brain empuja hacia el hilo del chat: un delta, o la orden de retirar
@@ -420,14 +431,14 @@ pub async fn turno(
     messages: Vec<ChatMessage>,
     data_dir: std::path::PathBuf,
     tx: Sender<StreamDelta>,
-) -> Result<(), ProviderError> {
+) -> Result<Option<String>, ProviderError> {
     let ollama = Arc::new(OllamaProvider::con_base(settings.local_endpoint.clone()));
     let sonda = Arc::new(Sonda::nueva());
     let (cerebro, req) = match preparar(&settings, &messages, &ollama, &sonda, &data_dir).await {
         Ok(preparado) => preparado,
         Err(motivo) => {
             avisa(&app, &conv_id, &format!("{motivo} · se respondió por el camino normal"));
-            return proveedor.stream_response(messages, tx).await;
+            return proveedor.stream_response(messages, tx).await.map(|_| None);
         }
     };
     // Qué tiene cargado el servidor, antes de decidir: con la lista vacía el
@@ -486,12 +497,16 @@ pub async fn turno(
         Err(_) => (String::new(), 0, 0),
     };
     if let Ok(mut t) = traza.lock() {
-        t.estado_salida = estado_salida;
+        t.estado_salida = estado_salida.clone();
         t.reintentos = reintentos;
         t.duracion_ms = duracion_ms;
-        t.retraccion = motivo_retraccion.clone();
     }
     let traza_final = traza.lock().map(|t| t.clone()).unwrap_or_default();
+    // Lo que va al «por qué» de la respuesta terminada. Se leen aquí, antes de que
+    // `traza_final` se mueva al evento.
+    let nivel_cerebro = traza_final.nivel.clone();
+    let modelo_cerebro = traza_final.modelo.clone();
+    let porque_cerebro = traza_final.porque.clone();
     // Primero la traza de la decisión, antes de saber si el texto se quedó: el
     // usuario tiene que poder ver qué se decidió aunque la salida se haya
     // retirado.
@@ -512,20 +527,41 @@ pub async fn turno(
                     .unwrap_or_else(|| "la verificación retiró la respuesta".into());
                 return Err(ProviderError::Malformed(porque));
             }
-            Ok(())
+            // «Terminó bien» sin soltar ni una letra: sin esto se guardaría una
+            // burbuja de asistente vacía. Se responde por el camino de siempre,
+            // igual que el caso de error de abajo.
+            if texto_emitido.load(Ordering::SeqCst) == 0 {
+                avisa(
+                    &app,
+                    &conv_id,
+                    "el Brain no escribió nada · se respondió por el camino normal",
+                );
+                return proveedor.stream_response(messages, tx).await.map(|_| None);
+            }
+            Ok(
+                serde_json::to_string(&DatosCerebro {
+                    estado: estado_salida,
+                    ms: r.metrics.duracion_ms,
+                    toks: r.metrics.tokens_salida,
+                    nivel: nivel_cerebro,
+                    modelo: modelo_cerebro,
+                    porque: porque_cerebro,
+                })
+                .ok(),
+            )
         }
         Err(e) => {
             let cancelado = matches!(e, BrainError::Cancelled);
             if cancelado {
                 // Lo paró el usuario y el hilo ya cerró el canal: no hay error que
                 // enseñar.
-                return Ok(());
+                return Ok(None);
             }
             let nada_emitido = texto_emitido.load(Ordering::SeqCst) == 0;
             let sin_retraccion = retractada.lock().map(|r| r.is_none()).unwrap_or(true);
             if nada_emitido && sin_retraccion {
                 avisa(&app, &conv_id, &format!("{e} · se respondió por el camino normal"));
-                return proveedor.stream_response(messages, tx).await;
+                return proveedor.stream_response(messages, tx).await.map(|_| None);
             }
             Err(ProviderError::Malformed(e.to_string()))
         }

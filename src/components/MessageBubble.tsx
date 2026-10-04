@@ -406,6 +406,63 @@ function MessageBubble({
       )}
       {chips}
       <RichText text={message.content} />
+      {message.brainDatos &&
+        (() => {
+          let d: {
+            estado: string;
+            ms: number;
+            toks: number | null;
+            nivel?: string;
+            modelo?: string;
+            porque?: string;
+          };
+          try {
+            d = JSON.parse(message.brainDatos);
+          } catch {
+            return null;
+          }
+          const color =
+            d.estado === "Verificado"
+              ? "bg-emerald-400"
+              : d.estado === "Propuesto"
+                ? "bg-amber-400"
+                : "bg-zinc-500";
+          const etiqueta =
+            d.estado === "Verificado"
+              ? t("Verificado")
+              : d.estado === "Propuesto"
+                ? t("Propuesto")
+                : t("Sin verificar");
+          return (
+            <div className="mt-1.5 text-[11px] text-zinc-400">
+              <div className="flex items-center gap-1.5">
+                <span
+                  aria-hidden
+                  className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${color}`}
+                />
+                <span>{etiqueta}</span>
+                {d.ms > 0 && (
+                  <span className="tabular-nums text-zinc-500">
+                    · {(d.ms / 1000).toFixed(1)} s
+                    {d.toks != null && ` · ${d.toks} tok`}
+                  </span>
+                )}
+              </div>
+              {d.porque && (
+                <details className="mt-0.5">
+                  <summary className="cursor-pointer list-none select-none text-zinc-500 transition-colors hover:text-zinc-300">
+                    {t("¿Por qué?")}
+                  </summary>
+                  <p className="mt-1 max-w-prose leading-snug text-zinc-500">
+                    {d.nivel && <>{d.nivel} · </>}
+                    {d.modelo && <>{d.modelo} · </>}
+                    {d.porque}
+                  </p>
+                </details>
+              )}
+            </div>
+          );
+        })()}
       {message.variantas && (
         <div className="pt-1">
           <SelectorVariantes message={message} />

@@ -458,13 +458,18 @@ export default function ChatWindow() {
                     firmado. El motivo completo va en el título, porque lo escribe el
                     crate en su propio idioma y no es una cadena de la interfaz. */}
                 {brain && (
-                  <p className="mb-1 text-[12px] text-violet-400/80" title={brain.porque || undefined}>
-                    {t("Cerebro")} · {brain.nivel} · {brain.contrato} · {brain.modelo} ·{" "}
-                    {brain.numCtx}
-                    {" → "}
-                    {brain.salidaMax}
-                    {brain.retraccion && <> · {t("respuesta retirada")}</>}
-                  </p>
+                  <details className="mb-1 text-[12px] text-violet-400/80">
+                    <summary className="cursor-pointer list-none select-none">
+                      {t("Cerebro")} · {brain.nivel} · {brain.contrato} · {brain.modelo} ·{" "}
+                      {brain.numCtx}
+                      {" → "}
+                      {brain.salidaMax}
+                      {brain.verificacion && <> · {brain.verificacion}</>}
+                    </summary>
+                    {brain.porque && (
+                      <p className="mt-1 max-w-prose text-violet-300/70">{brain.porque}</p>
+                    )}
+                  </details>
                 )}
                 {/* El bloque de razonamiento ocupa SIEMPRE el mismo sitio del
                     árbol. Estaba montado en dos huecos distintos —uno mientras no

@@ -90,6 +90,9 @@ pub struct Message {
     pub web_sources: Vec<WebSource>,
     /// Valoración del usuario sobre esta respuesta: `"up"`, `"down"` o `None`.
     pub feedback: Option<String>,
+    /// Lo que decidió y midió el Brain para esta respuesta, en JSON
+    /// (`{estado, ms, toks}`). `None` = no pasó por él.
+    pub brain_datos: Option<String>,
     /// El mensaje al que responde este. `None` solo en el primero del hilo. Es
     /// lo que permite que editar o regenerar no borre nada: la versión anterior
     /// queda ahí, con el mismo padre, y se navega con `variantas`.
@@ -152,6 +155,7 @@ fn migrate(conn: &Connection) -> Result<(), String> {
     let _ = conn.execute("ALTER TABLE messages ADD COLUMN thinking_ms INTEGER", []);
     let _ = conn.execute("ALTER TABLE messages ADD COLUMN web_sources TEXT", []);
     let _ = conn.execute("ALTER TABLE messages ADD COLUMN feedback TEXT", []);
+    let _ = conn.execute("ALTER TABLE messages ADD COLUMN brain_datos TEXT", []);
     // La traza del agente se reconstruye desde `tool_calls` al reabrir la
     // sesión; sin estas dos columnas volvía a pintarse sin tiempos ni resumen.
     let _ = conn.execute(
@@ -622,6 +626,7 @@ pub struct AssistantMeta {
     pub reasoning: Option<String>,
     pub thinking_ms: Option<i64>,
     pub web_sources: Vec<WebSource>,
+    pub brain_datos: Option<String>,
 }
 
 pub fn add_message_detailed(
@@ -655,6 +660,7 @@ pub fn add_message_detailed(
         web_sources: meta.web_sources.clone(),
         // La valoración la escribe el usuario después, con `set_message_feedback`.
         feedback: None,
+        brain_datos: meta.brain_datos.clone(),
         parent_id: padre.clone(),
         variantas: None,
     };
@@ -669,8 +675,8 @@ pub fn add_message_detailed(
         Some(serde_json::to_string(&msg.web_sources).map_err(|e| e.to_string())?)
     };
     conn.execute(
-        "INSERT INTO messages (id, conversation_id, role, content, provider, created_at, attachments, reasoning, thinking_ms, web_sources, parent_id)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+        "INSERT INTO messages (id, conversation_id, role, content, provider, created_at, attachments, reasoning, thinking_ms, web_sources, parent_id, brain_datos)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
         params![
             msg.id,
             msg.conversation_id,
@@ -682,7 +688,8 @@ pub fn add_message_detailed(
             msg.reasoning,
             msg.thinking_ms,
             sources_json,
-            msg.parent_id
+            msg.parent_id,
+            msg.brain_datos
         ],
     )
     .map_err(|e| e.to_string())?;
@@ -710,7 +717,7 @@ fn parse_json_column<T: serde::de::DeserializeOwned>(raw: Option<String>) -> Vec
 }
 
 const COLUMNAS_MENSAJE: &str = "id, conversation_id, role, content, provider, created_at,
-                    attachments, reasoning, thinking_ms, web_sources, feedback, parent_id";
+                    attachments, reasoning, thinking_ms, web_sources, feedback, parent_id, brain_datos";
 
 fn mensaje_de_fila(fila: &rusqlite::Row) -> rusqlite::Result<Message> {
     Ok(Message {
@@ -726,6 +733,7 @@ fn mensaje_de_fila(fila: &rusqlite::Row) -> rusqlite::Result<Message> {
         web_sources: parse_json_column(fila.get(9)?),
         feedback: fila.get(10)?,
         parent_id: fila.get(11)?,
+        brain_datos: fila.get(12)?,
         variantas: None,
     })
 }

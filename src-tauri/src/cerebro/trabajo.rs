@@ -22,6 +22,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use serde_json::Value;
+use tauri::{Emitter, Manager};
 
 use hatboo_brain::api::request::{BrainRequest, ProjectContext, ToolInfo, TrustState, VerifyCommands};
 use hatboo_brain::api::vocab::{ApprovalLevel, ExecutionPolicy, Mode, ThinkingLevel, ToolId};
@@ -61,7 +62,7 @@ impl EjecutarTool for EjecutorConAprobacion {
             name: tool.clone(),
             input: args.clone(),
         };
-        let (output_json, _ok) = crate::agent::loop_runner::handle_agent_tool(
+        let (output_json, ok) = crate::agent::loop_runner::handle_agent_tool(
             &self.app,
             &self.conv,
             &self.raiz,
@@ -71,7 +72,14 @@ impl EjecutarTool for EjecutorConAprobacion {
             self.redactar,
         )
         .await?;
-        Ok(output_json)
+        // Un rechazo o un fallo de la tool no es un éxito: si volviera como `Ok`,
+        // el crate contaría la llamada como ejecutada y el veredicto saldría bueno
+        // con un `{"error": …}` dentro del resultado.
+        if ok {
+            Ok(output_json)
+        } else {
+            Err(output_json)
+        }
     }
 }
 
@@ -85,8 +93,34 @@ struct ReenviadorTrabajo {
 
 impl Emitidor for ReenviadorTrabajo {
     fn emitir(&self, evento: BrainEvent) {
-        if let BrainEvent::Reasoning(t) = evento {
-            crate::agent::loop_runner::emit_reasoning(&self.app, &self.conv, &[Value::String(t)]);
+        match evento {
+            BrainEvent::Reasoning(t) => {
+                crate::agent::loop_runner::emit_reasoning(&self.app, &self.conv, &[Value::String(t)]);
+            }
+            // El Plan del Brain entra en el panel de TAREAS como pasos de solo
+            // lectura: lo que va a llamar. No son editables —el Brain firma un
+            // `reason` + tools, no una lista de pasos para reescribir—, pero el
+            // panel deja de estar vacío y se ve qué se decidió antes de ejecutar.
+            // `finish_done` los marca todos `done` al terminar el turno.
+            BrainEvent::PlanCreated(plan) => {
+                let state = self.app.state::<crate::state::AppState>();
+                let pasos: Vec<String> = plan.tools.to_vec();
+                let tasks = state
+                    .db
+                    .lock()
+                    .ok()
+                    .and_then(|conn| crate::db::replace_tasks(&conn, &self.conv, &pasos).ok());
+                if let Some(tasks) = tasks {
+                    let _ = self.app.emit(
+                        "agent:plan",
+                        crate::agent::loop_runner::PlanPayload {
+                            conversation_id: self.conv.clone(),
+                            tasks,
+                        },
+                    );
+                }
+            }
+            _ => {}
         }
     }
 }
@@ -106,9 +140,18 @@ pub struct TurnoDeTrabajo {
     pub data_dir: PathBuf,
 }
 
+/// Por qué no hubo turno del Brain. La distinción importa para el llamador:
+/// antes de ejecutar nada se puede responder por el bucle de siempre sin repetir
+/// trabajo; después ya se tocó el disco y repetir sería trabajo doble.
+#[derive(Debug)]
+pub enum FalloTrabajo {
+    AntesDeEjecutar(String),
+    DespuesDeEjecutar(String),
+}
+
 /// Una corrida completa del modo trabajo administrada por el Brain. Devuelve el
 /// resumen final, el que el bucle le daba a `finish_done`.
-pub async fn correr(p: TurnoDeTrabajo) -> Result<String, String> {
+pub async fn correr(p: TurnoDeTrabajo) -> Result<String, FalloTrabajo> {
     let TurnoDeTrabajo {
         app,
         conv,
@@ -134,10 +177,11 @@ pub async fn correr(p: TurnoDeTrabajo) -> Result<String, String> {
     let ollama = Arc::new(OllamaProvider::con_base(settings.local_endpoint.clone()));
     let registry = function_registry(&ollama)
         .await
-        .map_err(|e| format!("Ollama no describió sus modelos: {e}"))?;
-    let reglas = Reglas::empotradas().map_err(|e| format!("las reglas no parsean: {e}"))?;
+        .map_err(|e| FalloTrabajo::AntesDeEjecutar(format!("Ollama no describió sus modelos: {e}")))?;
+    let reglas =
+        Reglas::empotradas().map_err(|e| FalloTrabajo::AntesDeEjecutar(format!("las reglas no parsean: {e}")))?;
     let herramientas =
-        Herramientas::empotradas().map_err(|e| format!("las tools no parsean: {e}"))?;
+        Herramientas::empotradas().map_err(|e| FalloTrabajo::AntesDeEjecutar(format!("las tools no parsean: {e}")))?;
 
     let identidad = Identidad {
         nombre: if assistant_name.trim().is_empty() {
@@ -216,7 +260,8 @@ pub async fn correr(p: TurnoDeTrabajo) -> Result<String, String> {
         },
         consentimiento_api: false,
     };
-    let cerebro = Brain::nuevo(montaje).map_err(|e| format!("el Brain no se pudo montar: {e}"))?;
+    let cerebro =
+        Brain::nuevo(montaje).map_err(|e| FalloTrabajo::AntesDeEjecutar(format!("el Brain no se pudo montar: {e}")))?;
 
     let token = CancelToken::nuevo();
     let emisor = Arc::new(ReenviadorTrabajo { app, conv });
@@ -226,10 +271,12 @@ pub async fn correr(p: TurnoDeTrabajo) -> Result<String, String> {
     let resultado = cerebro
         .run_with(&req, opciones)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| FalloTrabajo::DespuesDeEjecutar(e.to_string()))?;
 
     if resultado.output.texto.trim().is_empty() {
-        return Err("el Brain no dejó resumen: la respuesta se retiró o el modelo no escribió nada".into());
+        return Err(FalloTrabajo::DespuesDeEjecutar(
+            "el Brain no dejó resumen: la respuesta se retiró o el modelo no escribió nada".into(),
+        ));
     }
     Ok(resultado.output.texto)
 }
