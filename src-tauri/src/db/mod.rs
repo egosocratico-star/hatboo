@@ -147,6 +147,10 @@ fn migrate(conn: &Connection) -> Result<(), String> {
         "ALTER TABLE projects ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0",
         [],
     );
+    // Trust Gate (D4): el hash del `HATBOO.md` que el usuario aprobó. Mientras el
+    // fichero no cambie respecto a este hash, sus reglas se inyectan; si cambia,
+    // hay que volver a aprobarlo.
+    let _ = conn.execute("ALTER TABLE projects ADD COLUMN rules_hash TEXT", []);
     let _ = conn.execute(
         "ALTER TABLE messages ADD COLUMN attachments TEXT",
         [],
@@ -1402,6 +1406,9 @@ pub struct Project {
     /// 'ask_always' | 'approve_for_me' | 'auto_sandbox' | 'full_access'
     pub approval_level: String,
     pub pinned: bool,
+    /// Hash del `HATBOO.md` aprobado para este proyecto (Trust Gate). `None` =
+    /// nunca se aprobaron sus reglas, así que no se inyectan.
+    pub rules_hash: Option<String>,
     /// Derivado del disco, no de la fila: si la carpeta tiene marcas de ser
     /// código. Solo decide el badge y la plantilla de prompt del proyecto.
     pub es_codigo: bool,
@@ -1409,7 +1416,7 @@ pub struct Project {
 
 /// Las tres consultas de proyectos leen las mismas columnas en el mismo orden.
 const PROJECT_COLS: &str =
-    "id, name, root_path, created_at, last_opened_at, approval_level, pinned";
+    "id, name, root_path, created_at, last_opened_at, approval_level, pinned, rules_hash";
 
 const MARCAS_DE_CODIGO: &[&str] = &[
     ".git",
@@ -1442,6 +1449,7 @@ fn project_from_row(row: &rusqlite::Row) -> rusqlite::Result<Project> {
         last_opened_at: row.get(4)?,
         approval_level: row.get(5)?,
         pinned: row.get::<_, i64>(6)? != 0,
+        rules_hash: row.get(7)?,
     })
 }
 
@@ -1518,6 +1526,7 @@ pub fn create_project(
         last_opened_at: now_ms(),
         approval_level: approval_level.to_string(),
         pinned: false,
+        rules_hash: None,
     };
     conn.execute(
         "INSERT INTO projects (id, name, root_path, created_at, last_opened_at, approval_level, pinned)
@@ -1583,6 +1592,16 @@ pub fn set_project_approval_level(conn: &Connection, id: &str, level: &str) -> R
     conn.execute(
         "UPDATE projects SET approval_level = ?2 WHERE id = ?1",
         params![id, level],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Guarda el hash del `HATBOO.md` que el usuario acaba de aprobar (Trust Gate).
+pub fn set_project_rules_hash(conn: &Connection, id: &str, hash: &str) -> Result<(), String> {
+    conn.execute(
+        "UPDATE projects SET rules_hash = ?2 WHERE id = ?1",
+        params![id, hash],
     )
     .map_err(|e| e.to_string())?;
     Ok(())
