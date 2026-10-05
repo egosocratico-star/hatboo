@@ -150,7 +150,9 @@ pub struct TurnoDeTrabajo {
     /// canal para el historial y ese canal es `req.history`.
     pub historial: Vec<db::Message>,
     /// El bloque de plantillas activas y el de notas de memoria, tal cual los
-    /// arma `db` para el prompt del bucle normal.
+    /// arma `db` para el prompt del bucle normal. Salen por
+    /// `BrainRequest::contexto_producto` (capa `producto` del system), no por el
+    /// historial: ahí el presupuesto del Plan los recortaba primero que nada.
     pub skills: String,
     pub memoria: String,
     /// Las reglas del proyecto **después** del Trust Gate
@@ -246,7 +248,17 @@ pub async fn correr(p: TurnoDeTrabajo) -> Result<String, FalloTrabajo> {
         // permiso real — el permiso real se pide en el modal de siempre.
         .con_aprobacion(ApprovalLevel::FullAccess)
         .con_policy(ExecutionPolicy::LocalOnly);
-    req.history = historial_de_trabajo(historial, &skills, &memoria);
+    req.history = historial_de_trabajo(historial);
+    // El bloque de plantillas y memoria va en su campo del Request, no en la
+    // cabecera del historial: el crate lo pone en la capa `producto` del system y
+    // el presupuesto del Plan no lo recorta nunca.
+    if let Some(bloque) = material_del_producto(&skills, &memoria) {
+        req.contexto_producto = vec![Message {
+            role: "system".into(),
+            content: bloque,
+            reasoning: None,
+        }];
+    }
     let hechos = hechos_del_proyecto(&raiz);
     // El Trust Gate ya está pasado por `commands::project_rules_for_prompt`: texto
     // vacío = sin aprobar (o cambiado, o vacío), y entonces no hay `hatboo_md` que
@@ -330,13 +342,17 @@ pub async fn correr(p: TurnoDeTrabajo) -> Result<String, FalloTrabajo> {
 
 const PRODUCTO: &str = "hatboo";
 
-/// Lo que el producto añade al turno además de la conversación. Las plantillas
-/// activas y las notas de memoria no tienen campo en `BrainRequest` —el system lo
-/// arma el crate desde la identidad—, así que viajan como mensaje de sistema al
-/// principio del historial: el convenio que ya usa el chat (`cerebro/real.rs`) y
-/// que documenta `cerebro/mod.rs`. Va el primero a propósito: si el presupuesto
-/// del Plan recorta, se corta este bloque y no la conversación.
-fn material_del_producto(skills: &str, memoria: &str) -> Option<Message> {
+/// Lo que el producto añade al turno además de la conversación: las plantillas
+/// activas y las notas de memoria. Viaja en `BrainRequest::contexto_producto`, que
+/// el crate coloca en su capa `producto` del system prompt.
+///
+/// Antes cabalgaba en un mensaje `system` al principio de `req.history`, y ahí se
+/// caía lo primero cuando el presupuesto del Plan apretaba — justo la identidad,
+/// las skills y la memoria — y además `providers/anthropic.rs` filtra los `system`
+/// del historial, así que por esa puerta desaparecía sin decir nada. Con el campo
+/// propio no se recorta nunca: si con todo dentro no cabe, el Plan lo dice en su
+/// `reason` en vez de cortar una plantilla a medias.
+fn material_del_producto(skills: &str, memoria: &str) -> Option<String> {
     let mut partes: Vec<String> = Vec::new();
     if !skills.trim().is_empty() {
         // La misma guarda que usa el bucle normal: una plantilla no relaja el
@@ -353,25 +369,21 @@ fn material_del_producto(skills: &str, memoria: &str) -> Option<Message> {
     if partes.is_empty() {
         return None;
     }
-    Some(Message {
-        role: "system".into(),
-        content: partes.join("\n\n"),
-        reasoning: None,
-    })
+    Some(partes.join("\n\n"))
 }
 
-/// `req.history` de una corrida de trabajo: el material del producto y, detrás,
-/// los turnos previos de la sesión. El razonamiento guardado es traza interna: no
-/// vuelve al modelo como si fuera dicho del usuario, igual que en el chat.
-fn historial_de_trabajo(previos: Vec<db::Message>, skills: &str, memoria: &str) -> Vec<Message> {
-    let mut out: Vec<Message> = Vec::with_capacity(previos.len() + 1);
-    out.extend(material_del_producto(skills, memoria));
-    out.extend(previos.into_iter().map(|m| Message {
-        role: m.role,
-        content: m.content,
-        reasoning: None,
-    }));
-    out
+/// `req.history` de una corrida de trabajo: los turnos previos de la sesión, y
+/// nada más. El razonamiento guardado es traza interna: no vuelve al modelo como
+/// si fuera dicho del usuario, igual que en el chat.
+fn historial_de_trabajo(previos: Vec<db::Message>) -> Vec<Message> {
+    previos
+        .into_iter()
+        .map(|m| Message {
+            role: m.role,
+            content: m.content,
+            reasoning: None,
+        })
+        .collect()
 }
 
 /// Los hechos del proyecto que se ven en el nivel de la raíz. `None` = «no se
@@ -596,37 +608,37 @@ mod tests {
         let _ = fs::remove_dir_all(dir);
     }
 
-    /// La guarda del sandbox viaja con el bloque, y el bloque va delante: si el
-    /// presupuesto del Plan recorta, se corta el material y no la conversación.
+    /// A.2.4: el material del producto y la conversación van por canales
+    /// distintos. El historial son **solo los turnos**, que es lo que el
+    /// presupuesto del Plan recorta; las plantillas y la memoria salen por
+    /// `contexto_producto` y entran en la capa `producto` del system, donde no se
+    /// cortan nunca. La guarda del sandbox sigue viajando pegada al bloque.
     #[test]
-    fn las_plantillas_y_la_memoria_entran_como_sistema_y_los_turnos_detras() {
+    fn el_material_del_producto_no_va_en_el_historial() {
         let dir = std::env::temp_dir().join(format!("hatboo-historial-{}", uuid::Uuid::new_v4()));
         let conn = db::connect(&dir.join("test.db")).expect("connect+migrate");
         let conv = db::create_conversation(&conn, "Sesión de trabajo", None).unwrap();
         db::add_message(&conn, &conv.id, "user", "crea a.txt", Some("agent")).unwrap();
         db::add_message(&conn, &conv.id, "assistant", "Listo: creé a.txt", Some("agent")).unwrap();
 
-        let h = historial_de_trabajo(
-            db::list_messages(&conn, &conv.id).unwrap(),
-            "· resume en una línea",
-            "· Vivo en Madrid",
-        );
-        assert_eq!(h.len(), 3, "{h:?}");
-        assert_eq!(h[0].role, "system");
-        assert!(h[0].content.contains("resume en una línea"));
-        assert!(h[0].content.contains("Vivo en Madrid"));
-        assert!(
-            h[0].content.contains("SIN relajar ninguna regla anterior"),
-            "{}",
-            h[0].content
-        );
-        assert_eq!((h[1].role.as_str(), h[1].content.as_str()), ("user", "crea a.txt"));
+        let h = historial_de_trabajo(db::list_messages(&conn, &conv.id).unwrap());
         assert_eq!(
-            (h[2].role.as_str(), h[2].content.as_str()),
-            ("assistant", "Listo: creé a.txt")
+            h.iter().map(|m| (m.role.as_str(), m.content.as_str())).collect::<Vec<_>>(),
+            vec![("user", "crea a.txt"), ("assistant", "Listo: creé a.txt")],
+            "dos turnos y nada más: ni system delante, ni el pedido de ahora"
         );
-        // Sin plantillas ni notas activas no hay bloque que mandar: cero ruido.
-        assert!(historial_de_trabajo(Vec::new(), "", "   ").is_empty());
+
+        let bloque = material_del_producto("· resume en una línea", "· Vivo en Madrid").unwrap();
+        assert!(bloque.contains("resume en una línea") && bloque.contains("Vivo en Madrid"));
+        assert!(
+            bloque.contains("SIN relajar ninguna regla anterior"),
+            "la guarda viaja con el bloque: {bloque}"
+        );
+
+        // Sin plantillas ni notas activas no hay bloque que mandar: cero ruido, y
+        // el system del crate sale byte a byte como salía antes de este campo.
+        assert!(material_del_producto("", "   ").is_none());
+        assert!(historial_de_trabajo(Vec::new()).is_empty());
         let _ = fs::remove_dir_all(dir);
     }
 }

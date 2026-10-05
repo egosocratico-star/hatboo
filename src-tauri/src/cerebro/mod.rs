@@ -17,11 +17,16 @@
 //!   exista una pregunta de consentimiento.
 //! - **Sin imágenes.** El `BrainRequest` no lleva adjuntos; si el turno trae
 //!   imágenes se cae al camino actual en vez de contestar sin verlas.
-//! - **El system lo arma el crate** a partir de la identidad. El prompt de
-//!   persona, skills y memoria de Hatboo viaja como mensaje de sistema dentro del
-//!   historial, así que lo recorta el presupuesto del Plan (§11) y puede no caber
-//!   entero. La puerta «prompt byte-identical» es el gate de la Fase 4, no de
-//!   esta tanda.
+//! - **El system lo arma el crate**, por capas y en orden fijo: identidad,
+//!   contrato, `proyecto` (el `HATBOO.md` aprobado por el Trust Gate) y `producto`.
+//!   El prompt de persona, las skills activas y la memoria del usuario viajan en
+//!   `BrainRequest::contexto_producto`, que es la capa `producto`: entra en
+//!   `Presupuesto.fijo` y **no se recorta nunca**. Si con todo dentro no cabe, el
+//!   Plan lo dice en su `reason` en vez de cortar una plantilla a medias. Antes
+//!   cabalgaba en un mensaje `system` de la cabecera de `req.history`, que es justo
+//!   lo primero que cae cuando aprieta la ventana (§11) y lo que
+//!   `providers/anthropic.rs` filtra del historial. La puerta «prompt
+//!   byte-identical» sigue siendo del gate de la Fase 4, no de esta tanda.
 
 /// La tabla de RAM residente medida en este portátil: sin ella el Governor no
 /// puede afirmar que un modelo local quepa, y descarta todos.

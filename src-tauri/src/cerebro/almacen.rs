@@ -97,6 +97,10 @@ mod tests {
             local: true,
             resultado: "completado".into(),
             motivo_plan: "regla charla-corta".into(),
+            // El bloque del producto se guarda firmado, nunca en claro: quien lea
+            // el dataset tiene que poder emparejar la decisión con su contexto sin
+            // que el archivo acabe siendo una copia de las notas del usuario.
+            contexto_producto_hash: "a".repeat(64),
         }
     }
 

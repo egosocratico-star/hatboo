@@ -22,7 +22,7 @@ produjo. **No hace falta más Hatboo: hace falta menos Hatboo, mejor organizado.
 
 | Bloque | Qué es | Estado |
 | --- | --- | --- |
-| **A** | cerrar lo que estaba a medias | cerrado menos **A.2.4** (el campo `contexto_producto` del `BrainRequest`) |
+| **A** | cerrar lo que estaba a medias | **cerrado el 2026-10-05**, incluido **A.2.4** (el campo `contexto_producto` del `BrainRequest`) |
 | **B** | partir `commands.rs` por dominio | sin empezar |
 | **C** | servicios de verdad | sin empezar |
 | **D** | design system y UI | sin empezar |
@@ -44,17 +44,22 @@ espacio de desarrollo, no del repo).
    consumidor. Hechas.
 3. La frontera del modelo escrita como decisión cerrada (entrada 23 del
    `decision-log` del crate).
-4. **A.2.4** — queda esto: skills y memoria viajan hoy como mensaje `system` en la
-   cabecera del historial, así que son lo primero que se cae cuando aprieta la
-   ventana, y `providers/anthropic.rs` filtra los `system` del historial y los
-   hace desaparecer sin decir nada. Se arregla con un campo propio en
-   `BrainRequest` (`contexto_producto: Vec<Message>`), no recortable por el
-   presupuesto de contexto y contabilizado en el Plan.
+4. **A.2.4 — cerrado el 2026-10-05.** Skills y memoria viajaban como mensaje
+   `system` en la cabecera del historial, así que eran lo primero que se caía al
+   apretar la ventana, y `providers/anthropic.rs` filtraba los `system` del
+   historial y los hacía desaparecer sin decir nada. Ahora hay campo propio en
+   `BrainRequest` (`contexto_producto: Vec<Message>`): el crate lo pone en su capa
+   `producto` del system, `Presupuesto.fijo` lo cuenta **una sola vez** y no se
+   recorta nunca — si con todo dentro no cabe, el Plan lo dice en su `reason`. El
+   Plan no sube de número (sigue en schema 7); entrada 25 del `decision-log` del
+   crate.
 
 **Gate:** los dos árboles limpios, las puertas de los dos repos verdes y ninguna
-mentira de la UI pendiente de la auditoría. A.2.4 añade: conduct idéntica con el
-campo vacío (golden sin mover), la batería `--decisiones` intacta y el bloque que
-no aparece en `historial_recortado` cuando aprieta la ventana.
+mentira de la UI pendiente de la auditoría. A.2.4 añadió, y está medido: conducta
+idéntica con el campo vacío (el golden sin mover, 5 verdes), la batería
+`--decisiones` intacta (24/24 nivel, 24/24 riesgo, bandas 14 / 3 / 7) y la prueba de
+que con la ventana apretada se corta el historial **y el bloque sigue llegando** al
+proveedor dentro del system.
 
 ## B. Bajar `commands.rs` a tierra
 

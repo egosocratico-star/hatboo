@@ -154,11 +154,12 @@ sobre un `.env`, no sustituye a un gestor de secretos.
   cambiar firmas) y el **C** (servicios: `ContextService`, `ModelService`,
   `AgentService`). Hasta que C no termine, mover ficheros no cambia quién llama a
   quién.
-- El contexto de skills y memoria viaja hoy como mensaje `system` en la
-  **cabecera** del historial del `BrainRequest`, así que es lo primero que se cae
-  cuando aprieta la ventana, y `providers/anthropic.rs` filtra los `system` del
-  historial. El diseño que lo arregla (`contexto_producto`) está cerrado en
-  `HATBOO-0.7-ORDEN.md`, apartado A.2.4.
+- El contexto del producto **ya viaja en su propio sitio** (A.2.4, cerrado el
+  2026-10-05): `BrainRequest.contexto_producto` es la capa `producto` del system
+  prompt del crate, dentro de `Presupuesto.fijo`, y por tanto no la recorta el Plan.
+  Antes cabalgaba en un mensaje `system` de la cabecera de `req.history`, donde era
+  lo primero que se caía al apretar la ventana y donde `providers/anthropic.rs` lo
+  filtraba sin decir nada. Lo que sigue abierto es el hueco de abajo, no este.
 - `machine.rs` y el Governor del crate miden la máquina para decidir cuánto cargar.
   En este portátil (8,45 GB, sin GPU, 17,45 tok/s medidos) el margen se expone como
   `brain_margen_mb` y la regla de que **el benchmark no vale si la máquina estaba

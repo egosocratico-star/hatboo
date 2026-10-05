@@ -95,7 +95,7 @@ export default function LayerChips() {
             ? t("Ninguna plantilla activa: el prompt no lleva extras.")
             : brainActivo
               ? t(
-                  "{n} plantilla(s) activas: viajan en el prompt de cada sesión; el Plan del Brain las recorta si no caben.",
+                  "{n} plantilla(s) activas: viajan en el prompt de cada sesión; con el Brain encendido entran en su propia capa del system, y el Plan no las recorta — si no cabe todo, lo dice en su motivo.",
                   { n: capas.plantillas },
                 )
               : t("{n} plantilla(s) activas: se añaden al prompt de cada sesión.", {

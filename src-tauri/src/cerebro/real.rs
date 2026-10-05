@@ -322,6 +322,32 @@ pub(crate) async fn function_registry(desde: &OllamaProvider) -> Result<Registry
 
 /// El Brain listo para este pedido, con su `BrainRequest`. `Err` dice por qué no
 /// lo hay: el llamador lo cuenta en la traza y se va al camino de siempre.
+/// Divide el prompt que arma Hatboo en dos montones: lo que es **material del
+/// producto** (todo lo que manda con rol `system`: identidad, plantillas activas,
+/// memoria, modo código y el bloque de la búsqueda web) y lo que es conversación.
+///
+/// El primero se va en `BrainRequest::contexto_producto` —capa `producto` del
+/// system del crate, dentro de `Presupuesto.fijo`, donde **no se recorta
+/// nunca**—; el segundo en `req.history`, que es lo que el presupuesto del Plan
+/// recorta de atrás hacia adelante. Antes los dos viajaban mezclados en el
+/// historial, así que lo primero que se caía al apretar la ventana era justo la
+/// identidad y las notas del usuario; y `providers/anthropic.rs` filtra los
+/// mensajes `system` del historial, con lo que por esa puerta desaparecían sin
+/// decir nada. Puro a propósito: se prueba sin pantalla ni Ollama.
+fn separar_productos(messages: &[ChatMessage], ultimo_usuario: usize) -> (Vec<Message>, Vec<Message>) {
+    let (producto, historial): (Vec<Message>, Vec<Message>) = messages
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| *i != ultimo_usuario)
+        .map(|(_, m)| Message {
+            role: m.role.clone(),
+            content: m.content.clone(),
+            reasoning: None,
+        })
+        .partition(|m| m.role == "system");
+    (producto, historial)
+}
+
 async fn preparar(
     settings: &Settings,
     messages: &[ChatMessage],
@@ -334,18 +360,7 @@ async fn preparar(
         .rposition(|m| m.role == "user")
         .ok_or_else(|| "no hay mensaje de usuario que decidir".to_string())?;
     let mensaje = messages[ultimo_usuario].content.clone();
-    // Todo lo demás es historial con su rol, incluido el system de Hatboo y el
-    // bloque de la búsqueda web: viajan, pero los recorta el presupuesto del Plan.
-    let historial: Vec<Message> = messages
-        .iter()
-        .enumerate()
-        .filter(|(i, _)| *i != ultimo_usuario)
-        .map(|(_, m)| Message {
-            role: m.role.clone(),
-            content: m.content.clone(),
-            reasoning: None,
-        })
-        .collect();
+    let (producto, historial) = separar_productos(messages, ultimo_usuario);
 
     let registry = function_registry(ollama).await?;
     let reglas = Reglas::empotradas().map_err(|e| format!("las reglas embebidas no parsean: {e}"))?;
@@ -396,6 +411,7 @@ async fn preparar(
         .con_aprobacion(ApprovalLevel::AskAlways)
         .con_policy(ExecutionPolicy::LocalOnly);
     req.history = historial;
+    req.contexto_producto = producto;
 
     let montaje = Montaje {
         config,
@@ -627,6 +643,43 @@ mod tests {
                 })
                 .collect(),
         }]
+    }
+
+    /// A.2.4 por el lado del chat. Lo que Hatboo manda con rol `system` —identidad,
+    /// plantillas activas, memoria, modo código y el bloque de la búsqueda web— ya
+    /// no viaja en `req.history`, donde era lo primero que recortaba el Plan y lo
+    /// que `providers/anthropic.rs` filtraba sin decir nada.
+    #[test]
+    fn el_system_de_hatboo_no_cabalg_en_el_historial_del_chat() {
+        use super::separar_productos;
+        let uno = |role: &str, texto: &str| ChatMessage {
+            role: role.into(),
+            content: texto.into(),
+            images: Vec::new(),
+        };
+        let mensajes = vec![
+            uno("system", "Eres Hatboo. Plantillas activas: · resume en una línea"),
+            uno("user", "hola"),
+            uno("assistant", "¿qué necesitas?"),
+            uno("user", "y ahora"),
+        ];
+        let (producto, historial) = separar_productos(&mensajes, 3);
+        assert_eq!(producto.len(), 1, "{producto:?}");
+        assert!(producto[0].content.contains("resume en una línea"));
+        assert_eq!(
+            historial.iter().map(|m| m.role.as_str()).collect::<Vec<_>>(),
+            vec!["user", "assistant"],
+            "los turnos de antes, sin el system y sin el pedido de ahora"
+        );
+        assert!(
+            !historial.iter().any(|m| m.role == "system"),
+            "el system no vuelve disfrazado de historial"
+        );
+
+        // Y con un chat normal, sin nada de producto, el system del crate es
+        // exactamente el de siempre: cero capas nuevas que medir.
+        let (p2, h2) = separar_productos(&turno("hola", 0), 0);
+        assert!(p2.is_empty() && h2.is_empty());
     }
 
     #[test]

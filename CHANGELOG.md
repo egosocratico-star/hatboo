@@ -35,6 +35,15 @@ no es release: no hay binario publicado con estos cambios.
   deja de suponer que un modelo ve porque se llama igual que otro que sí ve).
 - **TAREAS y chip de estado del Brain** en la interfaz, con el porqué de cada
   decisión y el fallback del modo trabajo a la vista.
+- **Las plantillas y la memoria dejan de ser lo primero que se cae.** Con el Brain
+  encendido, ese bloque viajaba como mensaje de sistema en la cabecera del historial,
+  y el presupuesto del Plan corta el historial de atrás hacia adelante: si la ventana
+  apretaba, se recortaba la identidad, las plantillas activas y las notas que el
+  usuario escribió para que se recordaran. Ahora viaja en su propio campo del pedido
+  y entra como una capa del system prompt que **no se recorta nunca**; si aun así no
+  cabe todo, el Plan lo dice en su motivo en vez de cortar una plantilla a medias. De
+  paso deja de desaparecer por la puerta de Anthropic, que filtra los mensajes de
+  sistema del historial.
 - **CI**: clippy con `--all-targets` y `-D warnings` (destapa las tres pruebas de
   integración que llevan meses sin compilarse), y la versión comprobada contra su
   única fuente.
