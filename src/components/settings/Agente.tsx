@@ -105,7 +105,7 @@ export default function AjustesAgente({
               {t("Cerebro aparte para el chat")}
             </span>
             <span className="block text-xs text-zinc-500">
-              {t("El chat pasa por el crate que decide el nivel, firma un Plan y recorta el contexto antes de llamar al modelo. Solo actúa con el proveedor local y sin imágenes en el mensaje: con una nube activa, con una imagen adjunta, o si el Brain se cae antes de la primera letra, se responde por el camino de siempre y la nota de encima del compositor dice por qué.")}
+              {t("El chat pasa por el crate que decide el nivel, firma un Plan y recorta el contexto antes de llamar al modelo. Solo actúa con el proveedor local y sin imágenes en el mensaje: con una nube activa, con una imagen adjunta, o si el Brain se cae antes de la primera letra, se responde por el camino de siempre y la nota de encima del compositor dice por qué. El modelo que tú eliges es el que corre: si no cabe en la RAM no se responde con otro, se para el turno y el aviso trae las cifras del Governor —necesitas, margen, libres—.")}
             </span>
           </span>
         </label>

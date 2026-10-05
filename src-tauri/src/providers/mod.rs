@@ -44,6 +44,12 @@ pub enum ProviderError {
     Api(u16, String),
     #[error("Respuesta inesperada del proveedor: {0}")]
     Malformed(String),
+    /// El Brain se negó a correr el modelo que pidió el usuario porque no cabe, y
+    /// no lo sustituyó por otro. No es una respuesta inesperada de nadie —no se
+    /// llamó a ningún proveedor—, y por eso no puede pasar por `Malformed`: el
+    /// texto que lleva dentro son las cifras del Governor, tal cual.
+    #[error("{0}")]
+    ModeloNoCorre(String),
 }
 
 /// Fragmento del stream: texto visible o razonamiento interno del modelo.

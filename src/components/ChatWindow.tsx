@@ -276,13 +276,25 @@ export default function ChatWindow() {
 
   // Tres clases se arreglan todas en el mismo sitio: falta la clave, la rechazó
   // el proveedor (401) o nadie escucha en el endpoint. El texto ya lo dice, pero
-  // sin atajo hay que adivinar adónde ir.
+  // sin atajo hay que adivinar adónde ir. Con `modelo-no-corre` también: la salida
+  // es cambiar de modelo o bajar el margen, y las dos cosas están ahí.
   const llevaAjustes =
-    errorClase === "clave" || errorClase === "ajustes" || errorClase === "red";
+    errorClase === "clave" ||
+    errorClase === "ajustes" ||
+    errorClase === "red" ||
+    errorClase === "modelo-no-corre";
   const errorBanner = error && (
     <div className="mb-2 flex items-start gap-2 rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
       <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
       <span className="min-w-0 flex-1">
+        {/* El aviso de «no cabe» lo escribe el crate en español con sus cifras, y
+            no es una cadena de la interfaz: sin esta línea se leería como un fallo
+            del proveedor más. Lo que hay que decir aquí es que no se corrió nada. */}
+        {errorClase === "modelo-no-corre" && (
+          <span className="block">
+            {t("No se corrió ningún modelo, así que no hay respuesta: no se contesta con uno que no elegiste.")}
+          </span>
+        )}
         {error}
         {llevaAjustes && (
           <button

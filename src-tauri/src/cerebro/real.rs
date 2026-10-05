@@ -383,6 +383,11 @@ async fn preparar(
             "high" => Some(ThinkingLevel::High),
             _ => None,
         },
+        // El modelo lo elige Hatboo, y el que elige el producto es el que corre: si
+        // no cabe, no se carga otro (README del crate: «el producto elige el modelo
+        // y ejecuta»). Sustituirlo costaba una recarga que nadie pidió —medido el
+        // 04-10: 34,7 s y 3 tokens en un «Hola.»—.
+        respetar_modelo: true,
         ..BrainConfig::default()
     };
 
@@ -422,7 +427,10 @@ async fn preparar(
 /// El turno: decide el Brain, habla con Ollama por su propio camino y va soltando
 /// el stream por el canal de siempre. Si el Brain se va al suelo **antes** del
 /// primer carácter, se responde por el camino actual: el interruptor no puede
-/// costar una respuesta.
+/// costar una respuesta. La única excepción es la negativa a sustituir el modelo
+/// (`BrainError::ModeloPedidoNoCorre`): por el camino actual respondería **el mismo
+/// modelo** que el Governor dijo que no cabe, así que ahí no se corre nada y se
+/// enseñan las cifras.
 pub async fn turno(
     app: tauri::AppHandle,
     conv_id: String,
@@ -557,6 +565,13 @@ pub async fn turno(
                 // enseñar.
                 return Ok(None);
             }
+            // La negativa del crate a sustituir su modelo **no** se responde por el
+            // camino normal: allí Ollama cargaría justo el modelo que dijo que no
+            // cabe, que es el coste que `respetar_modelo` viene a quitar. Lo que
+            // sube es el motivo con las cifras del Governor, tal cual las dio.
+            if es_negativa_de_modelo(&e) {
+                return Err(ProviderError::ModeloNoCorre(e.to_string()));
+            }
             let nada_emitido = texto_emitido.load(Ordering::SeqCst) == 0;
             let sin_retraccion = retractada.lock().map(|r| r.is_none()).unwrap_or(true);
             if nada_emitido && sin_retraccion {
@@ -566,6 +581,14 @@ pub async fn turno(
             Err(ProviderError::Malformed(e.to_string()))
         }
     }
+}
+
+/// `true` si el fallo es la negativa del crate a sustituir el modelo del producto.
+/// Es el único fallo que **no** se responde por el camino de siempre: por el camino
+/// de siempre Ollama cargaría el mismo modelo que el Governor dijo que no cabe, y la
+/// respuesta llegaría después de una recarga que nadie pidió.
+fn es_negativa_de_modelo(e: &BrainError) -> bool {
+    matches!(e, BrainError::ModeloPedidoNoCorre { .. })
 }
 
 /// Una nota en la traza para los casos en que el Brain no llegó a decidir (Ollama
@@ -587,9 +610,10 @@ fn avisa(app: &tauri::AppHandle, conv_id: &str, porque: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::aplicable;
-    use crate::providers::{ChatMessage, ImagePart};
+    use super::{aplicable, es_negativa_de_modelo};
+    use crate::providers::{ChatMessage, ImagePart, ProviderError};
     use crate::state::Settings;
+    use hatboo_brain::api::error::BrainError;
     use hatboo_brain::resources::ResourceProbe;
 
     fn turno(texto: &str, imagenes: usize) -> Vec<ChatMessage> {
@@ -628,6 +652,43 @@ mod tests {
     }
 
     #[test]
+    fn la_negativa_de_modelo_no_se_responde_por_el_camino_normal() {
+        // El caso del 04-10: pidió `qwen3.5:0.8b`, a 2048 necesita 1063 MB y con el
+        // margen de 250 MB de Ajustes quedan 1302 libres —no caben los 1313 que hace
+        // falta—. Las tres cifras tienen que llegar al aviso: sin ellas el fallo no
+        // se puede ni comprobar ni actuar.
+        let negativa = BrainError::ModeloPedidoNoCorre {
+            modelo: "qwen3.5:0.8b".into(),
+            motivo: "no cabe: «qwen3.5:0.8b» necesita 1063 MB a 2048 y quedan 1302 libres (margen 250)".into(),
+            needed_mb: 1313,
+            margen_mb: 250,
+            free_mb: 1302,
+        };
+        assert!(es_negativa_de_modelo(&negativa));
+        let texto = ProviderError::ModeloNoCorre(negativa.mensaje()).to_string();
+        assert!(
+            texto.contains("qwen3.5:0.8b")
+                && texto.contains("1063")
+                && texto.contains("250")
+                && texto.contains("1302"),
+            "{texto}"
+        );
+        assert!(
+            !texto.contains("gemma3"),
+            "el aviso no propone un modelo que él no eligió: {texto}"
+        );
+
+        // Lo demás sigue cayendo al camino de siempre, que usa **el mismo modelo**
+        // que eligió (ver `state::build_provider`: con el proveedor local manda
+        // `settings.local_model`). Ahí el interruptor no cuesta una respuesta.
+        assert!(!es_negativa_de_modelo(&BrainError::ResourceExhausted {
+            needed_mb: 2400,
+            free_mb: 300
+        }));
+        assert!(!es_negativa_de_modelo(&BrainError::Cancelled));
+    }
+
+    #[test]
     fn la_sonda_dice_lo_que_mide_y_no_inventa() {
         // En la máquina de él hay 8,45 GB: si la lectura sale cero o absurda, el
         // Governor rechazaría todo sin motivo.
@@ -640,5 +701,39 @@ mod tests {
         // activa, que es lo que §11 quiere decir con «no adivines».
         assert!(s.cpu().is_none());
         assert!(s.cargados().is_empty());
+    }
+
+    /// Medición con el Ollama y la RAM de esta máquina, por el config que arma
+    /// Hatboo. Temporal: se corre a mano y se borra.
+    #[tokio::test]
+    async fn TEMP_mide_la_negativa_con_el_config_de_hatboo() {
+        use super::{preparar, OllamaProvider};
+        for modelo in ["qwen3:1.7b", "gemma3:1b"] {
+            let mut s = Settings::default();
+            s.brain_enabled = true;
+            s.active_provider = "local".into();
+            s.local_model = modelo.into();
+            let ollama = std::sync::Arc::new(OllamaProvider::con_base(s.local_endpoint.clone()));
+            let sonda = std::sync::Arc::new(super::Sonda::nueva());
+            let (cerebro, req) = preparar(
+                &s,
+                &turno("hola", 0),
+                &ollama,
+                &sonda,
+                &std::path::PathBuf::from("."),
+            )
+            .await
+            .expect("el Brain se monta contra el Ollama de esta máquina");
+            println!(
+                "RAM libre {} MB de {} MB",
+                sonda.libre_mb().unwrap_or(0),
+                sonda.total_mb().unwrap_or(0)
+            );
+            // `plan` pasa por el mismo `planificar` que `run` y no llama al modelo.
+            match cerebro.plan(&req).await {
+                Ok(p) => println!("  {modelo} → PLAN: {} a {}", p.model, p.num_ctx),
+                Err(e) => println!("  {modelo} → NEGATIVA: {e}"),
+            }
+        }
     }
 }

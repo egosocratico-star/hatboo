@@ -82,6 +82,9 @@ pub enum ErrorClase {
     Respuesta,
     /// Ni siquiera se llegó a llamar: proveedor desconocido, ajustes sin rellenar.
     Ajustes,
+    /// El modelo que eligió el usuario no cabe ahora y el Brain se negó a sustituirlo
+    /// por otro: no se corrió nada. La salida es cambiar de modelo o bajar el margen.
+    ModeloNoCorre,
     /// El resto.
     Otro,
 }
@@ -94,6 +97,7 @@ impl ErrorClase {
             P::Connection(_, _) => Self::Red,
             P::Api(_, _) => Self::Proveedor,
             P::Malformed(_) => Self::Respuesta,
+            P::ModeloNoCorre(_) => Self::ModeloNoCorre,
         }
     }
 }
@@ -495,4 +499,31 @@ pub(crate) fn spawn_chat_stream(
     });
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ErrorClase;
+    use crate::providers::ProviderError;
+
+    #[test]
+    fn la_negativa_del_modelo_llega_a_la_interfaz_como_lo_que_es() {
+        // El contrato con `src/types.ts` (`ClaseError`): `modelo-no-corre` es lo que
+        // pinta la línea de «aquí no se corrió nada» y el atajo a Ajustes. Con
+        // `respuesta` la interfaz ofrecería reintentar lo mismo que ya no cabe.
+        let e = ProviderError::ModeloNoCorre(
+            "no cabe: «qwen3.5:0.8b» necesita 1063 MB a 2048 y quedan 1302 libres (margen 250)".into(),
+        );
+        assert_eq!(ErrorClase::de(&e), ErrorClase::ModeloNoCorre);
+        let j = serde_json::to_string(&ErrorClase::ModeloNoCorre).unwrap();
+        assert!(j.contains("modelo-no-corre"), "{j}");
+        // Y el Display no envuelve la cifra en un «respuesta inesperada del
+        // proveedor»: aquí no se llamó a nadie.
+        assert!(e.to_string().starts_with("no cabe:"), "{e}");
+        assert_eq!(
+            ErrorClase::de(&ProviderError::Malformed("otro".into())),
+            ErrorClase::Respuesta,
+            "lo demás no se reetiqueta"
+        );
+    }
 }

@@ -559,8 +559,8 @@ export const en: Record<string, string> = {
     "When the agent proposes its steps it stops and shows them to you: you can rewrite them, drop some or add more, and whatever comes out becomes the plan. Without this it runs as-is.",
   "Cerebro": "Brain",
   "Cerebro aparte para el chat": "A separate brain for the chat",
-  "El chat pasa por el crate que decide el nivel, firma un Plan y recorta el contexto antes de llamar al modelo. Solo actúa con el proveedor local y sin imágenes en el mensaje: con una nube activa, con una imagen adjunta, o si el Brain se cae antes de la primera letra, se responde por el camino de siempre y la nota de encima del compositor dice por qué.":
-    "The chat goes through the crate that picks the level, signs a Plan and trims the context before calling the model. It only acts with the local provider and no images in the message: with a cloud provider active, with an attachment, or if the brain fails before the first character, the answer comes the usual way and the note above the composer says why.",
+  "El chat pasa por el crate que decide el nivel, firma un Plan y recorta el contexto antes de llamar al modelo. Solo actúa con el proveedor local y sin imágenes en el mensaje: con una nube activa, con una imagen adjunta, o si el Brain se cae antes de la primera letra, se responde por el camino de siempre y la nota de encima del compositor dice por qué. El modelo que tú eliges es el que corre: si no cabe en la RAM no se responde con otro, se para el turno y el aviso trae las cifras del Governor —necesitas, margen, libres—.":
+    "The chat goes through the crate that picks the level, signs a Plan and trims the context before calling the model. It only acts with the local provider and no images in the message: with a cloud provider active, with an attachment, or if the brain fails before the first character, the answer comes the usual way and the note above the composer says why. The model you pick is the model that runs: if it doesn't fit in RAM you don't get an answer from a different one — the turn stops and the warning carries the Governor's numbers —needed, margin, free—.",
   "El nivel de aprobación se ajusta por proyecto en la vista de Trabajo.":
     "The approval level is set per project in the Work view.",
   "«Sistema» sigue el claro/oscuro de Windows mientras la app esté abierta. Las paletas de debajo son fijas y se aplican al pulsarlas.":
@@ -1203,4 +1203,8 @@ export const en: Record<string, string> = {
   "Añade este texto exacto al prompt del agente": "Adds this exact text to the agent's prompt",
   "Volver a aprobar": "Approve again",
   "Aprobar reglas": "Approve rules",
+
+  // ---- El modelo elegido no cabe: el aviso de negativa (0.6.1). ----
+  "No se corrió ningún modelo, así que no hay respuesta: no se contesta con uno que no elegiste.":
+    "No model ran, so there is no answer: you don't get a reply from a model you didn't pick.",
 };

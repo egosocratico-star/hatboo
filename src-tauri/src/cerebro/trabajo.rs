@@ -207,6 +207,10 @@ pub async fn correr(p: TurnoDeTrabajo) -> Result<String, FalloTrabajo> {
             "high" => Some(ThinkingLevel::High),
             _ => None,
         },
+        // Igual que en el chat: el modelo lo eligió Hatboo y es el que tiene que
+        // correr. En el modo trabajo la sustitución era además cara —un turno de
+        // tools con el modelo equivocado carga el contexto y las recargas enteras—.
+        respetar_modelo: true,
         ..BrainConfig::default()
     };
 

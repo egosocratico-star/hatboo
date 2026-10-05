@@ -203,6 +203,7 @@ export type ClaseError =
   | "proveedor"
   | "respuesta"
   | "ajustes"
+  | "modelo-no-corre"
   | "otro";
 
 /** Límites del arrastre de los paneles del modo trabajo. */
