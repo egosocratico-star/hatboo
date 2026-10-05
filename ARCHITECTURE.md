@@ -24,7 +24,10 @@ React (src/)
    │  invoke(nombre, args)      ← 85 comandos registrados en src-tauri/src/lib.rs
    │  escucha chat:* / agent:*   ← 15 eventos
    ▼
-commands.rs  (3175 líneas)      ← la capa IPC. HOY también hace SQL, fs y HTTP.
+commands/  (3336 líneas en 12 módulos)   ← la capa IPC. Sigue haciendo SQL, fs y HTTP.
+   │  chat 441 · agent 458 · files 869 · projects 344 · models 288 · _comunes 250
+   │  plantillas 223 · data 217 · system 97 · git 46 · settings 37 · memoria 33
+   │  (y 33 de `mod.rs`: la documentación del reparto y las reexportaciones)
    │
    ├─ state.rs        AppState: conexión SQLite, data_dir, ajustes, builders de proveedor
    ├─ db/             esquema (schema.sql) y acceso a datos          (2507)
@@ -39,6 +42,13 @@ commands.rs  (3175 líneas)      ← la capa IPC. HOY también hace SQL, fs y HT
    ├─ behavior.rs     conductas de la sesión                         (228)
    └─ backup.rs       export/import/fábrica en un JSON               (411)
 ```
+
+`commands/_comunes.rs` no es un dominio: son los helpers que usan varios a la vez
+(`chat_system_prompt`, `CODE_MODE_PROMPT`, `titulo_breve`, `remove_image_files`,
+`ATTACHMENT_MAX_BYTES`). Y `commands/mod.rs` reexporta `project_rules_for_prompt`,
+`rules_status`, `approve_rules`, `revoke_rules` y `RESET_TOKEN` porque fuera del
+binario se llaman por la ruta vieja —`tests/db.rs` sobre todo—: partir el archivo no
+podía romper ese camino.
 
 `hatboo-brain` por dentro, en el orden que recorre una petición:
 
@@ -100,12 +110,19 @@ número que la motivó.
 nunca vale a la vez en el portátil y en el runner, y Cargo no expande variables
 ahí. El rev queda clavado en `src-tauri/Cargo.lock`, que **sí** se comparte.
 
-Para iterar sobre el crate sin empujarlo existe
-`src-tauri/.cargo/config.toml.parche`: se renombra a `config.toml` y activa un
-`[patch]` al copia-local. Está fuera del repo a propósito. **Dos cosas que hay que
-saber antes de commitear**: con el parche activo, `Cargo.lock` reescribe la
-dependencia a `source = "path"` y **no se debe commitear ese estado**; y al empujar
-el crate hay que quitar el parche y volver a dejar el lock contra git.
+Para iterar sobre el crate sin empujarlo existe el parche local:
+`.cargo/config.toml` **en la raíz del repo** (no en `src-tauri/`: Cargo busca
+`.cargo/` subiendo desde el directorio en el que se ejecuta, y así lo recoge también
+`npm run tauri dev`; está explicado en `.gitignore:10`). El directorio `.cargo/` está
+fuera del repo a propósito, y dentro hay dos ficheros **idénticos** —
+`config.toml` y `config.toml.parche`—, así que el interruptor no es renombrar uno a
+otro nombre: es **que `config.toml` exista o no**. Con él activo,
+`cargo check` resuelve el crate contra la copia de al lado y reescribe
+`src-tauri/Cargo.lock` dejando `hatboo-brain` **sin línea `source`** (modo `path`); en
+ese estado el lock **no se commitea**. Para compartir: borrar o renombrar
+`.cargo/config.toml`, correr `cargo check` para que el lock vuelva a escribirse contra
+`git+…?branch=main#<rev>`, y commitear ese lock. El `Cargo.lock` sí se comparte; el
+parche no.
 
 ## 5. Dónde vive cada dato
 
@@ -144,16 +161,26 @@ sobre un `.env`, no sustituye a un gestor de secretos.
 | `npm run version:comprobar` | que `package.json`, `tauri.conf.json`, `Cargo.toml`, el bloque del README y el CHANGELOG digan la misma versión | falla la CI si divergen |
 | CI (`windows-latest`) | `npm ci` → `npm run build` → `cargo clippy --all-targets -D warnings` → los cuatro targets de prueba | `--all-targets` **compila** las tres pruebas que no se corren aquí |
 | Fuera de CI a propósito | `agent_flow` y `local_provider` (piden un Ollama en marcha) y `keyring` (llavero real) | son de integración local; sin el paso de clippy podrían dejar de compilar y la CI seguir verde — ya pasó |
-| El crate | `cargo test --all-features` (370 verdes; 352 con el default `ollama`) + batería `--decisiones` + su CI con clippy | la batería es informativa: siempre sale 0, el número se lee |
+| El crate | `cargo test --all-features` (374 verdes; 356 con el default `ollama`) + batería `--decisiones` + su CI con clippy | la batería es informativa: siempre sale 0, el número se lee |
 
 ## 8. Deuda que este fichero reconoce
 
-- `commands.rs` tiene 3175 líneas y hace de capa IPC **y** de lógica de negocio:
-  arma el system prompt cruzando ajustes, skills, memoria, proyecto y reglas, y
-  abre SQL y ficheros desde el comando. Es el bloque **B** (dividir por dominio sin
-  cambiar firmas) y el **C** (servicios: `ContextService`, `ModelService`,
-  `AgentService`). Hasta que C no termine, mover ficheros no cambia quién llama a
-  quién.
+- **Hecho el 2026-10-05 (bloque B):** `commands.rs` —3175 líneas y 85 comandos en un
+  solo archivo— está repartido en `commands/` por dominio, sin cambiar una firma ni un
+  nombre IPC. Lo que eso **no** arregla es lo que sigue abierto en el bloque **C**:
+  la capa IPC sigue siendo lógica de negocio, solo que ahora repartida en doce
+  archivos. Un comando arma el system prompt cruzando ajustes, skills, memoria,
+  proyecto y reglas (`_comunes::chat_system_prompt`, llamada desde tres sitios con la
+  recolección escrita a mano en cada uno), dos comandos montan su propio cliente HTTP
+  (`models::unload_local_model`, `files::fetch_github`), `system::capture_screen`
+  codifica el PNG y escribe disco desde el comando, y hay **70 líneas de la capa IPC
+  que tocan el disco directamente** (`grep -rE "std::fs::|fs::(write|read_|remove|
+  create_dir|rename|copy|metadata)" commands/`). `ContextService`, `ModelService` y
+  `AgentService` son el bloque C.
+- El reparto trajo una palabra nueva que hay que conocer para leer el árbol:
+  `commands/plantillas.rs` y `commands/memoria.rs` son los dominios de Ajustes, y
+  **no** son `crate::cerebro`, que es el puente al crate `hatboo-brain`. Los nombres
+  se separaron a propósito porque compartir la palabra era mentir.
 - El contexto del producto **ya viaja en su propio sitio** (A.2.4, cerrado el
   2026-10-05): `BrainRequest.contexto_producto` es la capa `producto` del system
   prompt del crate, dentro de `Presupuesto.fijo`, y por tanto no la recorta el Plan.

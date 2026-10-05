@@ -6,7 +6,7 @@
 //! interfaz puede usar, el historial con los adjuntos montados, y la tarea que
 //! rellena el canal del proveedor hasta guardarlo en SQLite.
 //!
-//! `commands.rs` sigue llamando a `history` y a `spawn_chat_stream` por su nombre
+//! `commands/chat.rs` sigue llamando a `history` y a `spawn_chat_stream` por su nombre
 //! de siempre (`pub(crate) use` arriba del módulo) para que la mudanza no tocara
 //! ni una de sus llamadas. El *system prompt* se queda allí: lo comparten el visor
 //! de prompt y el medidor de contexto.
@@ -244,9 +244,9 @@ pub(crate) fn spawn_chat_stream(
             .ok()
             .and_then(|conn| db::memoria_prompt(&conn).ok())
             .unwrap_or_default();
-        // El prompt se arma donde siempre: `commands.rs` lo comparte con
+        // El prompt se arma donde siempre: `commands/_comunes.rs` lo comparte con
         // `system_prompt_of` (ver el prompt) y con `context_usage` (el medidor).
-        let system = crate::commands::chat_system_prompt(&settings, &skills, &memoria);
+        let system = crate::commands::_comunes::chat_system_prompt(&settings, &skills, &memoria);
         let system = system.trim();
         if !system.is_empty() {
             messages.insert(

@@ -23,7 +23,7 @@ produjo. **No hace falta más Hatboo: hace falta menos Hatboo, mejor organizado.
 | Bloque | Qué es | Estado |
 | --- | --- | --- |
 | **A** | cerrar lo que estaba a medias | **cerrado el 2026-10-05**, incluido **A.2.4** (el campo `contexto_producto` del `BrainRequest`) |
-| **B** | partir `commands.rs` por dominio | sin empezar |
+| **B** | partir `commands.rs` por dominio | **cerrado el 2026-10-05**: `commands.rs` desaparecido, 85 comandos en 11 módulos + `_comunes` |
 | **C** | servicios de verdad | sin empezar |
 | **D** | design system y UI | sin empezar |
 | **E** | una sola fuente de verdad | **cerrado hoy** (ver abajo) |
@@ -61,14 +61,41 @@ idéntica con el campo vacío (el golden sin mover, 5 verdes), la batería
 que con la ventana apretada se corta el historial **y el bloque sigue llegando** al
 proveedor dentro del system.
 
-## B. Bajar `commands.rs` a tierra
+## B. Bajar `commands.rs` a tierra — **cerrado el 2026-10-05**
 
 Dividir por dominio en `src-tauri/src/commands/` (chat, projects, agent, models,
 files, settings, data, system, git) **sin cambiar ninguna firma pública**: el
 `invoke_handler` registra los mismos 85 comandos y el frontend no se entera.
 
 **Gate:** `commands.rs` desaparecido o por debajo de 400 líneas, los 85 comandos
-siguen registrados, todas las pruebas de la app pasan y `tsc` limpio.
+siguen registrados, todas las pruebas de la app pasan y `tsc` limpio. **Cumplido:**
+el archivo desapareció, `grep -c "#\[tauri::command\]"` sobre `commands/` suma 85 y
+`lib.rs` registra 85 rutas, las 175 pruebas siguen verdes, clippy `--all-targets
+-D warnings` a cero y `tsc` limpio. Las 21 pruebas del `mod tests` que había al final
+se repartieron en cinco módulos sin borrar ninguna, y el volcado regenerable del
+prompt (`HATBOO_VOLCAR_PROMPT`) sale byte a byte igual: la mudanza no cambió lo que
+ve el modelo.
+
+Tres cosas que el reparto del plan no preveía, y que están hechas con su motivo
+escrito:
+
+- **Los nueve comandos de plantillas y memoria no tenían casa.** El plan proponía
+  nueve módulos; meterlos en `settings` o `data` habría sido una mentira de dominio.
+  Salen como `plantillas.rs` (6) y `memoria.rs` (3). A propósito **no** se llaman
+  `cerebro.rs`: `crate::cerebro` es el puente al crate `hatboo-brain`, y las
+  plantillas no pasan por ahí.
+- **Hacía falta un sitio común**: `commands/_comunes.rs` (250 líneas) lleva
+  `chat_system_prompt`, `CODE_MODE_PROMPT`, `titulo_breve`, `remove_image_files` y
+  `ATTACHMENT_MAX_BYTES`. Sin eso el reparto no compila, porque `chat/stream.rs` y
+  `agent/loop_runner.rs` llaman a esas funciones por la ruta de `commands`.
+- **`commands/mod.rs` reexporta cinco símbolos** (`project_rules_for_prompt`,
+  `rules_status`, `approve_rules`, `revoke_rules`, `RESET_TOKEN`): `tests/db.rs`
+  los llama por fuera del binario con la ruta vieja. Partir el archivo sin
+  reexportarlos rompía 24 llamadas de la batería del Trust Gate.
+
+Queda para C: `files.rs` (869 líneas) tiene un corte natural entre adjuntos y árbol
+del proyecto que no se tomó aquí porque sería *cambiar*, no *mover*; y la duplicación
+`audio_data_uri` / `image_data_uri`, que se dejó intacta por el mismo motivo.
 
 ## C. Servicios de verdad
 

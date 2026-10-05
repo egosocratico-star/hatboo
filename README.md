@@ -215,7 +215,9 @@ versión, o la puerta tampoco pasa.
 src/                 React: componentes, store (Zustand), hooks de eventos
 src-tauri/src/
   lib.rs             arranque, estado y los 85 comandos registrados
-  commands.rs        comandos Tauri (la capa IPC; el streaming no vive aquí)
+  commands/          la capa IPC, repartida por dominio: chat · projects · agent ·
+                     models · files · settings · data · system · git · plantillas ·
+                     memoria · _comunes
   chat/stream.rs     streaming del chat: tarea, cancelación, guardado
   db/                esquema y acceso a SQLite
   providers/         Anthropic, OpenAI, local + lectura de SSE

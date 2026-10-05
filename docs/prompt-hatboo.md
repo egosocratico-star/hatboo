@@ -163,8 +163,8 @@ pudiste hacer y por qué, y qué queda pendiente. Sin tool calls.
 ## Cómo se enchufa (pendiente de su visto bueno)
 
 Hoy el texto vive partido en dos funciones de Rust: `chat_system_prompt`
-(`src-tauri/src/commands.rs:1491`) y `system_prompt`
-(`src-tauri/src/agent/loop_runner.rs:328`), cada una con su `format!` y sus
+(`src-tauri/src/commands/_comunes.rs:69`) y `system_prompt`
+(`src-tauri/src/agent/loop_runner.rs:389`), cada una con su `format!` y sus
 ensamblajes condicionales (reglas del proyecto, skills, modo código, memoria,
 nombre del usuario, nivel de aprobación).
 

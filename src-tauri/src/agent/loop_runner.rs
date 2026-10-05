@@ -426,7 +426,7 @@ pub(crate) fn system_prompt(project_root: &Path, p: &PromptDeSistema<'_>) -> Str
         )
     };
     let code_rule = if code_mode {
-        format!("{} \n", crate::commands::CODE_MODE_PROMPT)
+        format!("{} \n", crate::commands::_comunes::CODE_MODE_PROMPT)
     } else {
         String::new()
     };
@@ -441,7 +441,7 @@ pub(crate) fn system_prompt(project_root: &Path, p: &PromptDeSistema<'_>) -> Str
              {}\n\
              Se cumplen sin relajar ninguna regla anterior: ni el límite de rutas \
              ni las aprobaciones.\n",
-            crate::commands::RULES_FILE,
+            crate::commands::projects::RULES_FILE,
             rules.trim()
         )
     };
@@ -742,7 +742,7 @@ async fn run_loop(
         .ok()
         .and_then(|conn| {
             let pid = db::get_conversation(&conn, conversation_id).ok()?.project_id;
-            Some(crate::commands::project_rules_for_prompt(
+            Some(crate::commands::projects::project_rules_for_prompt(
                 &conn,
                 pid.as_deref(),
                 project_root,
