@@ -29,6 +29,13 @@ jobs:
 
       - run: npm ci
 
+      # Barato y es el que evita el engaño que esta CI corrige: el README llegó a
+      # decir «última release v0.5.0» cuando v0.6.0 estaba publicada. El número se
+      # teclea una vez, en package.json, y aquí se comprueba que tauri.conf.json,
+      # Cargo.toml, el bloque generado del README y el CHANGELOG coinciden.
+      - name: Versión (una sola fuente)
+        run: npm run version:comprobar
+
       # `npm run build` es `tsc && vite build`. Hace doble trabajo: comprueba
       # tipos y deja `dist/`, que tauri-build pide al compilar los tests.
       - name: Frontend (tsc + vite)

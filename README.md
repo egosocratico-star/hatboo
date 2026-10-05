@@ -9,11 +9,14 @@ llavero del sistema operativo.
 Escrito con **Tauri 2** (Rust) + **React 18** + **TypeScript** + **Tailwind** +
 **Zustand** + **SQLite** (`rusqlite`).
 
+<!-- VERSION:START -->
 > Estado: app personal en desarrollo, versión **0.6.0** para Windows. Funciona,
 > no hay autoactualización. Los binarios se publican como release de GitHub al
-> empujar una etiqueta `v*` — el flujo ya está probado y funcionando, ver la
-> última
-> [`v0.5.0`](https://github.com/egosocratico-star/hatboo/releases/tag/v0.5.0).
+> empujar una etiqueta `v*` — el flujo está probado (v0.3.0 en 8m32s, v0.4.0 en
+> 10m50s) y la release publicada más reciente es siempre
+> [`releases/latest`](https://github.com/egosocratico-star/hatboo/releases/latest);
+> el número de esta línea lo genera `package.json` con `npm run version:escribir`.
+<!-- VERSION:END -->
 
 ---
 
@@ -200,22 +203,44 @@ tests sin dependencias externas) corre solo ese subconjunto, marcado en
 Al empujar una etiqueta `v*` se activa `.github/workflows/release.yml`, que
 compila el instalador de Windows y lo adjunta a una release. **Ya probado dos
 veces**: la `v0.3.0` se construyó y publicó sola en 8m32s y la `v0.4.0` en 10m50s.
-La versión hay que subirla a la vez en `package.json`, `src-tauri/Cargo.toml` y
-`src-tauri/tauri.conf.json`.
+La versión **se teclea una sola vez**, en `package.json`: `npm run version:escribir`
+la reparte a `src-tauri/tauri.conf.json`, a `src-tauri/Cargo.toml` y al bloque
+generado del principio de este README, y `npm run version:comprobar` (que corre la
+CI) corta si se te quedó alguno atrás. El `CHANGELOG.md` tiene que conocer la
+versión, o la puerta tampoco pasa.
 
 ## Estructura
 
 ```
 src/                 React: componentes, store (Zustand), hooks de eventos
 src-tauri/src/
-  commands.rs        comandos Tauri y streaming del chat
+  lib.rs             arranque, estado y los 85 comandos registrados
+  commands.rs        comandos Tauri (la capa IPC; el streaming no vive aquí)
+  chat/stream.rs     streaming del chat: tarea, cancelación, guardado
   db/                esquema y acceso a SQLite
   providers/         Anthropic, OpenAI, local + lectura de SSE
-  agent/             loop del agente y herramientas
+  agent/             loop del modo trabajo y herramientas
+  cerebro/           la costura con hatboo-brain (el interruptor de Ajustes)
+  rules.rs           Trust Gate del HATBOO.md (SHA-256)
+  redact.rs          tapado de secretos antes de salir a la nube
+  machine.rs         RAM, núcleos y GPU: lo que el Governor mira
   backup.rs          copia de seguridad completa en un JSON
   web.rs             búsqueda DuckDuckGo sin clave
   state.rs           ajustes y construcción de proveedores
 ```
+
+## Documentación
+
+| Fichero | Qué responde |
+| --- | --- |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | cómo está organizado hoy, con las cifras medidas |
+| [CHANGELOG.md](CHANGELOG.md) | qué cambió en cada versión |
+| [ROADMAP.md](ROADMAP.md) | qué se va a hacer, en qué orden y con qué puerta |
+| [Privacidad y dónde están los datos](#privacidad-y-dónde-están-los-datos) | qué toca cada dato, el llavero, el sandbox y las aprobaciones |
+
+El cerebro vive en su propio repo, [egosocratico-star/hatboo-brain](https://github.com/egosocratico-star/hatboo-brain),
+con su `README.md`, su `SECURITY.md`, su `docs/threat-model.md` y un
+`docs/decision-log.md` que es donde están escritas las razones de cada frontera.
 
 ## Límites conocidos
 
@@ -239,7 +264,8 @@ src-tauri/src/
   que lanza uno sin mirar si la ventana está delante.
 - Sin cuentas, sin sincronización entre dispositivos y sin autoactualización.
 - Los instaladores publicados en `bundle/` no se regeneran en cada cambio; la
-  versión actual es la del manifiesto (`tauri.conf.json`).
+  versión actual es la de `package.json` (la leen el manifiesto de Tauri y la
+  pantalla *Acerca de*).
 - Probado a fondo en Windows; macOS y Linux no tienen pases de CI.
 
 ## Licencia
