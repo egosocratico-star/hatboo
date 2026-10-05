@@ -660,6 +660,42 @@ fn no_se_aprueba_un_hatboo_md_que_no_esta_o_que_esta_en_blanco() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// El agente puede estar trabajando en una subcarpeta: el `HATBOO.md` que se
+/// aprueba y el que se inyecta son los de la raíz del proyecto. Si la subcarpeta
+/// tuviera el suyo, ese no entra — nadie lo aprobó — y las reglas de la raíz sí
+/// siguen entrando.
+#[test]
+fn una_subcarpeta_usa_las_reglas_aprobadas_en_la_raiz_del_proyecto() {
+    let dir = std::env::temp_dir().join(format!("hatboo-rules-sub-{}", uuid::Uuid::new_v4()));
+    let raiz = dir.join("proy");
+    let sub = raiz.join("src");
+    std::fs::create_dir_all(&sub).unwrap();
+    std::fs::write(raiz.join("HATBOO.md"), "Usa pnpm.\n").unwrap();
+    std::fs::write(sub.join("HATBOO.md"), "Otro archivo, sin aprobar.\n").unwrap();
+    let conn = db::connect(&dir.join("test.db")).expect("connect+migrate");
+    let proyecto =
+        db::create_project(&conn, "Proy", raiz.to_str().unwrap(), "approve_for_me").unwrap();
+    hatboo_lib::commands::approve_rules(&conn, &proyecto.id).unwrap();
+
+    // Con el id del proyecto, la subcarpeta recibe las reglas de la raíz.
+    assert_eq!(
+        hatboo_lib::commands::project_rules_for_prompt(&conn, Some(&proyecto.id), &sub),
+        "Usa pnpm.\n"
+    );
+    // Sin id se resuelve por carpeta: la raíz es un proyecto registrado y la
+    // subcarpeta no, así que su archivo propio no abre la puerta.
+    assert_eq!(
+        hatboo_lib::commands::project_rules_for_prompt(&conn, None, &raiz),
+        "Usa pnpm.\n"
+    );
+    assert_eq!(
+        hatboo_lib::commands::project_rules_for_prompt(&conn, None, &sub),
+        ""
+    );
+
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 /// Sin `projects.rules_hash` —el estado de toda base creada antes del gate— no se
 /// inyecta ni una letra, aunque el `HATBOO.md` esté escrito.
 #[test]
