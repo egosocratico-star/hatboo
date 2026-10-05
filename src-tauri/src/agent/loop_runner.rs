@@ -764,6 +764,23 @@ async fn run_loop(
     // responde por el bucle de siempre: el interruptor no puede costar una tarea.
     // Si ya tocó el disco, repetir sería trabajo doble y el error sube tal cual.
     if settings.brain_enabled && settings.active_provider == "local" {
+        // Los turnos previos de esta misma sesión: el bucle normal no los carga
+        // nunca —cada encargo empieza de cero—, pero el crate tiene canal para
+        // ellos y una sesión de trabajo admite más de un encargo. El pedido de ahora
+        // ya está escrito (lo añade `start_work_task` antes de correr), así que se
+        // quita de la cola: en `req.message` tiene que viajar una sola vez.
+        let mut historial: Vec<db::Message> = state
+            .db
+            .lock()
+            .ok()
+            .and_then(|conn| db::hilo_activo(&conn, conversation_id).ok())
+            .unwrap_or_default();
+        if historial
+            .last()
+            .is_some_and(|m| m.role == "user" && m.content == user_request)
+        {
+            historial.pop();
+        }
         match crate::cerebro::trabajo::correr(crate::cerebro::trabajo::TurnoDeTrabajo {
             app: app.clone(),
             conv: conversation_id.to_string(),
@@ -777,6 +794,12 @@ async fn run_loop(
             agent_tools: tools::build_tools(&settings, &fuentes),
             redactar,
             data_dir: state.data_dir.clone(),
+            // Lo que el bucle normal se pone a sí mismo en el system: los tres
+            // bloques ya están calculados arriba, el brazo no vuelve a pedirlos.
+            skills: skills_prompt.clone(),
+            memoria: memoria_prompt.clone(),
+            reglas_proyecto: rules_prompt.clone(),
+            historial,
         })
         .await
         {

@@ -831,6 +831,8 @@ export const en: Record<string, string> = {
     "No active template: the prompt carries nothing extra.",
   "{n} plantilla(s) activas: se añaden al prompt de cada sesión.":
     "{n} active template(s): added to every session's prompt.",
+  "{n} plantilla(s) activas: viajan en el prompt de cada sesión; el Plan del Brain las recorta si no caben.":
+    "{n} active template(s): they travel in every session's prompt; the Brain's Plan trims them if they don't fit.",
   plantillas: "templates",
   "Carpeta de código: hay repo de git o un manifiesto de proyecto arriba.":
     "Code folder: a git repo or a project manifest sits at the top.",

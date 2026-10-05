@@ -125,9 +125,10 @@ CREATE TABLE IF NOT EXISTS drafts (
     updated_at INTEGER NOT NULL
 );
 
--- Notas de memoria escritas a mano por el usuario. Viajan en el system prompt
--- de chat y de agente; no se deducen de los chats, así que no hay nada que
--- generar ni que apagar.
+-- Notas de memoria escritas a mano por el usuario. Viajan con el prompt de chat
+-- y de agente —con el Brain al mando entran como mensaje de sistema del
+-- historial, que es el canal del crate para lo que pone el producto—; no se
+-- deducen de los chats, así que no hay nada que generar ni que apagar.
 
 CREATE TABLE IF NOT EXISTS memories (
     id TEXT PRIMARY KEY,

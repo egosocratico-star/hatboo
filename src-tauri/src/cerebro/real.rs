@@ -706,13 +706,15 @@ mod tests {
     /// Medición con el Ollama y la RAM de esta máquina, por el config que arma
     /// Hatboo. Temporal: se corre a mano y se borra.
     #[tokio::test]
-    async fn TEMP_mide_la_negativa_con_el_config_de_hatboo() {
+    async fn temp_mide_la_negativa_con_el_config_de_hatboo() {
         use super::{preparar, OllamaProvider};
         for modelo in ["qwen3:1.7b", "gemma3:1b"] {
-            let mut s = Settings::default();
-            s.brain_enabled = true;
-            s.active_provider = "local".into();
-            s.local_model = modelo.into();
+            let s = Settings {
+                brain_enabled: true,
+                active_provider: "local".into(),
+                local_model: modelo.into(),
+                ..Default::default()
+            };
             let ollama = std::sync::Arc::new(OllamaProvider::con_base(s.local_endpoint.clone()));
             let sonda = std::sync::Arc::new(super::Sonda::nueva());
             let (cerebro, req) = preparar(

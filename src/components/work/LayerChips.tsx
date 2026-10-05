@@ -28,6 +28,13 @@ export default function LayerChips() {
   const webSearch = useChatStore((s) => s.settings?.webSearch);
   const patchSettings = useChatStore((s) => s.patchSettings);
   const plantillas = useChatStore((s) => s.skills.filter((k) => k.enabled).length);
+  // Con el Brain al mando el system lo arma el crate y las plantillas viajan como
+  // mensaje de sistema dentro del historial, sujetas al presupuesto del Plan; sin
+  // Brain van dentro del system del bucle. La pastilla distingue los dos casos en
+  // vez de prometer que siempre caben enteras.
+  const brainActivo = useChatStore(
+    (s) => !!s.settings?.brainEnabled && s.settings?.activeProvider === "local",
+  );
 
   useEffect(() => {
     let vivo = true;
@@ -86,9 +93,14 @@ export default function LayerChips() {
         title={
           capas.plantillas === 0
             ? t("Ninguna plantilla activa: el prompt no lleva extras.")
-            : t("{n} plantilla(s) activas: se añaden al prompt de cada sesión.", {
-                n: capas.plantillas,
-              })
+            : brainActivo
+              ? t(
+                  "{n} plantilla(s) activas: viajan en el prompt de cada sesión; el Plan del Brain las recorta si no caben.",
+                  { n: capas.plantillas },
+                )
+              : t("{n} plantilla(s) activas: se añaden al prompt de cada sesión.", {
+                  n: capas.plantillas,
+                })
         }
       >
         <BookMarked className="h-3 w-3" />
