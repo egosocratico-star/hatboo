@@ -144,7 +144,7 @@ sobre un `.env`, no sustituye a un gestor de secretos.
 | `npm run version:comprobar` | que `package.json`, `tauri.conf.json`, `Cargo.toml`, el bloque del README y el CHANGELOG digan la misma versión | falla la CI si divergen |
 | CI (`windows-latest`) | `npm ci` → `npm run build` → `cargo clippy --all-targets -D warnings` → los cuatro targets de prueba | `--all-targets` **compila** las tres pruebas que no se corren aquí |
 | Fuera de CI a propósito | `agent_flow` y `local_provider` (piden un Ollama en marcha) y `keyring` (llavero real) | son de integración local; sin el paso de clippy podrían dejar de compilar y la CI seguir verde — ya pasó |
-| El crate | `cargo test` (366) + batería `--decisiones` + su CI con clippy | la batería es informativa: siempre sale 0, el número se lee |
+| El crate | `cargo test --all-features` (370 verdes; 352 con el default `ollama`) + batería `--decisiones` + su CI con clippy | la batería es informativa: siempre sale 0, el número se lee |
 
 ## 8. Deuda que este fichero reconoce
 

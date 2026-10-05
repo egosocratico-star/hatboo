@@ -27,7 +27,7 @@ produjo. **No hace falta más Hatboo: hace falta menos Hatboo, mejor organizado.
 | **C** | servicios de verdad | sin empezar |
 | **D** | design system y UI | sin empezar |
 | **E** | una sola fuente de verdad | **cerrado hoy** (ver abajo) |
-| **F** | el gate M0: benchmark baseline vs Brain | **en curso**, corrida limpia lanzada el 2026-10-05 |
+| **F** | el gate M0: benchmark baseline vs Brain | **cerrado el 2026-10-05**: mejora en el modelo divagador, **regresión medida** (+344 %) en el que sostiene la suite |
 | **G** | Engine, Policy, Process, Browser, esquema | **fuera de 0.7** por decisión |
 
 El orden de ejecución detallado, con el triage de los planes que llegaron de fuera
@@ -114,15 +114,45 @@ que no esté pasando.
 lo que Hatboo clava es un rev de `main` en su `Cargo.lock`. Se necesita una sola
 publicación del crate para poder decir «la dependencia tiene versión».
 
-## F. El gate M0
+## F. El gate M0 — **cerrado el 2026-10-05, con regresión medida**
 
-La corrida limpia baseline-vs-Brain con dos modelos que **sí** sostienen la suite
-(`qwen3.5:0.8b` y `qwen2.5-coder:1.5b`), tres repeticiones, máquina tranquila, e
-informe publicado en `benchmarks/`. Es el número que decide si la Fase 6/7 se
-enciende y si el Brain se conecta del todo.
+Cuatro pasadas limpias del split `dev` (24 entradas), tres repeticiones,
+`temperature 0` con semilla, margen del Governor en 250 MB y nada compilando dentro
+de la ventana (11:32 → 14:06). Los informes están en el crate:
+`benchmarks/m0-qwen3.5_0.8b.md` y `benchmarks/m0-qwen2.5-coder_1.5b.md`, con los
+volcados crudos en `benchmarks/volcados/`.
 
-**Gate:** informe con medianas y rango, y un veredicto que diga «mejora»,
-«regresión» o «no se puede afirmar».
+Lo que dice el número, en las tres palabras del gate:
+
+| Modelo | Coste por respuesta | Veredicto |
+| --- | --- | --- |
+| `qwen3.5:0.8b` | 84,2 s → 17,7 s · 1024 → 192 tokens de salida | **mejora** |
+| `qwen2.5-coder:1.5b` | 3,0 s → 13,5 s (+344 %) · 14 → 31 tokens | **REGRESIÓN** |
+
+Y las dos lecturas que importan, porque el número solo no las dice:
+
+- La «mejora» del 0,8b es **el tope de salida del Plan**, no un modelo más listo: el
+  baseline no tenía tope y se iba a los 1024 tokens divagando. `Verificado` salió
+  **0 → 0**: no hay evidencia de que las respuestas fueran mejores.
+- La regresión del coder tiene nombre y coste: **24 recargas de contexto y 16
+  reintentos** en la pasada (3,7 s medidos por recarga en esta máquina). Es el precio
+  de administrar, y hasta hoy no estaba medido. En ese mismo modelo es donde la
+  verificación determinista aterriza por primera vez: `Verificado` 0 → **9**.
+
+**Consecuencia para el plan:** con este número **no se enciende el Brain por defecto**
+ni se abre la Fase 7. Lo que abre es una tarea concreta antes de eso: bajar el coste
+de recarga (el `keep_alive` y el vaivén de `num_ctx`) en el camino de coste bajo, y
+añadir entradas a la suite — el 100 % de la batería `--decisiones` es saturación, no
+virtud.
+
+Para llegar aquí hubo que arreglar el instrumento: el `--comparar` metía los rechazos
+de 2 ms y 0 tokens en la mediana de coste y sacaba «-99,9 % de mejora» de un modelo que
+no se encendió, y promediaba las recargas por entrada (una en tres repeticiones promedia
+a cero) de modo que el informe decía «0 recargas» en un pase que había contado 24.
+Reglas nuevas, con sus pruebas: se comparan **solo las entradas que generaron en los dos
+bandos**, las medianas de coste se calculan **solo sobre lo que generó**, los
+contadores de eventos van **en suma**, y ningún coste sale **sin su rango**. Entrada 24
+del `decision-log` del crate.
 
 **Regla de esta máquina, que ya costó tres corridas tiradas:** no se compila ni se
 ejecuta nada pesado mientras se mide. En 8,45 GB sin GPU, un `cargo` dentro de la
