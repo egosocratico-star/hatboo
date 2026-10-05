@@ -202,8 +202,6 @@ export const en: Record<string, string> = {
   "Editar plantilla": "Edit template",
   "Ejemplo: así se vería una respuesta de Hatboo.": "Example: this is what a Hatboo answer would look like.",
   "Ejemplos para añadir": "Examples to add",
-  "El agente está leyendo las reglas de este proyecto (HATBOO.md)":
-    "The agent is reading this project's rules (HATBOO.md)",
   "El agente propone este plan": "The agent proposes this plan",
   "El agente todavía no escribió ningún archivo aquí.": "The agent hasn't written any files here yet.",
   "El comando no devolvió código de salida (cancelado o sin permisos)":
@@ -646,8 +644,6 @@ export const en: Record<string, string> = {
   "{n} fuente de la web": "{n} web source",
   "{n} fuentes de la web": "{n} web sources",
   "Añadir un paso": "Add a step",
-  "Se añade al prompt del agente al empezar cada sesión de trabajo de esta carpeta. No amplía el sandbox ni quita aprobaciones.":
-    "It's added to the agent's prompt at the start of every work session in this folder. It doesn't widen the sandbox or remove approvals.",
   "Crear HATBOO.md": "Create HATBOO.md",
   "Cuando lo haga verás la ruta, si es nuevo o modificado y el diff, con el botón para deshacer la sesión.":
     "Once it does you'll see the path, whether it's new or modified and the diff, with a button to undo the session.",
@@ -1184,4 +1180,27 @@ export const en: Record<string, string> = {
     "The list cuts off at the most recent messages; there are more behind.",
   "La lista corta en los mensajes con adjuntos más recientes; puede haber más antiguos detrás.":
     "The list cuts off at the most recent messages with attachments; older ones may be behind.",
+
+  // ---- Trust Gate del HATBOO.md (D4). ----
+  // El prompt no recibe las reglas hasta que el usuario aprueba el contenido
+  // exacto del archivo, así que la interfaz tiene que poder decir las tres
+  // cosas distintas que hay ahora: aprobadas, sin aprobar y cambió.
+  "Reglas de este proyecto (HATBOO.md)": "This project's rules (HATBOO.md)",
+  "Reglas aprobadas: se están añadiendo al prompt":
+    "Approved rules: they are going into the prompt",
+  "El HATBOO.md cambió desde que lo aprobaste: ya NO se añade al prompt":
+    "HATBOO.md changed since you approved it: it is NOT going into the prompt anymore",
+  "Hay un HATBOO.md, pero no lo has aprobado: no se añade al prompt":
+    "There is a HATBOO.md, but you haven't approved it: it is not going into the prompt",
+  "Aprobadas: se añaden al prompt del agente": "Approved: added to the agent's prompt",
+  "Cambió desde tu aprobación: NO se añaden al prompt":
+    "Changed since your approval: NOT added to the prompt",
+  "Sin aprobar: NO se añaden al prompt": "Not approved: NOT added to the prompt",
+  "Todavía no hay HATBOO.md en esta carpeta.": "There is no HATBOO.md in this folder yet.",
+  "Al aprobar entra en el prompt EXACTAMENTE lo que hay en el archivo. Cualquier edición —también la de fuera de Hatboo— lo saca de ahí hasta que vuelvas a aprobar. No amplía el sandbox ni quita aprobaciones.":
+    "Once you approve it, EXACTLY what the file holds goes into the prompt. Any edit — including one made outside Hatboo — takes it back out until you approve again. It doesn't widen the sandbox or remove approvals.",
+  "Dejar de usarlas": "Stop using them",
+  "Añade este texto exacto al prompt del agente": "Adds this exact text to the agent's prompt",
+  "Volver a aprobar": "Approve again",
+  "Aprobar reglas": "Approve rules",
 };

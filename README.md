@@ -108,9 +108,12 @@ Abre una carpeta como proyecto y el agente planifica, ejecuta y reporta.
 - **Chip «Cambios»** en la cabecera: lista los archivos que escribió esta sesión,
   si eran nuevos o ya existían, y el último diff de cada uno.
 - **Reglas por proyecto**: un `HATBOO.md` en la raíz del proyecto se añade al prompt
-  del agente en cada sesión de trabajo de esa carpeta. Se edita desde la cabecera
-  de la vista (*Reglas*). Son contexto sobre el proyecto: no amplían el sandbox ni
-  saltan aprobaciones.
+  del agente en cada sesión de trabajo de esa carpeta, pero solo después de que
+  apruebas el contenido exacto que hay en el disco (Trust Gate): se guarda su
+  SHA-256 en el proyecto, y cualquier edición —también la de fuera de Hatboo— deja
+  de inyectarse hasta que vuelves a aprobar. Se edita desde la cabecera de la vista
+  (*Reglas*), que dice en cada momento si se están usando o no. Son contexto sobre
+  el proyecto: no amplían el sandbox ni saltan aprobaciones.
 - Sesiones anidadas por proyecto, árbol de archivos con buscador, lista de tareas en
   vivo y pestañas para varios proyectos a la vez. Los proyectos también se fijan con
   clic derecho, y abrir dos veces la misma carpeta no crea un segundo proyecto.

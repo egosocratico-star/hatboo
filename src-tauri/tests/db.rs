@@ -513,6 +513,210 @@ fn un_proyecto_fijado_manda_sobre_la_apertura_reciente() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// Hashes SHA-256 reales (el de la cadena vacía y el de `abc`): son de verdad
+/// para que un cambio de algoritmo en el gate se note aquí.
+const HASH_A: &str = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+const HASH_B: &str = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+
+#[test]
+fn rules_hash_nace_vacio_y_lo_escribe_solo_la_aprobacion() {
+    let dir = std::env::temp_dir().join(format!("hatboo-rules-col-{}", uuid::Uuid::new_v4()));
+    let conn = db::connect(&dir.join("test.db")).expect("connect+migrate");
+
+    // El Trust Gate vive en `projects.rules_hash`: nace NULL, que es «sin
+    // aprobar», y nada más que la aprobación la escribe.
+    let proyecto = db::create_project(&conn, "Proy", "/tmp/proy", "approve_for_me").unwrap();
+    assert_eq!(proyecto.rules_hash, None);
+
+    db::set_project_rules_hash(&conn, &proyecto.id, HASH_A).unwrap();
+    assert_eq!(
+        db::get_project(&conn, &proyecto.id).unwrap().rules_hash.as_deref(),
+        Some(HASH_A)
+    );
+
+    // Aprobar otra vez sustituye: no se acumulan hashes ni queda el viejo.
+    db::set_project_rules_hash(&conn, &proyecto.id, HASH_B).unwrap();
+    assert_eq!(
+        db::get_project(&conn, &proyecto.id).unwrap().rules_hash.as_deref(),
+        Some(HASH_B)
+    );
+
+    // Lo demás que se edita de un proyecto no pisa `rules_hash`: si el nivel de
+    // aprobación o la apertura lo reescribieran, la aprobación se perdería por
+    // detrás sin que nadie la quitara.
+    db::set_project_approval_level(&conn, &proyecto.id, "auto_yes").unwrap();
+    db::set_project_pinned(&conn, &proyecto.id, true).unwrap();
+    db::touch_project(&conn, &proyecto.id).unwrap();
+    assert_eq!(
+        db::get_project(&conn, &proyecto.id).unwrap().rules_hash.as_deref(),
+        Some(HASH_B)
+    );
+    assert_eq!(
+        db::list_projects(&conn).unwrap()[0].rules_hash.as_deref(),
+        Some(HASH_B),
+        "la lista que pinta la barra lateral lleva el hash aprobado"
+    );
+
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// El gate de verdad: archivo + hash aprobado + lo que recibe el prompt. Se prueba
+/// aquí y no solo en la unidad pura porque lo que está en juego es que la lectura
+/// que se inyecta y el hash que se compara salgan de los MISMO bytes.
+#[test]
+fn rules_aprobadas_se_inyectan_y_editarlas_corta_la_inyeccion() {
+    let dir = std::env::temp_dir().join(format!("hatboo-rules-gate-{}", uuid::Uuid::new_v4()));
+    let root = dir.join("proy");
+    std::fs::create_dir_all(&root).unwrap();
+    let conn = db::connect(&dir.join("test.db")).expect("connect+migrate");
+    let proyecto =
+        db::create_project(&conn, "Proy", root.to_str().unwrap(), "approve_for_me").unwrap();
+    let fila = || db::get_project(&conn, &proyecto.id).unwrap();
+
+    std::fs::write(root.join("HATBOO.md"), "Usa pnpm.\n").unwrap();
+    let archivo = hatboo_lib::rules::read_file(&root.join("HATBOO.md")).expect("legible");
+    assert_eq!(archivo.texto, "Usa pnpm.\n");
+    assert_eq!(archivo.hash, hatboo_lib::rules::fingerprint(b"Usa pnpm.\n"));
+
+    // Sin aprobar no entra nada, aunque el archivo exista y sea perfecto.
+    assert_eq!(
+        hatboo_lib::commands::project_rules_for_prompt(&conn, Some(&proyecto.id), &root),
+        ""
+    );
+    // Y la pantalla lo dice con el mismo criterio: hay archivo, no está aprobado.
+    let pendiente = hatboo_lib::commands::rules_status(&fila());
+    assert!(pendiente.exists && !pendiente.applied);
+    assert_eq!(pendiente.approved_hash, None);
+    assert_eq!(pendiente.content, "Usa pnpm.\n");
+
+    // La aprobación real —la que llama el botón— hashea el disco y escribe el
+    // hash en el proyecto.
+    let aprobadas = hatboo_lib::commands::approve_rules(&conn, &proyecto.id).unwrap();
+    assert!(aprobadas.applied);
+    assert_eq!(aprobadas.approved_hash.as_deref(), Some(archivo.hash.as_str()));
+    assert_eq!(
+        hatboo_lib::commands::project_rules_for_prompt(&conn, Some(&proyecto.id), &root),
+        "Usa pnpm.\n"
+    );
+    assert!(hatboo_lib::commands::rules_status(&fila()).applied);
+
+    // Editar el archivo corta la inyección sin tocar la base de datos: el hash
+    // aprobado es otro y el gate no pregunta.
+    std::fs::write(root.join("HATBOO.md"), "Usa npm.\n").unwrap();
+    assert_eq!(
+        hatboo_lib::commands::project_rules_for_prompt(&conn, Some(&proyecto.id), &root),
+        ""
+    );
+    let cambio = hatboo_lib::commands::rules_status(&fila());
+    assert!(cambio.exists && !cambio.applied && cambio.approved_hash.is_some());
+    assert_ne!(cambio.current_hash.as_deref(), Some(archivo.hash.as_str()));
+
+    // Volver al contenido aprobado abre el gate otra vez: lo que manda es el hash,
+    // no el historial de ediciones.
+    std::fs::write(root.join("HATBOO.md"), "Usa pnpm.\n").unwrap();
+    assert_eq!(
+        hatboo_lib::commands::project_rules_for_prompt(&conn, Some(&proyecto.id), &root),
+        "Usa pnpm.\n"
+    );
+
+    // Quitar la aprobación cierra el gate dejando el archivo intacto: es la forma
+    // de parar las reglas sin perder lo escrito.
+    let retirada = hatboo_lib::commands::revoke_rules(&conn, &proyecto.id).unwrap();
+    assert!(!retirada.applied);
+    assert_eq!(retirada.approved_hash, None);
+    assert_eq!(retirada.content, "Usa pnpm.\n");
+    assert_eq!(
+        hatboo_lib::commands::project_rules_for_prompt(&conn, Some(&proyecto.id), &root),
+        ""
+    );
+
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Aprobar solo puede aprobar contenido que exista y diga algo. Si el botón
+/// escribiera un hash sobre la nada, la pantalla diría «aprobadas» con un prompt
+/// vacío.
+#[test]
+fn no_se_aprueba_un_hatboo_md_que_no_esta_o_que_esta_en_blanco() {
+    let dir = std::env::temp_dir().join(format!("hatboo-rules-apr-{}", uuid::Uuid::new_v4()));
+    let root = dir.join("proy");
+    std::fs::create_dir_all(&root).unwrap();
+    let conn = db::connect(&dir.join("test.db")).expect("connect+migrate");
+    let proyecto =
+        db::create_project(&conn, "Proy", root.to_str().unwrap(), "approve_for_me").unwrap();
+
+    assert!(hatboo_lib::commands::approve_rules(&conn, &proyecto.id).is_err());
+    assert_eq!(db::get_project(&conn, &proyecto.id).unwrap().rules_hash, None);
+
+    std::fs::write(root.join("HATBOO.md"), "\n   \n").unwrap();
+    assert!(hatboo_lib::commands::approve_rules(&conn, &proyecto.id).is_err());
+    assert_eq!(db::get_project(&conn, &proyecto.id).unwrap().rules_hash, None);
+    // Y la pantalla no se deja engañar por el espacio en blanco: hay archivo, no
+    // se inyecta.
+    let fila = db::get_project(&conn, &proyecto.id).unwrap();
+    let status = hatboo_lib::commands::rules_status(&fila);
+    assert!(status.exists && !status.applied);
+
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Sin `projects.rules_hash` —el estado de toda base creada antes del gate— no se
+/// inyecta ni una letra, aunque el `HATBOO.md` esté escrito.
+#[test]
+fn un_proyecto_sin_hash_no_inyecta_nada_aunque_haya_archivo() {
+    let dir = std::env::temp_dir().join(format!("hatboo-rules-none-{}", uuid::Uuid::new_v4()));
+    let root = dir.join("proy");
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(root.join("HATBOO.md"), "Todo lo que se te ocurra.\n").unwrap();
+    let conn = db::connect(&dir.join("test.db")).expect("connect+migrate");
+
+    let proyecto =
+        db::create_project(&conn, "Proy", root.to_str().unwrap(), "approve_for_me").unwrap();
+    assert_eq!(proyecto.rules_hash, None);
+    assert_eq!(
+        hatboo_lib::commands::project_rules_for_prompt(&conn, Some(&proyecto.id), &root),
+        ""
+    );
+    // La carpeta sin proyecto registrado tampoco abre la puerta.
+    assert_eq!(
+        hatboo_lib::commands::project_rules_for_prompt(&conn, None, &root),
+        ""
+    );
+    // Un hash que no es el de este archivo no vale, aunque tenga 64 caracteres.
+    db::set_project_rules_hash(&conn, &proyecto.id, HASH_A).unwrap();
+    assert_eq!(
+        hatboo_lib::commands::project_rules_for_prompt(&conn, Some(&proyecto.id), &root),
+        ""
+    );
+    assert!(!hatboo_lib::commands::rules_status(&db::get_project(&conn, &proyecto.id).unwrap()).applied);
+
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Un `HATBOO.md` vacío aprobado no aporta texto al prompt, así que la pantalla
+/// tampoco puede decir que se están usando.
+#[test]
+fn un_hatboo_md_vacio_no_se_inyecta_ni_aparece_como_aplicado() {
+    let dir = std::env::temp_dir().join(format!("hatboo-rules-vacio-{}", uuid::Uuid::new_v4()));
+    let root = dir.join("proy");
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(root.join("HATBOO.md"), "   \n").unwrap();
+    let conn = db::connect(&dir.join("test.db")).expect("connect+migrate");
+    let proyecto =
+        db::create_project(&conn, "Proy", root.to_str().unwrap(), "approve_for_me").unwrap();
+    db::set_project_rules_hash(&conn, &proyecto.id, &hatboo_lib::rules::fingerprint(b"   \n"))
+        .unwrap();
+
+    let fila = db::get_project(&conn, &proyecto.id).unwrap();
+    assert_eq!(
+        hatboo_lib::commands::project_rules_for_prompt(&conn, Some(&proyecto.id), &root),
+        ""
+    );
+    assert!(!hatboo_lib::commands::rules_status(&fila).applied);
+
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 #[test]
 fn ramificar_copia_hasta_el_mensaje_elegido_y_no_toca_el_original() {
     let dir = std::env::temp_dir().join(format!("hatboo-test-{}", uuid::Uuid::new_v4()));

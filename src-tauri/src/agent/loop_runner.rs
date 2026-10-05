@@ -733,6 +733,22 @@ async fn run_loop(
         .ok()
         .and_then(|conn| db::memoria_prompt(&conn).ok())
         .unwrap_or_default();
+    // Trust Gate: el proyecto de esta conversación es el que aprobó unas reglas,
+    // y solo entran si el hash del archivo sigue siendo el aprobado. Sin
+    // aprobación el bloque de reglas no existe en el prompt.
+    let rules_prompt = state
+        .db
+        .lock()
+        .ok()
+        .and_then(|conn| {
+            let pid = db::get_conversation(&conn, conversation_id).ok()?.project_id;
+            Some(crate::commands::project_rules_for_prompt(
+                &conn,
+                pid.as_deref(),
+                project_root,
+            ))
+        })
+        .unwrap_or_default();
     // Tapar solo tiene sentido cuando lo leído va a salir de la máquina: con el
     // proveedor local el contenido viaja a tu propio Ollama.
     let redactar = settings.redact_secrets
@@ -795,7 +811,7 @@ async fn run_loop(
                         assistant_name,
                         skills: &skills_prompt,
                         code_mode: settings.code_mode,
-                        rules: &crate::commands::project_rules_for_prompt(project_root),
+                        rules: &rules_prompt,
                         memoria: &memoria_prompt,
                         tz_offset_min: settings.tz_offset_min,
                     },

@@ -8,6 +8,7 @@ pub mod db;
 pub mod machine;
 pub mod providers;
 pub mod redact;
+pub mod rules;
 pub mod state;
 pub mod web;
 
@@ -106,6 +107,8 @@ pub fn run() {
             commands::capture_screen,
             commands::project_rules,
             commands::save_project_rules,
+            commands::approve_project_rules,
+            commands::revoke_project_rules,
             commands::cancel_work_task,
             commands::respond_to_approval,
             commands::respond_plan_review,

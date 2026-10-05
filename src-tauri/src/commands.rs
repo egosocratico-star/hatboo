@@ -58,7 +58,11 @@ pub fn system_prompt_of(app: State<AppState>, conversation_id: String) -> Result
             None => return Ok(chat_system_prompt(&aj, &texto, &memoria)),
             Some(pid) => {
                 let proyecto = db::get_project(&conn, &pid)?;
-                (texto, memoria, PathBuf::from(proyecto.root_path), proyecto.approval_level)
+                let raiz = PathBuf::from(proyecto.root_path);
+                // Aquí también pasa por el gate: si el prompt que se muestra llevara
+                // reglas sin aprobar, esta pantalla prometería texto que el modelo no ve.
+                let reglas = project_rules_for_prompt(&conn, Some(&pid), &raiz);
+                (texto, memoria, raiz, proyecto.approval_level, reglas)
             }
         }
     };
@@ -69,7 +73,7 @@ pub fn system_prompt_of(app: State<AppState>, conversation_id: String) -> Result
             assistant_name: &aj.assistant_name,
             skills: &skills.0,
             code_mode: aj.code_mode,
-            rules: &project_rules_for_prompt(&skills.2),
+            rules: &skills.4,
             memoria: &skills.1,
             tz_offset_min: aj.tz_offset_min,
         },
@@ -1448,8 +1452,9 @@ pub(crate) const CODE_MODE_PROMPT: &str = "Modo código activo: responde como in
  la causa raíz en una línea antes del arreglo. Prefiere la solución más simple y las dependencias \
  que ya existen en el proyecto antes de proponer nuevas.";
 
-/// Archivo de reglas del proyecto: instrucciones que el usuario escribe una vez
-/// y se pegan al system prompt del agente en cada sesión de ese proyecto.
+/// Archivo de reglas del proyecto: instrucciones que el usuario escribe una vez y
+/// se pegan al system prompt del agente en cada sesión de ese proyecto, pero solo
+/// después de que él aprueba el contenido exacto que hay en el disco (Trust Gate).
 pub(crate) const RULES_FILE: &str = "HATBOO.md";
 /// Techo de lo que se inyecta en el prompt; más allá de esto ya es un libro y el
 /// modelo empieza a perder el hilo.
@@ -1457,61 +1462,147 @@ const RULES_MAX_CHARS: usize = 6_000;
 /// Techo de lo que se deja guardar desde la app.
 const RULES_SAVE_MAX: usize = 20_000;
 
-/// Contenido de `HATBOO.md` para el system prompt. Cadena vacía si no existe:
-/// la mayoría de proyectos no lo tendrán y eso no debe cambiar el prompt.
-pub(crate) fn project_rules_for_prompt(root: &Path) -> String {
-    match std::fs::read_to_string(root.join(RULES_FILE)) {
-        Ok(texto) => texto.chars().take(RULES_MAX_CHARS).collect(),
-        Err(_) => String::new(),
+/// Contenido de `HATBOO.md` para el system prompt, con el Trust Gate puesto.
+/// Cadena vacía si no hay proyecto registrado, si no existe el archivo, si nunca
+/// se aprobó o si cambió desde la aprobación: la mayoría de proyectos no lo
+/// tendrá, y eso no debe cambiar el prompt.
+///
+/// Con `project_id` `None` el proyecto se busca por la raíz. El archivo que se
+/// compara es siempre el de la raíz del proyecto, no el de la subcarpeta donde se
+/// esté trabajando: es el mismo que ve y aprueba la pantalla de reglas.
+pub fn project_rules_for_prompt(
+    conn: &rusqlite::Connection,
+    project_id: Option<&str>,
+    raiz: &Path,
+) -> String {
+    let Some(proyecto) = rules_project(conn, project_id, raiz) else {
+        return String::new();
+    };
+    let Some(archivo) = crate::rules::read_file(&rules_ruta(&proyecto)) else {
+        return String::new();
+    };
+    crate::rules::text_for_prompt(proyecto.rules_hash.as_deref(), &archivo, RULES_MAX_CHARS)
+        .unwrap_or_default()
+}
+
+/// La fila del proyecto dueño de las reglas: el id que trae la pantalla o la
+/// conversación y, si no lo hay, la carpeta registrada que coincida con esta raíz.
+fn rules_project(
+    conn: &rusqlite::Connection,
+    project_id: Option<&str>,
+    raiz: &Path,
+) -> Option<db::Project> {
+    match project_id {
+        Some(id) => db::get_project(conn, id).ok(),
+        None => db::find_project_by_root(conn, &raiz.to_string_lossy())
+            .ok()
+            .flatten(),
     }
 }
 
+/// Ruta del `HATBOO.md` del proyecto. El nombre del archivo es fijo — lo único
+/// que viene de fuera es la raíz, que el usuario eligió al abrir el proyecto.
+fn rules_ruta(p: &db::Project) -> PathBuf {
+    PathBuf::from(&p.root_path).join(RULES_FILE)
+}
+
+/// Estado del Trust Gate tal como lo ve la pantalla: lo que hay en el disco y si
+/// ese contenido es el aprobado. `applied` es la única respuesta válida a «¿las
+/// está leyendo el agente?»; enseñar el texto sin decir que no se inyecta sería
+/// prometer algo que no está pasando.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectRules {
     pub exists: bool,
     pub content: String,
     pub path: String,
+    pub applied: bool,
+    pub approved_hash: Option<String>,
+    pub current_hash: Option<String>,
 }
 
-/// Ruta de `HATBOO.md` del proyecto. El nombre del archivo es fijo — lo único
-/// que viene de fuera es la raíz, que el usuario eligió al abrir el proyecto.
-fn rules_path(app: &State<AppState>, project_id: &str) -> Result<PathBuf, String> {
-    let root = {
-        let conn = app.db.lock().map_err(|e| e.to_string())?;
-        db::get_project(&conn, project_id)?.root_path
-    };
-    Ok(PathBuf::from(root).join(RULES_FILE))
+pub fn rules_status(p: &db::Project) -> ProjectRules {
+    let ruta = rules_ruta(p);
+    let archivo = crate::rules::read_file(&ruta);
+    let aprobado = p.rules_hash.as_deref();
+    ProjectRules {
+        exists: archivo.is_some(),
+        content: archivo.as_ref().map(|a| a.texto.clone()).unwrap_or_default(),
+        path: ruta.display().to_string(),
+        applied: archivo.as_ref().is_some_and(|a| crate::rules::applies(aprobado, a)),
+        approved_hash: p.rules_hash.clone(),
+        current_hash: archivo.map(|a| a.hash),
+    }
 }
 
 #[tauri::command]
-pub fn project_rules(
-    app: State<AppState>,
-    project_id: String,
-) -> Result<ProjectRules, String> {
-    let ruta = rules_path(&app, &project_id)?;
-    Ok(ProjectRules {
-        exists: ruta.is_file(),
-        content: std::fs::read_to_string(&ruta).unwrap_or_default(),
-        path: ruta.display().to_string(),
-    })
+pub fn project_rules(app: State<AppState>, project_id: String) -> Result<ProjectRules, String> {
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    Ok(rules_status(&db::get_project(&conn, &project_id)?))
 }
 
+/// Escribe `HATBOO.md`. Guardar NO aprueba: si el archivo ya estaba aprobado, el
+/// gate se cierra solo por no cuadrar el hash, y eso es lo que devuelve aquí.
 #[tauri::command]
 pub fn save_project_rules(
     app: State<AppState>,
     project_id: String,
     content: String,
 ) -> Result<ProjectRules, String> {
-    let ruta = rules_path(&app, &project_id)?;
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    let proyecto = db::get_project(&conn, &project_id)?;
     let recortado: String = content.chars().take(RULES_SAVE_MAX).collect();
-    std::fs::write(&ruta, recortado.as_bytes())
+    std::fs::write(rules_ruta(&proyecto), recortado.as_bytes())
         .map_err(|e| format!("No se pudo escribir {RULES_FILE}: {e}"))?;
-    Ok(ProjectRules {
-        exists: true,
-        content: recortado,
-        path: ruta.display().to_string(),
-    })
+    Ok(rules_status(&proyecto))
+}
+
+/// Aprueba el contenido que hay ahora mismo en el `HATBOO.md` del proyecto: desde
+/// aquí ese texto exacto entra en el prompt, y deja de entrar en cuanto el archivo
+/// sea otro. Se hashea lo recién leído del disco y no un borrador de la interfaz,
+/// que es la única forma de que lo aprobado y lo inyectado no puedan discrepar.
+pub fn approve_rules(
+    conn: &rusqlite::Connection,
+    project_id: &str,
+) -> Result<ProjectRules, String> {
+    let proyecto = db::get_project(conn, project_id)?;
+    let archivo = crate::rules::read_file(&rules_ruta(&proyecto)).ok_or_else(|| {
+        format!("No hay {RULES_FILE} que aprobar en {}.", proyecto.root_path)
+    })?;
+    if archivo.texto.trim().is_empty() {
+        return Err(format!("{RULES_FILE} está vacío: no hay nada que aprobar."));
+    }
+    db::set_project_rules_hash(conn, project_id, &archivo.hash)?;
+    Ok(rules_status(&db::get_project(conn, project_id)?))
+}
+
+/// Cierra el gate sin borrar lo escrito: `rules_hash` vuelve a NULL y las reglas
+/// dejan de entrar al prompt. Es lo que hace falta cuando alguien quiere dejar
+/// de usarlas un rato sin perder el archivo.
+pub fn revoke_rules(
+    conn: &rusqlite::Connection,
+    project_id: &str,
+) -> Result<ProjectRules, String> {
+    db::clear_project_rules_hash(conn, project_id)?;
+    Ok(rules_status(&db::get_project(conn, project_id)?))
+}
+
+#[tauri::command]
+pub fn approve_project_rules(
+    app: State<AppState>,
+    project_id: String,
+) -> Result<ProjectRules, String> {
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    approve_rules(&conn, &project_id)
+}
+
+#[tauri::command]
+pub fn revoke_project_rules(
+    app: State<AppState>,
+    project_id: String,
+) -> Result<ProjectRules, String> {
+    let conn = app.db.lock().map_err(|e| e.to_string())?;
+    revoke_rules(&conn, &project_id)
 }
 
 /// El *system prompt* del chat normal, sin efectos secundarios: lo arma
@@ -3082,3 +3173,4 @@ mod tests {
         std::fs::write(&destino, texto).expect("el volcado tiene que escribirse");
     }
 }
+

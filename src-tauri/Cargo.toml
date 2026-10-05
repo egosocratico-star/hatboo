@@ -37,6 +37,9 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 async-trait = "0.1"
 futures-util = "0.3"
 uuid = { version = "1", features = ["v4"] }
+# El Trust Gate del `HATBOO.md` decide con SHA-256 si el contenido entra al
+# system prompt: tiene que ser un hash criptográfico, no uno de resumen rápido.
+sha2 = "0.10"
 thiserror = "2"
 anyhow = "1"
 similar = "2"

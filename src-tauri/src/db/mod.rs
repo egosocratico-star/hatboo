@@ -1717,6 +1717,18 @@ pub fn set_project_rules_hash(conn: &Connection, id: &str, hash: &str) -> Result
     Ok(())
 }
 
+/// Quita la aprobación del Trust Gate: deja `rules_hash` en NULL, que es el estado
+/// de «sin aprobar». El archivo no se toca, así que se puede volver a aprobar
+/// sin haber perdido lo escrito.
+pub fn clear_project_rules_hash(conn: &Connection, id: &str) -> Result<(), String> {
+    conn.execute(
+        "UPDATE projects SET rules_hash = NULL WHERE id = ?1",
+        params![id],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 pub fn touch_project(conn: &Connection, id: &str) -> Result<(), String> {
     conn.execute(
         "UPDATE projects SET last_opened_at = ?1 WHERE id = ?2",
