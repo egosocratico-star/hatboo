@@ -73,7 +73,7 @@ export default function ProjectSources({ projectId }: { projectId: string }) {
   };
 
   const boton =
-    "flex items-center gap-1.5 rounded-lg border border-base-border px-2 py-1 text-[11px] text-zinc-400 transition-colors hover:bg-base-hover hover:text-zinc-200 disabled:opacity-40";
+    "flex items-center gap-1.5 rounded-lg border border-base-border px-2 py-1 text-etiqueta text-zinc-400 transition-colors hover:bg-base-hover hover:text-zinc-200 disabled:opacity-40";
 
   return (
     <div className="relative shrink-0">
@@ -88,7 +88,7 @@ export default function ProjectSources({ projectId }: { projectId: string }) {
             ? t("Aún no has vinculado fuentes a este proyecto")
             : t("{n} fuentes de lectura en este proyecto", { n: fuentes.length })
         }
-        className={`flex h-[26px] min-w-[26px] items-center justify-center gap-1 rounded-md px-1 text-[11px] transition-colors ${
+        className={`flex h-[26px] min-w-[26px] items-center justify-center gap-1 rounded-md px-1 text-etiqueta transition-colors ${
           fuentes.length > 0
             ? "bg-accent/10 text-accent-soft hover:bg-accent/20"
             : "text-zinc-500 hover:bg-base-hover hover:text-zinc-200"
@@ -107,12 +107,12 @@ export default function ProjectSources({ projectId }: { projectId: string }) {
         className="p-3 space-y-2"
       >
         <p className="text-xs font-medium text-zinc-200">{t("Fuentes de este proyecto")}</p>
-        <p className="text-[11px] leading-relaxed text-zinc-500">
+        <p className="text-etiqueta leading-relaxed text-zinc-500">
           {t(
             "El agente las lee con read_source y list_source, y nunca escribe ahí: la carpeta donde trabaja sigue siendo la del proyecto.",
           )}
         </p>
-        {aviso && <p className="text-[11px] leading-snug text-red-300">{aviso}</p>}
+        {aviso && <p className="text-etiqueta leading-snug text-red-300">{aviso}</p>}
         {fuentes.length === 0 ? (
           <Vacio
             icon={FolderOpen}
@@ -133,10 +133,10 @@ export default function ProjectSources({ projectId }: { projectId: string }) {
                 ) : (
                   <FilePlus2 className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
                 )}
-                <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-zinc-200" title={f.ruta}>
+                <span className="min-w-0 flex-1 truncate font-mono text-etiqueta text-zinc-200" title={f.ruta}>
                   {f.ruta}
                 </span>
-                <span className="shrink-0 text-[10px] text-zinc-500">
+                <span className="shrink-0 text-micro text-zinc-500">
                   {f.tipo === "carpeta" ? t("carpeta") : t("archivo")}
                 </span>
                 <button

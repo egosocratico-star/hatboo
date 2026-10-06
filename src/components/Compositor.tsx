@@ -92,7 +92,7 @@ export default function Compositor({
       {slash.abierto && (
         <SlashPopover lista={slash.lista} indice={slash.indice} onPick={slash.elegir} />
       )}
-      {aviso && <p className="pb-2 pl-1 text-[11px] leading-snug text-red-400/90">{aviso}</p>}
+      {aviso && <p className="pb-2 pl-1 text-etiqueta leading-snug text-red-400/90">{aviso}</p>}
       {attachments.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 pb-2 pl-0.5">
           {attachments.map((a, i) => (
@@ -101,7 +101,7 @@ export default function Compositor({
                 <AttachmentImage file={a.imageFile} name={a.name} />
               ) : (
                 <span
-                  className="inline-flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-md text-[11px] border border-base-border bg-base text-zinc-300"
+                  className="inline-flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-md text-etiqueta border border-base-border bg-base text-zinc-300"
                   title={t("{n} caracteres", { n: a.text.length.toLocaleString() })}
                 >
                   <Paperclip className="w-3 h-3 shrink-0 text-accent-soft" />

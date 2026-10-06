@@ -184,7 +184,7 @@ export default function SkillsSettings() {
                 {confirming === s.id ? (
                   <button
                     onClick={() => void drop(s.id)}
-                    className="rounded-md bg-red-500/15 px-2 py-1 text-[11px] text-red-300 hover:bg-red-500/25 transition-colors"
+                    className="rounded-md bg-red-500/15 px-2 py-1 text-etiqueta text-red-300 hover:bg-red-500/25 transition-colors"
                   >
                     {t("Confirmar")}
                   </button>
@@ -245,7 +245,7 @@ export default function SkillsSettings() {
               {t("Aplicarla siempre (si la desactivas, sigue disponible en el menú «+» del chat)")}
             </label>
           <div className="flex items-center justify-between pt-0.5">
-            <span className="text-[11px] text-zinc-600">
+            <span className="text-etiqueta text-zinc-600">
               {draft.prompt.length.toLocaleString("es")}/{PROMPT_MAX}
             </span>
             <div className="flex gap-2">
@@ -303,7 +303,7 @@ export default function SkillsSettings() {
 
       {!draft && EXAMPLES.length > 0 && (
         <div className="pt-1">
-          <p className="mb-1.5 text-[10px] uppercase tracking-wider text-zinc-600">
+          <p className="mb-1.5 text-micro uppercase tracking-wider text-zinc-600">
             {t("Ejemplos para añadir")}
           </p>
           <div className="flex flex-wrap gap-1.5">
@@ -319,7 +319,7 @@ export default function SkillsSettings() {
                   })
                 }
                 title={t(ex.prompt)}
-                className="rounded-full border border-base-border bg-base-card px-2.5 py-1 text-[11px] text-zinc-400 hover:text-zinc-100 hover:border-accent/50 transition-colors"
+                className="rounded-full border border-base-border bg-base-card px-2.5 py-1 text-etiqueta text-zinc-400 hover:text-zinc-100 hover:border-accent/50 transition-colors"
               >
                 + {t(ex.name)}
               </button>

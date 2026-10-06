@@ -97,7 +97,7 @@ function Tarjeta({
       <Icono nombre={nombre} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-xs font-medium text-zinc-200">{nombre}</p>
-        <p className="truncate text-[11px] text-zinc-500">
+        <p className="truncate text-etiqueta text-zinc-500">
           {meta === "gone"
             ? t("El archivo ya no existe en disco")
             : meta

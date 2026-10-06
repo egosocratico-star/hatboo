@@ -37,7 +37,7 @@ export default function AjustesAtajos() {
               {s.keys.map((k) => (
                 <kbd
                   key={k}
-                  className="px-1.5 py-0.5 rounded-md border border-base-border bg-base-raised text-[11px] font-mono text-zinc-400"
+                  className="px-1.5 py-0.5 rounded-md border border-base-border bg-base-raised text-etiqueta font-mono text-zinc-400"
                 >
                   {k}
                 </kbd>
@@ -45,7 +45,7 @@ export default function AjustesAtajos() {
             </span>
           </div>
         ))}
-        <p className="text-[11px] text-zinc-600">
+        <p className="text-etiqueta text-zinc-600">
           {t("Remapear atajos llegará en una versión futura.")}
         </p>
       </section>

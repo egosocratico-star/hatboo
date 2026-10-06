@@ -90,12 +90,12 @@ export default function PromptModal({
           ) : !texto ? (
             <p className="text-xs text-zinc-500">{t("Leyendo…")}</p>
           ) : (
-            <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-zinc-300">
+            <pre className="whitespace-pre-wrap break-words font-mono text-etiqueta leading-relaxed text-zinc-300">
               {texto}
             </pre>
           )}
         </div>
-        <p className="shrink-0 border-t border-base-border px-4 py-2 text-[11px] text-zinc-600">
+        <p className="shrink-0 border-t border-base-border px-4 py-2 text-etiqueta text-zinc-600">
           {t("Se reconstruye ahora con tus ajustes actuales; una respuesta vieja pudo mandarse con otro.")}
         </p>
       </div>

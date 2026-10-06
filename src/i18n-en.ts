@@ -449,6 +449,11 @@ export const en: Record<string, string> = {
     "“Compact” lowers the document's base font size, and with it all the spacing: it is not smaller text in one place, it is the whole interface tighter.",
   "Cómoda": "Comfortable",
   Compacta: "Compact",
+  Movimiento: "Motion",
+  "«Reducido» quita las iteraciones, no solo la duración: los bucles que dicen que algo está trabajando (el giro de una descarga, los tres puntos del chat) siguen, pero a un ritmo lento; el resto se queda en su postura final. Hubo un ajuste así hasta la 0.6.0 que dejaba un `animate-pulse` parpadeando a 0,01 ms: esta vez la norma está en un solo sitio.":
+    "“Reduced” removes the iterations, not just the duration: the loops that say something is working (a download spinner, the three dots in the chat) keep going, but slowly; everything else settles on its final pose. Until 0.6.0 there was such a setting that left an `animate-pulse` strobing at 0.01 ms: this time the rule lives in one place.",
+  Cómodo: "Comfortable",
+  Reducido: "Reduced",
   Acento: "Accent",
   "Cuatro colores, no uno a mano: cada trío está medido contra el fondo de las nueve paletas, así que el texto de acento aguanta el contraste sea cual sea la que uses.":
     "Four colors, not a hand-picked one: each trio is measured against the background of the nine palettes, so accent text holds its contrast whichever palette you use.",

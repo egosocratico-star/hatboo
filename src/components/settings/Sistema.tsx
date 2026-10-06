@@ -59,17 +59,17 @@ function MonitorVivo() {
     <div className="grid grid-cols-2 gap-2">
       {tarjetas.map((c) => (
         <div key={c.nombre} className="rounded-xl border border-base-border bg-base-card px-3 py-2.5">
-          <p className="text-[10px] uppercase tracking-wider text-zinc-600">{c.nombre}</p>
+          <p className="text-micro uppercase tracking-wider text-zinc-600">{c.nombre}</p>
           <p className="mt-1 truncate text-sm font-semibold tabular-nums" title={c.valor}>
             {c.valor}
           </p>
-          <p className="mt-0.5 truncate text-[11px] text-zinc-500" title={c.detalle}>
+          <p className="mt-0.5 truncate text-etiqueta text-zinc-500" title={c.detalle}>
             {c.detalle}
           </p>
           {c.pct !== null && (
             <div className="mt-2 h-1 overflow-hidden rounded-full bg-base-border">
               <div
-                className="h-full rounded-full bg-accent transition-[width] duration-700"
+                className="h-full rounded-full bg-accent transition-[width] duration-[var(--mov-barra)]"
                 style={{ width: `${Math.min(100, Math.max(0, c.pct))}%` }}
               />
             </div>
@@ -98,7 +98,7 @@ export default function AjustesSistema({
       />
       <div className="space-y-2">
         <MonitorVivo />
-        <p className="text-[11px] text-zinc-600">
+        <p className="text-etiqueta text-zinc-600">
           {t("Se relee solo mientras esta pestaña está abierta.")}
         </p>
       </div>

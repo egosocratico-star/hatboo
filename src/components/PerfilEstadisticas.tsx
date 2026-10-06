@@ -24,7 +24,7 @@ function Celda({ valor, etiqueta, detalle }: { valor: string; etiqueta: string; 
       <p className="truncate text-base font-semibold leading-tight tabular-nums text-zinc-100">
         {valor}
       </p>
-      <p className="mt-0.5 truncate text-[11px] text-zinc-500">{etiqueta}</p>
+      <p className="mt-0.5 truncate text-etiqueta text-zinc-500">{etiqueta}</p>
     </div>
   );
 }
@@ -62,10 +62,10 @@ export default function PerfilEstadisticas() {
         "Todo lo que sale aquí se calcula sobre tu propio historial en este PC. No se envía nada a nadie.",
       )}
     >
-      {fallo && <p className="text-[11px] text-red-300">{fallo}</p>}
-      {!fallo && !datos && <p className="text-[11px] text-zinc-500">{t("Contando…")}</p>}
+      {fallo && <p className="text-etiqueta text-red-300">{fallo}</p>}
+      {!fallo && !datos && <p className="text-etiqueta text-zinc-500">{t("Contando…")}</p>}
       {datos && datos.mensajes === 0 && (
-        <p className="text-[11px] leading-relaxed text-zinc-500">
+        <p className="text-etiqueta leading-relaxed text-zinc-500">
           {t("Todavía no hay chats ni mensajes guardados en este PC.")}
         </p>
       )}
@@ -95,7 +95,7 @@ export default function PerfilEstadisticas() {
               detalle={t("La más larga: {d}", { d: dias(datos.rachaMasLarga) })}
             />
           </div>
-          <p className="mt-3 text-[11px] leading-relaxed text-zinc-500">
+          <p className="mt-3 text-etiqueta leading-relaxed text-zinc-500">
             {t(
               "Los tokens van estimados: el proveedor no devuelve cuántos gastó cada respuesta, así que se cuentan los caracteres del historial y se divide entre cuatro. Los días seguidos cuentan desde hoy hacia atrás, y un día sin mensajes la corta.",
             )}

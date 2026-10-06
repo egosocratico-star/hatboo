@@ -122,7 +122,7 @@ function Contenido() {
         <span className="min-w-0 flex-1 truncate text-xs font-medium text-zinc-200" title={abierto.titulo}>
           {abierto.titulo}
         </span>
-        <span className="shrink-0 rounded-chip bg-accent/[0.14] px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-accent-soft">
+        <span className="shrink-0 rounded-chip bg-accent/[0.14] px-1.5 py-0.5 text-micro uppercase tracking-wider text-accent-soft">
           {abierto.lenguaje}
         </span>
         {versiones.length > 1 && (
@@ -135,7 +135,7 @@ function Contenido() {
             >
               <ChevronLeft className="h-3.5 w-3.5" />
             </button>
-            <span className="text-[10px] tabular-nums text-zinc-500">
+            <span className="text-micro tabular-nums text-zinc-500">
               v{abierto.version}
             </span>
             <button
@@ -203,8 +203,8 @@ function Contenido() {
       </div>
 
       <div className="shrink-0 space-y-1 border-t border-base-border px-2.5 py-2">
-        {aviso && <p className="text-[11px] leading-snug text-zinc-400">{aviso}</p>}
-        <p className="text-[10px] text-zinc-600">
+        {aviso && <p className="text-etiqueta leading-snug text-zinc-400">{aviso}</p>}
+        <p className="text-micro text-zinc-600">
           {t("{n} líneas · v{v} · {cuando}", {
             n: lineas.length,
             v: abierto.version,
@@ -218,7 +218,7 @@ function Contenido() {
                 key={a.id}
                 onClick={() => ver(a.id)}
                 title={`${a.titulo} · ${a.lenguaje} · v${a.version}`}
-                className={`max-w-full truncate rounded-chip border px-1.5 py-0.5 text-[10px] transition-colors ${
+                className={`max-w-full truncate rounded-chip border px-1.5 py-0.5 text-micro transition-colors ${
                   a.id === abierto.id
                     ? "border-accent/50 bg-accent/[0.14] text-accent-soft"
                     : "border-base-border text-zinc-500 hover:bg-base-hover hover:text-zinc-200"

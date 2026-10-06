@@ -53,7 +53,7 @@ export default function AttachmentImage({ file, name, onAccent = false }: Props)
     return (
       <span
         title={t("La imagen ya no está en disco")}
-        className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-[9px] ${
+        className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-micro ${
           onAccent ? "bg-white/15 text-white/80" : "bg-layer/5 text-zinc-500"
         }`}
       >

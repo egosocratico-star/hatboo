@@ -56,7 +56,7 @@ export function Stat({ label, value }: { label: string; value: number }) {
       <div className="text-xl font-semibold text-layer">
         {value.toLocaleString("es")}
       </div>
-      <div className="mt-0.5 text-[11px] text-zinc-500">{label}</div>
+      <div className="mt-0.5 text-etiqueta text-zinc-500">{label}</div>
     </div>
   );
 }

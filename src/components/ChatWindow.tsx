@@ -303,7 +303,7 @@ export default function ChatWindow() {
               setSettingsCat("api");
               setView("settings");
             }}
-            className="mt-1 block text-[13px] underline decoration-red-400/40 underline-offset-2 transition-colors hover:text-red-200"
+            className="mt-1 block text-ui underline decoration-red-400/40 underline-offset-2 transition-colors hover:text-red-200"
           >
             {t("Abrir Ajustes → API y modelos")}
           </button>
@@ -374,7 +374,7 @@ export default function ChatWindow() {
               placeholder={t("Buscar en el chat")}
               className="w-40 bg-transparent text-xs outline-none placeholder:text-zinc-600"
             />
-            <span className="shrink-0 text-[11px] tabular-nums text-zinc-500">
+            <span className="shrink-0 text-etiqueta tabular-nums text-zinc-500">
               {hitIds.length ? `${hitIdx + 1}/${hitIds.length}` : "0/0"}
             </span>
             <button
@@ -440,7 +440,7 @@ export default function ChatWindow() {
                 ref={(el) => {
                   msgNodes.current[m.id] = el;
                 }}
-                className={`-mx-2 rounded-xl px-2 outline-offset-[-8px] transition-opacity duration-200 ${
+                className={`-mx-2 rounded-xl px-2 outline-offset-[-8px] transition-opacity duration-normal ${
                   isCurrent ? "outline outline-1 outline-accent/70" : ""
                 } ${needle && !isHit ? "opacity-35" : ""}`}
               >
@@ -464,13 +464,13 @@ export default function ChatWindow() {
                   </span>
                 )}
                 {searchNote && !searching && (
-                  <p className="mb-1 text-[12px] text-amber-400/80">{searchNote}</p>
+                  <p className="mb-1 text-xs text-amber-400/80">{searchNote}</p>
                 )}
                 {/* Qué decidió el crate: nivel, contrato, modelo y el presupuesto
                     firmado. El motivo completo va en el título, porque lo escribe el
                     crate en su propio idioma y no es una cadena de la interfaz. */}
                 {brain && (
-                  <details className="mb-1 text-[12px] text-violet-400/80">
+                  <details className="mb-1 text-xs text-violet-400/80">
                     <summary className="cursor-pointer list-none select-none">
                       {t("Cerebro")} · {brain.nivel} · {brain.contrato} · {brain.modelo} ·{" "}
                       {brain.numCtx}

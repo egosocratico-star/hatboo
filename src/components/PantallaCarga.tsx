@@ -34,7 +34,7 @@ export default function PantallaCarga({
             es cuántas cargas de las listas terminaron. */}
         <div className="h-px w-44 bg-base-border">
           <div
-            className="h-px bg-accent-soft transition-[width] duration-300 ease-out"
+            className="h-px bg-accent-soft transition-[width] duration-lento ease-out"
             style={{ width: `${Math.round((hechos / pasos.length) * 100)}%` }}
           />
         </div>
@@ -42,7 +42,7 @@ export default function PantallaCarga({
           {pasos.map((p) => (
             <li
               key={p.id}
-              className={`flex items-center gap-2 text-[11px] transition-colors duration-200 ${
+              className={`flex items-center gap-2 text-etiqueta transition-colors duration-normal ${
                 p.listo ? "text-zinc-300" : "text-zinc-600"
               }`}
             >
@@ -55,7 +55,7 @@ export default function PantallaCarga({
             </li>
           ))}
         </ul>
-        <p className="pt-1 text-[11px] text-zinc-600">{pie}</p>
+        <p className="pt-1 text-etiqueta text-zinc-600">{pie}</p>
       </div>
     </div>
   );

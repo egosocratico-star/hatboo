@@ -75,3 +75,17 @@ export function applyAccent(choice: string): void {
     // Idem.
   }
 }
+
+/**
+ * Movimiento: `sistema` | `comodo` | `reducido`. Aquí no hay `localStorage` a
+ * propósito, y la razón es una decisión de diseño del CSS: la ausencia del
+ * atributo **es** «Sistema» (el bloque `html:not([data-movimiento])` dentro de
+ * `@media (prefers-reduced-motion: reduce)`), así que el arranque no necesita
+ * saber la preferencia de nadie para pintarla bien y no hay dos sitios que se
+ * contradigan. `comodo` y `reducido` se dicen poniendo el atributo.
+ */
+export function applyMovimiento(choice: string): void {
+  const root = document.documentElement;
+  if (choice === "comodo" || choice === "reducido") root.dataset.movimiento = choice;
+  else delete root.dataset.movimiento;
+}

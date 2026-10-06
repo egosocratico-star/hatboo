@@ -228,7 +228,7 @@ export default function SearchOverlay() {
             className="flex-1 min-w-0 bg-transparent text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none"
           />
           {buscando && (
-            <span className="shrink-0 text-[11px] text-zinc-600">{t("buscando…")}</span>
+            <span className="shrink-0 text-etiqueta text-zinc-600">{t("buscando…")}</span>
           )}
           <button
             onClick={() => setOpen(false)}
@@ -241,7 +241,7 @@ export default function SearchOverlay() {
 
         <div className="max-h-[52vh] overflow-y-auto py-1.5">
           {query.trim().length < 2 && (
-            <p className="px-4 pb-1.5 pt-2 text-[11px] leading-snug text-zinc-600">
+            <p className="px-4 pb-1.5 pt-2 text-etiqueta leading-snug text-zinc-600">
               {t("Escribe dos letras y buscará también dentro de los mensajes, en los proyectos y en los modelos de Ollama.")}
             </p>
           )}
@@ -252,7 +252,7 @@ export default function SearchOverlay() {
           )}
           {grupos.map((g) => (
             <div key={g.titulo}>
-              <p className="px-4 pt-2 pb-1 text-[10px] uppercase tracking-wider text-zinc-600">
+              <p className="px-4 pt-2 pb-1 text-micro uppercase tracking-wider text-zinc-600">
                 {g.titulo}
               </p>
               {g.items.map((f) => {
@@ -271,7 +271,7 @@ export default function SearchOverlay() {
                         <span className="block truncate text-sm text-zinc-200">
                           {f.nombre}
                         </span>
-                        <span className="block truncate font-mono text-[11px] text-zinc-600">
+                        <span className="block truncate font-mono text-etiqueta text-zinc-600">
                           {f.ruta}
                         </span>
                       </span>
@@ -291,7 +291,7 @@ export default function SearchOverlay() {
                         <span className="block truncate font-mono text-sm text-zinc-200">
                           {f.nombre}
                         </span>
-                        <span className="block truncate text-[11px] text-zinc-600">
+                        <span className="block truncate text-etiqueta text-zinc-600">
                           {t("Usar este modelo de Ollama")}
                         </span>
                       </span>
@@ -320,7 +320,7 @@ export default function SearchOverlay() {
                           <Pin className="w-3 h-3 shrink-0 text-accent-soft/70" />
                         )}
                         {hit.projectId && (
-                          <span className="shrink-0 text-[10px] text-zinc-600 truncate">
+                          <span className="shrink-0 text-micro text-zinc-600 truncate">
                             {projects.find((p) => p.id === hit.projectId)?.name ??
                               t("proyecto")}
                           </span>
@@ -339,7 +339,7 @@ export default function SearchOverlay() {
           ))}
         </div>
 
-        <div className="flex items-center gap-3 border-t border-base-border px-4 py-2 text-[10px] text-zinc-600">
+        <div className="flex items-center gap-3 border-t border-base-border px-4 py-2 text-micro text-zinc-600">
           <Tecla k="↑↓">{t("navegar")}</Tecla>
           <Tecla k="Enter">{t("abrir")}</Tecla>
           <Tecla k="Esc">{t("cerrar")}</Tecla>
@@ -360,7 +360,7 @@ export default function SearchOverlay() {
 function Tecla({ k, children }: { k: string; children: React.ReactNode }) {
   return (
     <span className="flex items-center gap-1">
-      <kbd className="rounded border border-base-border bg-base px-1 py-px font-sans text-[10px] text-zinc-500">
+      <kbd className="rounded border border-base-border bg-base px-1 py-px font-sans text-micro text-zinc-500">
         {k}
       </kbd>
       {children}

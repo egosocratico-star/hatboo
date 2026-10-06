@@ -18,7 +18,7 @@ export default function SourcesBlock({ sources }: { sources: WebSource[] }) {
     <div className="mt-2">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 -ml-1 text-[12px] text-zinc-500 hover:text-zinc-300 transition-colors"
+        className="inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 -ml-1 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
         title={open ? t("Ocultar las fuentes") : t("Ver las fuentes de la web")}
       >
         <Globe className="w-3.5 h-3.5" />
@@ -40,8 +40,8 @@ export default function SourcesBlock({ sources }: { sources: WebSource[] }) {
                 className="text-left hover:underline decoration-zinc-600 underline-offset-2"
                 title={source.url}
               >
-                <span className="text-[12.5px] text-zinc-400">{source.title}</span>
-                <span className="block text-[11px] text-zinc-600">
+                <span className="text-xs text-zinc-400">{source.title}</span>
+                <span className="block text-etiqueta text-zinc-600">
                   {hostname(source.url)}
                 </span>
               </button>

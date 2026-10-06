@@ -12,8 +12,27 @@ aquí; para eso está `docs/` y `ARCHITECTURE.md`.
 
 ## [Sin publicar] — 0.7 en curso
 
-Lo que hay en `main` desde `v0.6.0` (17 commits, 2026-09-29 → 2026-10-05). Todavía
-no es release: no hay binario publicado con estos cambios.
+Lo que hay en `main` desde `v0.6.0` (2026-09-29 → 2026-10-05). Todavía no es
+release: no hay binario publicado con estos cambios.
+
+- **El ajuste de movimiento vuelve, y trae las dos cosas.** Ajustes → Apariencia
+  tiene *Sistema* (manda `prefers-reduced-motion` de Windows), *Cómodo* y
+  *Reducido*. Reducido corta las **iteraciones**, no solo la duración: un spinner,
+  los tres puntos del chat y la mascota en «pensando/trabajando» siguen moviéndose
+  (a 1,6 s), porque son la única señal de que algo está en marcha; el resto se
+  queda en su postura final. El ajuste que se quitó en la 0.6.0 dejaba los bucles
+  girando a 0,01 ms, que en un `animate-pulse` es un estroboscopio.
+- **Una sola escala de letra, y ahora sí escala.** La interfaz tenía ~273 tamaños
+  escritos en píxeles absolutos y el ajuste de *densidad* lo que mueve es el
+  `font-size` del documento: al pasar a «compacta» se encogían el espaciado y el
+  texto de la escala nombrada, y esos 273 se quedaban clavados. Medido, el 91 %
+  eran dos tamaños (11 y 10 px). Hoy la escala son cuatro pasos nuevos en `rem`
+  (`text-micro`, `text-etiqueta`, `text-ui`, `text-saludo`) completando la rampa de
+  Tailwind, y ningún literal en `px`: `npm run prueba-tipografia` falla si a
+  alguien se le escribe uno encima otra vez.
+- **Una sola familia de duraciones** (`--mov-rapido` 120 ms, `--mov-normal` 180 ms,
+  `--mov-lento` 320 ms, más la barra de descarga determinista), con su guardia
+  `npm run prueba-movimiento`.
 
 - **El cerebro externo, detrás de un interruptor.** El chat y el modo trabajo pueden
   pasar por [`hatboo-brain`](https://github.com/egosocratico-star/hatboo-brain):

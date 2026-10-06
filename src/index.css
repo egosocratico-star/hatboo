@@ -20,10 +20,46 @@
   --radio-campo: 12px;
   --radio-tarjeta: 16px;
   --radio-entrada: 14px;
+
+  /* Tipografía. La regla es una sola: **un tamaño de letra solo se escribe en
+     `rem`**, porque la densidad lo que mueve es el `font-size` del `<html>`
+     (`theme.ts`: cónmoda 16, compacta 14,5) y todo lo que esté en `px` no le
+     hace caso. Eso era la «densidad inconsistente»: al pasar a compacta se
+     encogían el espaciado y el texto de las utilidades nombradas, y los ~250
+     `text-[Npx]` se quedaban clavados.
+     Cuatro pasos nuevos, y son los huecos de la rampa de Tailwind, no una escala
+     inventada: `xs` (12), `sm` (14), `base` (16) y `xl` (20) ya existían y ya
+     van en `rem`. Medido, la app usaba ocho tamaños y el 91 % de los literales
+     eran dos: 11 px y 10 px. */
+  --letra-micro: 0.625rem;   /* 10px · lo que casi no se lee: contadores, teclas */
+  --letra-etiqueta: 0.6875rem; /* 11px · chip, etiqueta de sección, metadata */
+  --letra-ui: 0.8125rem;     /* 13px · texto de interfaz por defecto en esta app */
+  --letra-saludo: 1.75rem;   /* 28px · la palabra grande del centro vacío */
+
   /* La única curva de desaceleración de la app: arranque rápido, final largo.
      Se elige aquí para que un panel, un popover y una fila frene igual. */
   --curva-suave: cubic-bezier(0.32, 0.72, 0, 1);
   --movimiento: 180ms;
+  /* Duraciones: tres, y se eligen por lo que se mueve, no por gusto. `--movimiento`
+     queda como sinónimo de `normal` para no romper los dos keyframes que ya lo
+     usaban. */
+  --mov-rapido: 120ms;   /* un chip, un hover, un color */
+  --mov-normal: 180ms;   /* paneles, popover, filas: lo que era `--movimiento` */
+  --mov-lento: 320ms;    /* la entrada del modal y lo que se ve a propósito */
+  /* Cuarta duración, pero no una cuarta marca: es el tiempo de una BARRA DE
+     PROGRESO DETERMINISTA. El caso que la nombra es `PantallaCarga` —ahí lo que
+     tarda es lo que tarda Ollama descargando, no gusto—, y hoy la consume la
+     barra de `Sistema`, cuyo ancho sale de un dato medido. No puede ir en
+     `--mov-lento`: 320 ms es una entrada que se mira; una barra que reescala de
+     un valor real tarda lo que tarda la descarga, y mezclarlas haría que tocar
+     el modal moviera una métrica. Tampoco hace falta listarla en el bloque de
+     `data-movimiento="reducido"`: ahí `transition-duration: 1ms !important` ya
+     le pasa por encima, igual que a las otras. */
+  --mov-barra: 700ms;    /* el reescalón de una barra cuyo ancho manda un dato */
+  /* `--movimiento` sigue siendo el nombre que usan los dos keyframes que había
+     cuando esto era una sola duración. Alias, no quinto valor: si se toca
+     `--mov-normal`, los paneles y la mascota van al compás. */
+  --movimiento: var(--mov-normal);
 
   /* Dos niveles, y solo dos: lo que se apoya sobre una superficie y lo
    * que flota por encima de todo (menús, modales). El color sale de
@@ -151,8 +187,9 @@
  * mecanismo que hizo que el anillo de foco se comiera el `outline-none`, usado
  * aquí a favor. Paneles, botones, filas, popovers y barras frenan todos igual.
  *
- * Solo se toca la curva, no la duración: los paneles que declaran 200 ms y las
- * filas de 150 siguen con la suya, que es decisión de cada sitio. */
+ * Solo se toca la curva, no la duración. Desde el bloque D las duraciones tampoco
+ * son decisión de cada sitio: salen de `--mov-rapido`, `--mov-normal` y
+ * `--mov-lento`, y `npm run prueba-movimiento` no deja escribir otra a mano. */
 *,
 *::before,
 *::after {
@@ -992,11 +1029,71 @@ html.hatboo-resizing * {
   transition: none !important;
 }
 
-/* Hatboo anima siempre. Hubo un recorte por `prefers-reduced-motion` y un
- * ajuste dentro de la app («Movimiento → Reducido») que lo forzaban; ambos
- * fuera el 29-09 porque rompían cosas (transiciones a 0,01 ms con el `infinite`
- * de origen = estroboscopio). Si algún día vuelve, la lección es esta: reducir
- * el movimiento exige quitar también las iteraciones, no solo la duración. */
+/* Movimiento reducido. Hay UN solo sitio que lo aplica —el atributo
+ * `data-movimiento="reducido"` del `<html>`— y lo decide `theme.ts`: con
+ * «Sistema» sigue a `prefers-reduced-motion: reduce`, con «Reducido» y
+ * «Cónmodo» manda el usuario. Ponerlo en una sola regla y no en un `@media`
+ * por componente es lo que impide que cada animación se recorte a su manera,
+ * que es como se rompió el ajuste anterior.
+ *
+ * La lección, escrita el 29-09 al quitarlo: aquello dejaba las duraciones en
+ * 0,01 ms PERO dejaba `infinite` donde estaba, así que cualquier `animate-pulse`
+ * se convertía en un estroboscopio. Reducir el movimiento es quitar las
+ * ITERACIONES, no solo la duración. Por eso el bloque empieza por el
+ * `animation-iteration-count` y por qué la norma es `1` —que la animación
+ * termine en su postura final, no que se congele a medias ni que parpadee—. */
+html[data-movimiento="reducido"] {
+  --mov-rapido: 1ms;
+  --mov-normal: 1ms;
+  --mov-lento: 1ms;
+}
+html[data-movimiento="reducido"] *,
+html[data-movimiento="reducido"] *::before,
+html[data-movimiento="reducido"] *::after {
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important;
+  scroll-behavior: auto !important;
+}
+/* La excepción, y es de honestidad, no de comodidad: un spinner o los tres
+ * puntos de «pensando» NO son decoración, son la única señal de que la app está
+ * trabajando. Congelarlos deja una interfaz que parece colgada justo cuando no lo
+ * está. Esos siguen girando, pero a un ritmo que no parpadea.
+ * `animate-spin` y `animate-dot` se listan aquí porque en esta app esos dos
+ * significan siempre «ocupado»; lo que es estado vivo sin spinner lleva la clase
+ * `.mov-bucle` puesta a mano (los puntos de plantilla activa, el ámbar de
+ * descargando, el altavoz mientras suena). El `animate-pulse` de los esqueletos
+ * NO está en la lista: ese es decoración, y congelado no se pierde información.
+ * De la mascota entran `anima-cabeceo` y `anima-vaiven` porque `Mascot.tsx` los
+ * usa para `thinking`/`working` y `running`: son los tres estados que dicen que
+ * hay algo en marcha. El resto (`flota`, `duerme`, `rebote`, `saltito`,
+ * `temblor`) es pose, y congelada en su postura final no quita ninguna señal. */
+html[data-movimiento="reducido"]
+  :is(.animate-spin, .animate-dot, .mov-bucle, .anima-cabeceo, .anima-vaiven) {
+  animation-duration: 1.6s !important;
+  animation-iteration-count: infinite !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Solo mientras el usuario no diga lo contrario a mano: el ajuste dentro de
+     la app gana, que es lo que hace «Sistema» cuando existe. */
+  html:not([data-movimiento]) {
+    --mov-rapido: 1ms;
+    --mov-normal: 1ms;
+    --mov-lento: 1ms;
+  }
+  html:not([data-movimiento]) *,
+  html:not([data-movimiento]) *::before,
+  html:not([data-movimiento]) *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+  html:not([data-movimiento])
+    :is(.animate-spin, .animate-dot, .mov-bucle, .anima-cabeceo, .anima-vaiven) {
+    animation-duration: 1.6s !important;
+    animation-iteration-count: infinite !important;
+  }
+}
 
 /* Blur de verdad, y SOLO en superficies transitorias: menús, popovers, modales.
  * La guía de visual lo dice explícitamente —el acrílico de Windows no va en

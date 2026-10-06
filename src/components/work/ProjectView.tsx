@@ -100,7 +100,7 @@ function Cinta({
 }) {
   return (
     <div
-      className={`flex shrink-0 items-start gap-2 border-b px-4 py-1.5 text-[11px] leading-snug ${
+      className={`flex shrink-0 items-start gap-2 border-b px-4 py-1.5 text-etiqueta leading-snug ${
         tono === "peligro"
           ? "border-red-500/20 bg-red-500/[0.06] text-red-300/90"
           : "border-amber-500/20 bg-amber-500/[0.05] text-amber-300/90"
@@ -416,7 +416,7 @@ export default function ProjectView() {
         />
       )}
       <div
-        className={`shrink-0 overflow-clip bg-base-raised filo-luz transition-[width] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] ${
+        className={`shrink-0 overflow-clip bg-base-raised filo-luz transition-[width] duration-normal ease-[cubic-bezier(.2,.8,.2,1)] ${
           filesOpen ? "border-r border-base-border" : "w-0"
         }`}
         style={{ width: filesOpen ? filesPx : 0 }}
@@ -424,7 +424,7 @@ export default function ProjectView() {
         <div className="h-full flex flex-col" style={{ width: filesPx }}>
           <div className="flex items-center gap-1.5 border-b border-base-border pl-2.5 pr-1.5 py-2">
             <FolderTree className="w-3.5 h-3.5 shrink-0 text-accent-soft" />
-            <span className="min-w-0 flex-1 truncate text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+            <span className="min-w-0 flex-1 truncate text-etiqueta font-medium uppercase tracking-wide text-zinc-500">
               {t("Archivos")}
             </span>
             {/* Sin botón de Explorador aquí: la ruta de la cabecera ya hace eso y
@@ -485,7 +485,7 @@ export default function ProjectView() {
               donde ya está la ruta y se mira antes de pedir la primera tarea. */}
           {estaEnOneDrive(project.rootPath) && (
             <span
-              className="shrink-0 text-[10px] uppercase tracking-wider text-amber-300/80"
+              className="shrink-0 text-micro uppercase tracking-wider text-amber-300/80"
               title={t(
                 "OneDrive sube y baja archivos por su cuenta: puede tener bloqueado justo el que escriba el agente, o pisar un cambio al sincronizar. Si se repite, mueve el proyecto fuera de OneDrive.",
               )}
@@ -594,7 +594,7 @@ export default function ProjectView() {
               <div className="text-center space-y-2">
                 {/* Sin título: el nombre del proyecto está en la cabecera, y la
                     sesión debajo. Repetirlo aquí era la tercera vez. */}
-                <p className="max-w-sm text-[13px] leading-relaxed text-zinc-500">
+                <p className="max-w-sm text-ui leading-relaxed text-zinc-500">
                   {t("Pide una tarea sobre este proyecto. Hatboo hará un plan, leerá archivos y pedirá aprobación antes de escribir o ejecutar.")}
                 </p>
                 {/* Las capas del agente bajaron de la cabecera: son un dato para
@@ -689,7 +689,7 @@ export default function ProjectView() {
                 {attachments.map((a, i) => (
                   <span
                     key={i}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-base-border bg-base px-2 py-1 text-[11px] text-zinc-300"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-base-border bg-base px-2 py-1 text-etiqueta text-zinc-300"
                     title={t("{n} caracteres", { n: a.text.length.toLocaleString("es") })}
                   >
                     <Paperclip className="w-3 h-3 shrink-0 text-accent-soft" />
@@ -707,7 +707,7 @@ export default function ProjectView() {
             )}
 
             {avisoAdjunto && (
-              <p className="pb-2 pl-1 text-[11px] leading-snug text-red-400/90">
+              <p className="pb-2 pl-1 text-etiqueta leading-snug text-red-400/90">
                 {avisoAdjunto}
               </p>
             )}
@@ -718,7 +718,7 @@ export default function ProjectView() {
                   setSettingsCat("api");
                   setView("settings");
                 }}
-                className="mb-1 flex w-full items-start gap-1.5 px-1 text-left text-[11px] leading-snug text-amber-300/90 transition-colors hover:text-amber-200"
+                className="mb-1 flex w-full items-start gap-1.5 px-1 text-left text-etiqueta leading-snug text-amber-300/90 transition-colors hover:text-amber-200"
                 title={t("Abrir Ajustes → API y modelos")}
               >
                 <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
@@ -737,7 +737,7 @@ export default function ProjectView() {
             {/* Con una tarea en curso el compositor no se congela: lo que se
                 escriba se apunta y sale cuando esta termine. */}
             {busy && (
-              <p className="flex items-center gap-1.5 pb-1.5 pl-1 text-[11px] text-zinc-500">
+              <p className="flex items-center gap-1.5 pb-1.5 pl-1 text-etiqueta text-zinc-500">
                 <ListChecks className="h-3 w-3 shrink-0 text-accent-soft" />
                 {cola.length > 0
                   ? t("En cola: {n} · se lanzan al terminar esta", { n: cola.length })
@@ -824,7 +824,7 @@ export default function ProjectView() {
               <button
                 onClick={() => void refreshGit(project.id)}
                 title={t("Rama {r} · {n} archivo(s) con cambios", { r: git.branch, n: git.dirtyCount })}
-                className="flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] text-zinc-600 transition-colors hover:bg-base-hover hover:text-zinc-300"
+                className="flex items-center gap-1.5 rounded-full px-2 py-0.5 text-etiqueta text-zinc-600 transition-colors hover:bg-base-hover hover:text-zinc-300"
               >
                 <GitBranch className="w-3 h-3" />
                 <span className="font-mono">{git.branch}</span>
@@ -854,7 +854,7 @@ export default function ProjectView() {
         />
       )}
       <div
-        className={`shrink-0 overflow-clip bg-base-raised filo-luz transition-[width] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] ${
+        className={`shrink-0 overflow-clip bg-base-raised filo-luz transition-[width] duration-normal ease-[cubic-bezier(.2,.8,.2,1)] ${
           tasksOpen ? "border-l border-base-border" : "w-0"
         }`}
         style={{ width: tasksOpen ? tasksPx : 0 }}

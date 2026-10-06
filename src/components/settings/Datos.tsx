@@ -179,7 +179,7 @@ export default function AjustesDatos({
             <p className="text-sm font-medium text-zinc-100">
               {t("Restablecer Hatboo")}
             </p>
-            <p className="text-[11px] leading-snug text-zinc-400">
+            <p className="text-etiqueta leading-snug text-zinc-400">
               {t(
                 "Se borran de este PC todas las conversaciones, los proyectos, las tareas, las imágenes adjuntas y los ajustes, y también las claves de API del llavero. No se puede deshacer: exporta una copia antes si quieres conservar algo. Escribe",
               )}{" "}

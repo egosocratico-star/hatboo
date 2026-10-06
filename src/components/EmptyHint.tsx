@@ -34,7 +34,7 @@ export default function EmptyHint({
       )}
       <span className="min-w-0 pt-0.5">
         <span className="block">{text}</span>
-        {detail && <span className="mt-0.5 block text-[11px] text-zinc-600">{detail}</span>}
+        {detail && <span className="mt-0.5 block text-etiqueta text-zinc-600">{detail}</span>}
         {accion && <span className="mt-1.5 block">{accion}</span>}
       </span>
     </div>

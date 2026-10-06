@@ -58,7 +58,7 @@ export default function CommandBlock({ data, ok, durationMs }: Props) {
           {codigo === null ? t("sin código") : `exit ${codigo}`}
         </Insignia>
         {durationMs > 0 && (
-          <span className="shrink-0 text-[10px] text-zinc-500 tabular-nums">
+          <span className="shrink-0 text-micro text-zinc-500 tabular-nums">
             {duracion(durationMs)}
           </span>
         )}
@@ -85,7 +85,7 @@ export default function CommandBlock({ data, ok, durationMs }: Props) {
       </div>
 
       {abierto && salida !== "" && (
-        <pre className="max-h-64 overflow-auto border-t border-base-border px-3 py-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words text-zinc-300">
+        <pre className="max-h-64 overflow-auto border-t border-base-border px-3 py-2 font-mono text-etiqueta leading-relaxed whitespace-pre-wrap break-words text-zinc-300">
           {data.stdout}
           {data.stderr !== "" && (
             <span className="text-red-400/90">{data.stderr}</span>
@@ -93,7 +93,7 @@ export default function CommandBlock({ data, ok, durationMs }: Props) {
         </pre>
       )}
       {abierto && salida === "" && (
-        <p className="border-t border-base-border px-3 py-2 text-[11px] text-zinc-600">
+        <p className="border-t border-base-border px-3 py-2 text-etiqueta text-zinc-600">
           {t("Sin salida.")}
         </p>
       )}

@@ -144,13 +144,13 @@ export default function WorkPlusMenu({ onPickFiles, onInsertTemplate, disabled }
             <button onClick={() => void pickFiles()} className={item} disabled={busy}>
               <Paperclip className="w-4 h-4 text-accent-soft shrink-0" />
               <span className="flex-1">{busy ? t("Leyendo…") : t("Archivos")}</span>
-              <span className="shrink-0 text-[10px] text-zinc-600">{t("solo texto")}</span>
+              <span className="shrink-0 text-micro text-zinc-600">{t("solo texto")}</span>
             </button>
             <div className="my-1.5 h-px bg-base-border" />
             <button onClick={() => setCara("mas")} className={item}>
               <Ellipsis className="w-4 h-4 text-accent-soft shrink-0" />
               <span className="flex-1">{t("Más")}</span>
-              <span className="text-[10px] text-zinc-600">{t("plantillas y sesión")}</span>
+              <span className="text-micro text-zinc-600">{t("plantillas y sesión")}</span>
               <ChevronRight className="h-3.5 w-3.5 shrink-0 text-zinc-600" />
             </button>
           </>
@@ -158,7 +158,7 @@ export default function WorkPlusMenu({ onPickFiles, onInsertTemplate, disabled }
         {cara === "mas" && (
           <>
         <MenuAtras hacia={t("Añadir")} onClick={() => setCara("anadir")} />
-        <div className="px-2 pt-0.5 pb-1 text-[10px] uppercase tracking-wider text-zinc-500">
+        <div className="px-2 pt-0.5 pb-1 text-micro uppercase tracking-wider text-zinc-500">
           {t("Plantillas")}
         </div>
         {skills.length === 0 ? (
@@ -174,7 +174,7 @@ export default function WorkPlusMenu({ onPickFiles, onInsertTemplate, disabled }
             >
               <Plus className="w-4 h-4 text-accent-soft shrink-0" />
               <span className="flex-1">{t("Crear plantilla")}</span>
-              <span className="shrink-0 text-[10px] text-zinc-500">{t("Ajustes → Skills")}</span>
+              <span className="shrink-0 text-micro text-zinc-500">{t("Ajustes → Skills")}</span>
             </button>
             <button onClick={() => void instalarPlantilla()} className={item}>
               <Download className="w-4 h-4 text-accent-soft shrink-0" />
@@ -195,13 +195,13 @@ export default function WorkPlusMenu({ onPickFiles, onInsertTemplate, disabled }
             >
               <Sparkles className="w-4 h-4 text-accent-soft shrink-0" />
               <span className="flex-1 truncate">{s.name}</span>
-              {s.enabled && <span className="text-[10px] text-accent-soft/80">{t("siempre")}</span>}
+              {s.enabled && <span className="text-micro text-accent-soft/80">{t("siempre")}</span>}
             </button>
           ))
         )}
 
         <div className="my-1.5 h-px bg-base-border" />
-        <div className="px-2 pt-0.5 pb-1 text-[10px] uppercase tracking-wider text-zinc-500">
+        <div className="px-2 pt-0.5 pb-1 text-micro uppercase tracking-wider text-zinc-500">
           {t("Sesión")}
         </div>
         <button onClick={() => void clearSession()} className={item + " hover:text-red-300"}>
@@ -212,7 +212,7 @@ export default function WorkPlusMenu({ onPickFiles, onInsertTemplate, disabled }
         )}
 
         {notice && (
-          <div role="alert" className="px-2.5 py-1.5 mt-1 text-[11px] text-red-400">
+          <div role="alert" className="px-2.5 py-1.5 mt-1 text-etiqueta text-red-400">
             {notice}
           </div>
         )}

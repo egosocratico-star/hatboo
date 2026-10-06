@@ -18,6 +18,8 @@
     "prueba-slash": "node scripts/prueba-slash.ts",
     "prueba-contraste": "node scripts/prueba-contraste.mjs",
     "prueba-grano": "node scripts/prueba-grano.mjs",
+    "prueba-movimiento": "node scripts/prueba-movimiento.mjs",
+    "prueba-tipografia": "node scripts/prueba-tipografia.mjs",
     "prueba-version": "node scripts/prueba-version.mjs",
     "tauri": "tauri"
   },

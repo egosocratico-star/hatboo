@@ -34,7 +34,7 @@ export default function SaludoChat({
     <div className="flex flex-col items-center gap-3">
       <Mascot state={pose} size={108} />
       <div className="flex flex-col items-center gap-1.5">
-        <h1 className="text-[28px] font-semibold leading-tight tracking-tight">
+        <h1 className="text-saludo font-semibold leading-tight tracking-tight">
           {nombre ? (
             <>
               {saludo(new Date().getHours())},{" "}

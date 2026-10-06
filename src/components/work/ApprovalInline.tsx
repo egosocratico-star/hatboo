@@ -73,17 +73,17 @@ export default function ApprovalInline() {
               <FileCode2 className="h-3.5 w-3.5 shrink-0 text-amber-400" />
             )}
             {ruta && (
-              <code className="min-w-0 truncate rounded border border-base-border bg-base-raised px-1 py-px font-mono text-[11px] text-accent-soft">
+              <code className="min-w-0 truncate rounded border border-base-border bg-base-raised px-1 py-px font-mono text-etiqueta text-accent-soft">
                 {ruta}
               </code>
             )}
-            <span className="shrink-0 text-[10px] text-zinc-500">
+            <span className="shrink-0 text-micro text-zinc-500">
               {nuevo ? t("nuevo") : t("modificado")}
             </span>
           </span>
         )}
         {approvalLevel === "ask_always" && (
-          <span className="ml-auto shrink-0 text-[10px] uppercase tracking-wider text-amber-300/80">
+          <span className="ml-auto shrink-0 text-micro uppercase tracking-wider text-amber-300/80">
             {t("Preguntar siempre")}
           </span>
         )}
@@ -100,10 +100,10 @@ export default function ApprovalInline() {
             aporta la tool, y si no trae ninguna, sus argumentos tal cual. */}
         {(!escribe || approval.preview.trim() === "") && (
           <>
-            <div className="text-[10px] uppercase tracking-wider text-zinc-500">
+            <div className="text-micro uppercase tracking-wider text-zinc-500">
               {approval.preview ? t("Vista previa") : t("Argumentos")}
             </div>
-            <pre className="max-h-52 overflow-auto rounded-md border border-base-border bg-base-code px-2 py-1.5 whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-zinc-300">
+            <pre className="max-h-52 overflow-auto rounded-md border border-base-border bg-base-code px-2 py-1.5 whitespace-pre-wrap break-words font-mono text-etiqueta leading-relaxed text-zinc-300">
               {approval.preview || JSON.stringify(approval.input, null, 2)}
             </pre>
           </>
@@ -111,7 +111,7 @@ export default function ApprovalInline() {
         {escribe && contenido.length > 0 && approval.preview.trim() !== "" && (
           <button
             onClick={() => setEntero((v) => !v)}
-            className="rounded-md border border-base-border px-1.5 py-0.5 text-[10px] text-zinc-500 transition-colors hover:bg-base-hover hover:text-zinc-200"
+            className="rounded-md border border-base-border px-1.5 py-0.5 text-micro text-zinc-500 transition-colors hover:bg-base-hover hover:text-zinc-200"
           >
             {entero ? t("Ver solo los cambios") : t("Ver el archivo completo")}
           </button>
@@ -119,7 +119,7 @@ export default function ApprovalInline() {
       </div>
 
       <div className="flex items-center gap-2 border-t border-amber-500/30 px-2.5 py-2">
-        <span className="mr-auto min-w-0 truncate text-[10px] text-zinc-500">
+        <span className="mr-auto min-w-0 truncate text-micro text-zinc-500">
           {t("Se aplica dentro de la carpeta del proyecto y nada más.")}
         </span>
         <button

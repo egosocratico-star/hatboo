@@ -64,7 +64,7 @@ function Miniatura({ archivo }: { archivo: string }) {
     return (
       <span
         title={t("Ya no está en la carpeta de adjuntos de Hatboo.")}
-        className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-base-border text-[9px] text-zinc-600"
+        className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-base-border text-micro text-zinc-600"
       >
         ?
       </span>
@@ -145,7 +145,7 @@ export default function AdjuntosView() {
             <p className="mt-1 text-sm text-zinc-500">
               {t("Lo que subiste al chat, con la conversación de la que salió.")}
             </p>
-            <p className="mt-1 text-[11px] leading-relaxed text-zinc-600">
+            <p className="mt-1 text-etiqueta leading-relaxed text-zinc-600">
               {t(
                 "Las imágenes se guardan en disco y el texto, ya extraído. Se van al borrar el mensaje o la conversación: no hay forma de quitar un adjunto suelto.",
               )}
@@ -172,7 +172,7 @@ export default function AdjuntosView() {
           />
         </label>
         {error && (
-          <p className="mt-2 text-[11px] text-red-400">
+          <p className="mt-2 text-etiqueta text-red-400">
             {t("No se pudo leer la lista:")} {error}
           </p>
         )}
@@ -196,7 +196,7 @@ export default function AdjuntosView() {
 
       {grupos.map((g) => (
         <section key={g.nombre} className="pt-4">
-          <h3 className="px-1 pb-1 text-[10px] uppercase tracking-wider text-zinc-600">
+          <h3 className="px-1 pb-1 text-micro uppercase tracking-wider text-zinc-600">
             {g.nombre}
           </h3>
           <ul className="overflow-hidden rounded-xl border border-base-border">
@@ -214,7 +214,7 @@ export default function AdjuntosView() {
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <p className="truncate text-[13px] font-medium text-zinc-200" title={a.nombre}>
+                    <p className="truncate text-ui font-medium text-zinc-200" title={a.nombre}>
                       {a.nombre}
                     </p>
                     <Insignia cuadrada>
@@ -222,11 +222,11 @@ export default function AdjuntosView() {
                     </Insignia>
                   </div>
                   {a.adelanto && (
-                    <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-zinc-500">
+                    <p className="mt-0.5 line-clamp-2 text-etiqueta leading-snug text-zinc-500">
                       {a.adelanto}
                     </p>
                   )}
-                  <div className="mt-1 flex items-center gap-2 text-[11px] text-zinc-600">
+                  <div className="mt-1 flex items-center gap-2 text-etiqueta text-zinc-600">
                     <button
                       type="button"
                       onClick={() => abrir(a.conversacionId)}
@@ -248,7 +248,7 @@ export default function AdjuntosView() {
       ))}
 
       {pagina.hayMas && visibles.length > 0 && (
-        <p className="pt-3 text-[11px] text-zinc-600">
+        <p className="pt-3 text-etiqueta text-zinc-600">
           {t(
             "La lista corta en los mensajes con adjuntos más recientes; puede haber más antiguos detrás.",
           )}

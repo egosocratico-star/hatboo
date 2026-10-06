@@ -195,7 +195,7 @@ export default function ProviderModelPicker() {
       : probe === "error"
         ? "bg-red-400"
         : probe === "checking"
-          ? "bg-amber-400 animate-pulse"
+          ? "bg-amber-400 animate-pulse mov-bucle"
           : "bg-zinc-600";
   const fuera = saleDelEquipo(settings.activeProvider, model);
 
@@ -222,7 +222,7 @@ export default function ProviderModelPicker() {
           {f.nivel && (
             <span
               title={t(NIVELES[f.nivel].aviso)}
-              className={`shrink-0 rounded-full px-1.5 py-px font-sans text-[10px] ${NIVELES[f.nivel].clases}`}
+              className={`shrink-0 rounded-full px-1.5 py-px font-sans text-micro ${NIVELES[f.nivel].clases}`}
             >
               {t(NIVELES[f.nivel].corto)}
             </span>
@@ -345,7 +345,7 @@ export default function ProviderModelPicker() {
             )}
           </div>
 
-          <div className="text-[10px] uppercase tracking-wider text-zinc-600 px-2 pt-2 pb-0.5">
+          <div className="text-micro uppercase tracking-wider text-zinc-600 px-2 pt-2 pb-0.5">
             {t("Modelo ({p})", { p: CORTOS[settings.activeProvider] })}
           </div>
           <div className="px-1 pb-1 space-y-1">
@@ -359,13 +359,13 @@ export default function ProviderModelPicker() {
               />
             </div>
             {cargando && (
-              <div className="flex items-center gap-2 px-1.5 py-1 text-[11px] text-zinc-500">
+              <div className="flex items-center gap-2 px-1.5 py-1 text-etiqueta text-zinc-500">
                 <RefreshCw className="w-3 h-3 animate-spin" />
                 {esLocal ? t("Consultando Ollama…") : t("Consultando {p}…", { p: cortos })}
               </div>
             )}
             {!cargando && (esLocal ? localModels === null : nubeModelos === null) && (
-              <div className="px-1.5 py-1 text-[11px] text-zinc-500">
+              <div className="px-1.5 py-1 text-etiqueta text-zinc-500">
                 {esLocal
                   ? t("No se pudo listar los modelos de Ollama.")
                   : t("No se pudo listar los modelos de {p}.", { p: cortos })}
@@ -374,7 +374,7 @@ export default function ProviderModelPicker() {
             {!cargando &&
               (esLocal ? localModels !== null : nubeModelos !== null) &&
               todas.length === 0 && (
-                <div className="px-1.5 py-1 text-[11px] text-zinc-500">
+                <div className="px-1.5 py-1 text-etiqueta text-zinc-500">
                   {esLocal
                     ? t("Ollama responde pero no tiene modelos descargados.")
                     : t("{p} responde pero no lista modelos: revisa la clave guardada en Ajustes → API.", {
@@ -383,21 +383,21 @@ export default function ProviderModelPicker() {
                 </div>
               )}
             {!cargando && todas.length > 0 && filtradas.length === 0 && (
-              <div className="px-1.5 py-1 text-[11px] text-zinc-500">
+              <div className="px-1.5 py-1 text-etiqueta text-zinc-500">
                 {t("Sin coincidencias para «{q}».", { q: filtro.trim() })}
               </div>
             )}
             {!cargando && filtradas.length > 0 && (
               <div className="max-h-56 space-y-0.5 overflow-y-auto">
                 {enPc.length > 0 && (
-                  <div className="px-2 pt-1 pb-0.5 text-[10px] uppercase tracking-wider text-zinc-600">
+                  <div className="px-2 pt-1 pb-0.5 text-micro uppercase tracking-wider text-zinc-600">
                     {t("En este PC")}
                   </div>
                 )}
                 {enPc.map(fila)}
                 {enNube.length > 0 && (
                   <>
-                    <div className="px-2 pt-2 pb-0.5 text-[10px] uppercase tracking-wider text-zinc-600">
+                    <div className="px-2 pt-2 pb-0.5 text-micro uppercase tracking-wider text-zinc-600">
                       {esLocal ? t("Vía Ollama Cloud") : t("Vía {p}", { p: cortos })}
                     </div>
                     {enNube.map(fila)}
@@ -426,11 +426,11 @@ export default function ProviderModelPicker() {
               />
             )}
             {aviso && (
-              <p className="px-1.5 pb-0.5 text-[11px] leading-snug text-zinc-500">{aviso}</p>
+              <p className="px-1.5 pb-0.5 text-etiqueta leading-snug text-zinc-500">{aviso}</p>
             )}
             <button
               onClick={() => void (esLocal ? refreshOllama() : refrescarNube())}
-              className="w-full flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] text-zinc-500 hover:text-zinc-200 hover:bg-base-hover/60 transition-colors"
+              className="w-full flex items-center gap-1.5 rounded-lg px-2 py-1 text-etiqueta text-zinc-500 hover:text-zinc-200 hover:bg-base-hover/60 transition-colors"
             >
               <RefreshCw className="w-3 h-3" /> {t("Recargar lista")}
             </button>
@@ -457,7 +457,7 @@ export default function ProviderModelPicker() {
               )}
             </button>
             <div
-              className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${
+              className={`grid transition-[grid-template-rows,opacity] duration-normal ease-out ${
                 reasonOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
               }`}
             >
@@ -479,7 +479,7 @@ export default function ProviderModelPicker() {
                     )}
                   </button>
                 ))}
-                <p className="px-2.5 pt-1 text-[10px] leading-snug text-zinc-600">
+                <p className="px-2.5 pt-1 text-micro leading-snug text-zinc-600">
                   {t(
                     "«Sin razonamiento» se lo pide expresamente a lo de este equipo (Ollama, llama.cpp). En la nube no hay campo que mandar: los que razonan por defecto siguen haciéndolo, y lo que pasó de verdad lo dice el «Pensó N s» de la respuesta. Aplica al chat y al modo trabajo.",
                   )}
@@ -494,7 +494,7 @@ export default function ProviderModelPicker() {
               setOpen(false);
               setView("settings");
             }}
-            className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] text-zinc-500 hover:bg-base-hover/60 hover:text-zinc-200 transition-colors"
+            className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-etiqueta text-zinc-500 hover:bg-base-hover/60 hover:text-zinc-200 transition-colors"
           >
             <Settings2 className="w-3 h-3" />
             {t("Ajustes (claves, endpoints, pruebas)")}

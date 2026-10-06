@@ -153,7 +153,7 @@ export function SelectorProveedor({
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-1.5">
                     <span
-                      className={`truncate text-[13px] ${
+                      className={`truncate text-ui ${
                         activo ? "text-accent-soft" : "text-zinc-300"
                       }`}
                     >
@@ -165,7 +165,7 @@ export function SelectorProveedor({
                       </Insignia>
                     )}
                   </span>
-                  <span className="mt-0.5 block text-[11px] leading-snug text-zinc-500">
+                  <span className="mt-0.5 block text-etiqueta leading-snug text-zinc-500">
                     {t(p.resumen)}
                   </span>
                   <span className="mt-1 flex flex-wrap items-center gap-1">
@@ -209,13 +209,13 @@ export function SelectorProveedor({
                   {prueba.status === "running" ? t("Probando…") : t("Probar conexión")}
                 </BotonSeccion>
                 {prueba.status === "ok" && (
-                  <span className="flex items-start gap-1 text-[11px] text-emerald-400">
+                  <span className="flex items-start gap-1 text-etiqueta text-emerald-400">
                     <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0" />
                     <span className="min-w-0 break-words">{prueba.msg}</span>
                   </span>
                 )}
                 {prueba.status === "error" && (
-                  <span className="flex items-start gap-1 text-[11px] text-red-400">
+                  <span className="flex items-start gap-1 text-etiqueta text-red-400">
                     <XCircle className="mt-0.5 h-3 w-3 shrink-0" />
                     <span className="min-w-0 break-words">{prueba.msg}</span>
                   </span>
@@ -292,7 +292,7 @@ function ProviderStatus({ providerId, endpoint }: { providerId: string; endpoint
 
   if (!estado) return null;
   return (
-    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-zinc-500">
+    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-etiqueta text-zinc-500">
       <Insignia tipo={estado.ok ? "ok" : "aviso"} punto>
         {estado.etiqueta}
       </Insignia>
@@ -373,25 +373,25 @@ export function LocalModelField({
                 type="button"
                 onClick={() => onChange(m.name)}
                 title={nivel ? t(NIVELES[nivel].aviso) : undefined}
-                className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[11px] transition-colors ${
+                className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-etiqueta transition-colors ${
                   activo
                     ? "border-accent bg-accent/10 text-accent-soft"
                     : "border-base-border text-zinc-400 hover:text-layer hover:border-accent/40"
                 }`}
               >
                 {m.name}
-                {nivel && <span className="text-[10px] opacity-70">{t(NIVELES[nivel].corto)}</span>}
+                {nivel && <span className="text-micro opacity-70">{t(NIVELES[nivel].corto)}</span>}
               </button>
             );
           })}
         </div>
       )}
       {models.length === 0 && (
-        <p className="text-[11px] leading-snug text-zinc-600">
+        <p className="text-etiqueta leading-snug text-zinc-600">
           {t("Nada en el disco todavía. Se bajan con Ollama —«ollama pull qwen3:1.7b», por ejemplo— y luego «Recargar lista».")}
         </p>
       )}
-      {notice && <p className="text-[11px] text-zinc-500 pt-0.5">{notice}</p>}
+      {notice && <p className="text-etiqueta text-zinc-500 pt-0.5">{notice}</p>}
     </label>
   );
 }
@@ -458,29 +458,29 @@ export function ModeloTexto({
         onChange={(e) => onChange(e.target.value)}
         className={CAMPO}
       />
-      {ayuda && <span className="block text-[11px] text-zinc-600">{ayuda}</span>}
+      {ayuda && <span className="block text-etiqueta text-zinc-600">{ayuda}</span>}
       {proveedor && (
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => void pedir()}
             disabled={cargando}
-            className="shrink-0 rounded-md border border-base-border px-2 py-0.5 text-[11px] text-zinc-400 transition-colors hover:border-accent/50 hover:text-zinc-200 disabled:opacity-50"
+            className="shrink-0 rounded-md border border-base-border px-2 py-0.5 text-etiqueta text-zinc-400 transition-colors hover:border-accent/50 hover:text-zinc-200 disabled:opacity-50"
           >
             {cargando ? t("Consultando…") : t("Ver los de mi clave")}
           </button>
           {error && (
-            <span className="min-w-0 truncate text-[11px] text-red-400" title={error}>
+            <span className="min-w-0 truncate text-etiqueta text-red-400" title={error}>
               {error}
             </span>
           )}
           {!error && modelos && modelos.length > 0 && (
-            <span className="shrink-0 text-[11px] text-zinc-600">
+            <span className="shrink-0 text-etiqueta text-zinc-600">
               {t("{n} disponibles", { n: modelos.length })}
             </span>
           )}
           {!error && modelos && modelos.length === 0 && (
-            <span className="shrink-0 text-[11px] text-zinc-600">
+            <span className="shrink-0 text-etiqueta text-zinc-600">
               {t("No devuelve ninguno.")}
             </span>
           )}
@@ -494,7 +494,7 @@ export function ModeloTexto({
               onChange={(e) => setFiltro(e.target.value)}
               placeholder={t("filtrar…")}
               aria-label={t("Filtrar modelos")}
-              className={`${CAMPO} py-1 text-[11px]`}
+              className={`${CAMPO} py-1 text-etiqueta`}
             />
           )}
           <div className="flex max-h-40 flex-wrap gap-1 overflow-y-auto">
@@ -503,7 +503,7 @@ export function ModeloTexto({
                 key={m}
                 type="button"
                 onClick={() => onChange(m)}
-                className={`shrink-0 rounded-md border px-1.5 py-0.5 font-mono text-[11px] transition-colors ${
+                className={`shrink-0 rounded-md border px-1.5 py-0.5 font-mono text-etiqueta transition-colors ${
                   m === valor
                     ? "border-accent/60 bg-accent/10 text-zinc-100"
                     : "border-base-border text-zinc-400 hover:border-accent/40 hover:text-zinc-200"

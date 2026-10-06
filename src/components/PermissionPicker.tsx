@@ -136,7 +136,7 @@ export default function PermissionPicker({ open, onOpenChange }: Props) {
                   )}
                 </button>
               ))}
-              <p className="px-2.5 pt-1.5 pb-1 text-[11px] text-zinc-600">
+              <p className="px-2.5 pt-1.5 pb-1 text-etiqueta text-zinc-600">
                 {projectId
                   ? t("Se guarda en el proyecto «{n}».", { n: project?.name })
                   : t("No hay proyecto abierto: se guarda como nivel por defecto de los proyectos nuevos.")}
@@ -149,7 +149,7 @@ export default function PermissionPicker({ open, onOpenChange }: Props) {
                   ? t("Activar Acceso total")
                   : t("Salir de Acceso total")}
               </p>
-              <p className="text-[11px] leading-snug text-zinc-400">
+              <p className="text-etiqueta leading-snug text-zinc-400">
                 {confirming === "full_access"
                   ? t("Hatboo ejecutará TODAS las acciones sin pedir aprobación, incluida escritura de archivos y comandos. El sandbox de rutas dentro de la carpeta del proyecto se mantiene.")
                   : t("Vas a cambiar fuera de Acceso total: las tools de alto riesgo volverán a pedir aprobación.")}

@@ -23,9 +23,9 @@ export default function Vacio({
       <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-base-border bg-base-raised">
         <Icono className="h-4 w-4 text-accent-soft" />
       </span>
-      <p className="text-[13px] font-semibold leading-snug text-zinc-200">{titulo}</p>
+      <p className="text-ui font-semibold leading-snug text-zinc-200">{titulo}</p>
       {detalle && (
-        <p className="max-w-[46ch] text-[11px] leading-relaxed text-zinc-500">{detalle}</p>
+        <p className="max-w-[46ch] text-etiqueta leading-relaxed text-zinc-500">{detalle}</p>
       )}
       {accion && <span className="pt-1">{accion}</span>}
     </div>

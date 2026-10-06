@@ -27,7 +27,7 @@ export default function ThinkingBlock({ reasoning, ms, streaming = false }: Prop
     <div className="mb-1.5">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 -ml-1 text-[12px] text-zinc-500 hover:text-zinc-300 transition-colors"
+        className="inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 -ml-1 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
         title={open ? t("Ocultar el razonamiento") : t("Ver el razonamiento")}
       >
         <Brain className="w-3.5 h-3.5" />
@@ -37,7 +37,7 @@ export default function ThinkingBlock({ reasoning, ms, streaming = false }: Prop
         />
       </button>
       {open && (
-        <div className="mt-1 ml-1.5 border-l-2 border-base-border pl-3 text-[12.5px] leading-relaxed text-zinc-500 whitespace-pre-wrap">
+        <div className="mt-1 ml-1.5 border-l-2 border-base-border pl-3 text-xs leading-relaxed text-zinc-500 whitespace-pre-wrap">
           {reasoning}
         </div>
       )}

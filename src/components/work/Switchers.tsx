@@ -11,7 +11,7 @@ import type { Project } from "../../types";
  *  pestañas, que ahora vive dentro de estos dos menús. */
 function punto(estado: AgentStatus) {
   return estado === "running"
-    ? "bg-accent-soft animate-pulse"
+    ? "bg-accent-soft animate-pulse mov-bucle"
     : estado === "awaiting"
       ? "bg-amber-400"
       : estado === "error"
@@ -45,7 +45,7 @@ export function ProyectoSwitcher({ project }: { project: Project }) {
         ref={ref}
         onClick={() => setAbierto((v) => !v)}
         title={project.rootPath}
-        className={`${DISPARADOR} text-[13px] font-semibold tracking-tight text-zinc-100`}
+        className={`${DISPARADOR} text-ui font-semibold tracking-tight text-zinc-100`}
         aria-expanded={abierto}
       >
         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${punto(tabs[project.id]?.agentStatus ?? "idle")}`} />
@@ -65,7 +65,7 @@ export function ProyectoSwitcher({ project }: { project: Project }) {
             que lo que dice. */}
         <div className="mb-1 border-b border-base-border/70 px-2 pb-1.5 pt-1">
           <span
-            className="text-[10px] font-medium uppercase tracking-wider text-zinc-500"
+            className="text-micro font-medium uppercase tracking-wider text-zinc-500"
             title={
               project.esCodigo
                 ? t("Carpeta de código: hay repo de git o un manifiesto de proyecto arriba.")
@@ -75,7 +75,7 @@ export function ProyectoSwitcher({ project }: { project: Project }) {
             {project.esCodigo ? t("Código") : t("Docs")}
           </span>
           <span
-            className="mt-0.5 block truncate font-mono text-[10px] text-zinc-600"
+            className="mt-0.5 block truncate font-mono text-micro text-zinc-600"
             title={project.rootPath}
           >
             {project.rootPath}
@@ -177,7 +177,7 @@ export function SesionSwitcher({ projectId }: { projectId: string }) {
           >
             <MessageSquare className={`h-3 w-3 shrink-0 ${c.id === sessionId ? "text-accent-soft" : "text-zinc-600"}`} />
             <span className="min-w-0 flex-1 truncate">{c.title}</span>
-            <span className="shrink-0 text-[10px] text-zinc-600">{haceRelativo(c.updatedAt)}</span>
+            <span className="shrink-0 text-micro text-zinc-600">{haceRelativo(c.updatedAt)}</span>
           </button>
         ))}
         <button

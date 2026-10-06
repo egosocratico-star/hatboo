@@ -189,7 +189,7 @@ export default function ProjectRules({ projectId }: { projectId: string }) {
               {t("Reglas de este proyecto")}
             </span>
             <span
-              className="shrink-0 rounded-md bg-base px-1.5 py-0.5 font-mono text-[10px] text-zinc-500"
+              className="shrink-0 rounded-md bg-base px-1.5 py-0.5 font-mono text-micro text-zinc-500"
               title={reglas?.path ?? "HATBOO.md"}
             >
               {nombre}
@@ -201,7 +201,7 @@ export default function ProjectRules({ projectId }: { projectId: string }) {
                 «¿el agente está leyendo esto?», y se pinta teniendo delante el
                 texto, para que nadie confunda verlo con usarlo. */}
             <div
-              className={`flex items-start gap-1.5 rounded-lg border px-2 py-1.5 text-[11px] leading-snug ${
+              className={`flex items-start gap-1.5 rounded-lg border px-2 py-1.5 text-etiqueta leading-snug ${
                 estado === "aplicadas"
                   ? "border-accent/35 bg-accent/10 text-accent-soft"
                   : estado === "vacio"
@@ -221,7 +221,7 @@ export default function ProjectRules({ projectId }: { projectId: string }) {
               </span>
             </div>
 
-            <p className="text-[10px] leading-snug text-zinc-600">
+            <p className="text-micro leading-snug text-zinc-600">
               {t(
                 "Al aprobar entra en el prompt EXACTAMENTE lo que hay en el archivo. Cualquier edición —también la de fuera de Hatboo— lo saca de ahí hasta que vuelvas a aprobar. No amplía el sandbox ni quita aprobaciones.",
               )}
@@ -233,22 +233,22 @@ export default function ProjectRules({ projectId }: { projectId: string }) {
               rows={9}
               spellCheck={false}
               placeholder={t("Escribe aquí las convenciones del proyecto…")}
-              className="w-full resize-y rounded-lg border border-base-border bg-base px-2.5 py-2 font-mono text-[11px] leading-relaxed text-zinc-200 focus:border-accent/60 focus:outline-none"
+              className="w-full resize-y rounded-lg border border-base-border bg-base px-2.5 py-2 font-mono text-etiqueta leading-relaxed text-zinc-200 focus:border-accent/60 focus:outline-none"
             />
 
-            {error && <p className="text-[11px] text-red-400">{error}</p>}
+            {error && <p className="text-etiqueta text-red-400">{error}</p>}
 
             <div className="flex items-center gap-2">
-              <span className="text-[10px] tabular-nums text-zinc-600">
+              <span className="text-micro tabular-nums text-zinc-600">
                 {t("{n} caracteres", { n: borrador.length })}
               </span>
               {sinGuardar && (
-                <span className="text-[10px] text-amber-300/80">{t("sin guardar")}</span>
+                <span className="text-micro text-amber-300/80">{t("sin guardar")}</span>
               )}
               {!reglas?.exists && (
                 <button
                   onClick={() => setBorrador(PLANTILLA)}
-                  className="rounded-md px-1.5 py-0.5 text-[11px] text-zinc-400 transition-colors hover:bg-base-hover hover:text-zinc-200"
+                  className="rounded-md px-1.5 py-0.5 text-etiqueta text-zinc-400 transition-colors hover:bg-base-hover hover:text-zinc-200"
                 >
                   {t("Empezar con una plantilla")}
                 </button>
@@ -257,7 +257,7 @@ export default function ProjectRules({ projectId }: { projectId: string }) {
                 <button
                   onClick={() => void quitar()}
                   disabled={ocupado}
-                  className="rounded-lg border border-base-border px-2 py-1 text-[11px] text-zinc-400 transition-colors hover:bg-base-hover hover:text-zinc-200 disabled:opacity-40"
+                  className="rounded-lg border border-base-border px-2 py-1 text-etiqueta text-zinc-400 transition-colors hover:bg-base-hover hover:text-zinc-200 disabled:opacity-40"
                 >
                   {t("Dejar de usarlas")}
                 </button>

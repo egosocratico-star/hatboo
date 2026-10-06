@@ -84,7 +84,7 @@ export default function ThemePicker({ value, onChange, paletas = true }: Props) 
                 onClick={() => onChange(p.id)}
                 title={t(p.nota)}
                 aria-pressed={activo}
-                className={`flex items-center gap-1.5 rounded-lg border px-1.5 py-1 text-[11px] transition-colors ${
+                className={`flex items-center gap-1.5 rounded-lg border px-1.5 py-1 text-etiqueta transition-colors ${
                   activo
                     ? "border-accent/60 bg-accent/10 text-zinc-100"
                     : "border-base-border text-zinc-400 hover:border-accent/40 hover:bg-base-hover hover:text-zinc-200"

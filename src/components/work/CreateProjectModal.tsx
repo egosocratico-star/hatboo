@@ -98,7 +98,7 @@ export default function CreateProjectModal() {
         <div className="flex items-center gap-3 border-b border-base-border px-5 py-4">
           <div className="min-w-0 flex-1">
             <h2 className="text-base font-semibold tracking-tight">{t("Crear proyecto nuevo")}</h2>
-            <p className="mt-0.5 text-[11px] text-zinc-500">
+            <p className="mt-0.5 text-etiqueta text-zinc-500">
               {t("Se crea la carpeta, no solo se registra.")}
             </p>
           </div>
@@ -126,7 +126,7 @@ export default function CreateProjectModal() {
               className={`${CAMPO} placeholder:text-zinc-600`}
             />
             {invalido && (
-              <p className="text-[11px] text-red-400">{t("Ese nombre no vale como carpeta.")}</p>
+              <p className="text-etiqueta text-red-400">{t("Ese nombre no vale como carpeta.")}</p>
             )}
           </div>
 
@@ -154,13 +154,13 @@ export default function CreateProjectModal() {
               </button>
             </div>
             {recortado.length > 0 && !invalido && parent && (
-              <p className="truncate text-[11px] text-zinc-500" title={join(parent, recortado)}>
+              <p className="truncate text-etiqueta text-zinc-500" title={join(parent, recortado)}>
                 {t("Se creará en")} {join(parent, recortado)}
               </p>
             )}
           </div>
 
-          {error && <p className="text-[11px] text-red-400">{error}</p>}
+          {error && <p className="text-etiqueta text-red-400">{error}</p>}
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-base-border bg-base-raised px-5 py-3">

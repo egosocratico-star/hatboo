@@ -157,6 +157,8 @@ export interface Settings {
   chatFontFamily: ChatFontFamily;
   /** Tamaño base del documento: de él sale todo el espaciado (Tailwind mide en rem). */
   densidad: Densidad;
+  /** `sistema` | `comodo` | `reducido`: si anima la interfaz. Ver `MOVIMIENTO_OPCIONES`. */
+  movimiento: Movimiento;
   /** Acento fijo por encima de la paleta. `violeta` = el de cada paleta. */
   acento: Acento;
   avatarStyle: AvatarStyle;
@@ -222,6 +224,19 @@ export type Densidad = "comoda" | "compacta";
 export const DENSIDAD_OPCIONES: { id: Densidad; label: string; px: number }[] = [
   { id: "comoda", label: "Cómoda", px: 16 },
   { id: "compacta", label: "Compacta", px: 14.5 },
+];
+
+/** Movimiento. `sistema` deja decidir a `prefers-reduced-motion` del SO; los
+ *  otros dos mandan. La norma está en `src/index.css`, junto a las tres
+ *  duraciones (`--mov-rapido`, `--mov-normal`, `--mov-lento`), y reduce
+ *  **iteraciones** además de duraciones: el ajuste que hubo hasta la 0.6.0 dejaba
+ *  los bucles girando a 0,01 ms, que en un `animate-pulse` es un estroboscopio. */
+export type Movimiento = "sistema" | "comodo" | "reducido";
+
+export const MOVIMIENTO_OPCIONES: { id: Movimiento; label: string; nota: string }[] = [
+  { id: "sistema", label: "Sistema", nota: "el que pida Windows" },
+  { id: "comodo", label: "Cómodo", nota: "anima siempre" },
+  { id: "reducido", label: "Reducido", nota: "sin bucles ni transiciones largas" },
 ];
 
 /** Acento por encima de la paleta. `violeta` = no tocar la de cada paleta. Los

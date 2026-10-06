@@ -63,7 +63,7 @@ function SaludoPrevio({ draft }: { draft: SettingsType }) {
         </p>
       </div>
       {draft.answerLanguage === "auto" && (
-        <p className="mt-2 text-[11px] text-zinc-600">
+        <p className="mt-2 text-etiqueta text-zinc-600">
           {t(
             "Con «el mismo en que le escribas», aquí se ve en el idioma de la interfaz.",
           )}
@@ -111,7 +111,7 @@ export default function AjustesPerfil({
 
         {/* La ambigüedad que hay que cortar: un modelo chico leía el nombre
             y se presentaba con él. Que quede escrito en la propia pantalla. */}
-        <p className="mt-2 text-[11px] text-zinc-500">
+        <p className="mt-2 text-etiqueta text-zinc-500">
           {t("Hatboo te llamará «{n}». Él sigue llamándose Hatboo.", {
             n: draft.assistantName?.trim() || t("como quieras"),
           })}
@@ -192,13 +192,13 @@ export default function AjustesPerfil({
           />
         </label>
         <div className="mt-1 flex items-start justify-between gap-3">
-          <span className="min-w-0 text-[11px] text-zinc-600">
+          <span className="min-w-0 text-etiqueta text-zinc-600">
             {t(
               "200 caracteres como mucho. Va solo al chat: un modelo pequeño mezcla una biografía larga con las reglas del agente.",
             )}
           </span>
           {/* Lo que falta se ve mientras se escribe, no al pasarse. */}
-          <span className="shrink-0 text-[11px] tabular-nums text-zinc-500">
+          <span className="shrink-0 text-etiqueta tabular-nums text-zinc-500">
             {(draft.userNotes ?? "").length}/200
           </span>
         </div>

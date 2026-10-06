@@ -88,7 +88,7 @@ function duracion(ms: number) {
 /** El tiempo siempre en mono: alineado a la derecha, si no, las cifras bailan. */
 function Tiempo({ ms }: { ms: number }) {
   return (
-    <span className="shrink-0 font-mono text-[11px] tabular-nums text-zinc-600">
+    <span className="shrink-0 font-mono text-etiqueta tabular-nums text-zinc-600">
       {duracion(ms)}
     </span>
   );
@@ -96,13 +96,13 @@ function Tiempo({ ms }: { ms: number }) {
 
 /** La ruta o el nombre de archivo, en chip mono: es lo que se lee de una línea. */
 const CHIP_RUTA =
-  "rounded border border-base-border bg-base-raised px-1 py-px font-mono text-[11px] text-accent-soft";
+  "rounded border border-base-border bg-base-raised px-1 py-px font-mono text-etiqueta text-accent-soft";
 
 /** ✓ o ✗ al principio del paso: el estado de un vistazo, sin leer la frase. */
 function Hecho({ ok }: { ok: boolean }) {
   return (
     <span
-      className={`w-3 shrink-0 text-center font-mono text-[11px] ${
+      className={`w-3 shrink-0 text-center font-mono text-etiqueta ${
         ok ? "text-emerald-400" : "text-red-400"
       }`}
       title={ok ? t("Salió bien") : t("Falló")}
@@ -250,7 +250,7 @@ export default function AgentTrace({
           <Dots />
         ) : (
           <span
-            className={`shrink-0 font-mono text-[11px] font-semibold ${
+            className={`shrink-0 font-mono text-etiqueta font-semibold ${
               vacio ? "text-amber-400" : "text-accent-soft"
             }`}
           >
@@ -261,17 +261,17 @@ export default function AgentTrace({
           {running ? t("Trabajando · {r}", { r: texto }) : texto}
         </span>
         {!running && msTotal > 0 && (
-          <span className="shrink-0 font-mono text-[10px] tabular-nums text-zinc-600">
+          <span className="shrink-0 font-mono text-micro tabular-nums text-zinc-600">
             · {duracion(msTotal)}
           </span>
         )}
         {fallos > 0 && (
-          <span className="shrink-0 text-[10px] text-red-400/80">
+          <span className="shrink-0 text-micro text-red-400/80">
             {t("{n} fallaron", { n: fallos })}
           </span>
         )}
         <ChevronDown
-          className={`h-3.5 w-3.5 shrink-0 transition-transform duration-200 ${abierto ? "rotate-180" : ""}`}
+          className={`h-3.5 w-3.5 shrink-0 transition-transform duration-normal ${abierto ? "rotate-180" : ""}`}
         />
       </button>
 
@@ -282,7 +282,7 @@ export default function AgentTrace({
               const meta = TOOLS[fila.tool] ?? POR_DEFECTO;
               const Icono = meta.icono;
               return (
-                <div key={i} className="flex items-center gap-2 py-0.5 text-[12px]">
+                <div key={i} className="flex items-center gap-2 py-0.5 text-xs">
                   <Hecho ok={!fila.fallo} />
                   <Icono className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
                   <span className={`min-w-0 flex-1 truncate ${fila.fallo ? "text-red-300" : "text-zinc-400"}`}>
@@ -300,7 +300,7 @@ export default function AgentTrace({
             const Icono = meta.icono;
             return (
               <div key={i}>
-                <div className="flex items-center gap-2 py-0.5 text-[12px]">
+                <div className="flex items-center gap-2 py-0.5 text-xs">
                   <Hecho ok={l.ok} />
                   <Icono className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
                   <span

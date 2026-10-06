@@ -15,7 +15,7 @@ interface Capas {
  *  una frase ilegible de tres grises distintos. Mismo idioma que los chips del
  *  Centro de modelos. */
 const CHIP =
-  "flex shrink-0 items-center gap-1 rounded-full border border-base-border bg-base-card px-2 py-0.5 text-[11px] tabular-nums text-zinc-500";
+  "flex shrink-0 items-center gap-1 rounded-full border border-base-border bg-base-card px-2 py-0.5 text-etiqueta tabular-nums text-zinc-500";
 
 /**
  * Las capas del agente a la vista: cuántas tools tiene puestas, si puede salir a

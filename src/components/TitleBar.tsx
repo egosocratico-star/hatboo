@@ -61,7 +61,7 @@ export default function TitleBar() {
         className="h-[18px] w-[18px] shrink-0 object-contain"
         draggable={false}
       />
-      <span className="text-[13px] font-semibold tracking-tight">Hatboo</span>
+      <span className="text-ui font-semibold tracking-tight">Hatboo</span>
       <span className="min-w-0 flex-1" />
       <button
         onClick={() => setSearchOpen(true)}

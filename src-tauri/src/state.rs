@@ -140,6 +140,13 @@ pub struct Settings {
     /// interfaz entera en vez de padding por padding.
     #[serde(default = "default_densidad")]
     pub densidad: String,
+    /// `sistema` | `comodo` | `reducido`. Con `sistema` manda
+    /// `prefers-reduced-motion` del SO. Es un ajuste con su norma escrita al lado
+    /// (`index.css`): reducir el movimiento quita las **iteraciones**, no solo la
+    /// duración — el antecesor de este ajuste se quitó el 29-09 por dejar los
+    /// `animate-pulse` a 0,01 ms girando al bucle, que es un estroboscopio.
+    #[serde(default = "default_movimiento")]
+    pub movimiento: String,
     /// Acento fijo por encima de la paleta: `violeta` (el de cada paleta) |
     /// `azul` | `verde` | `rosa`. Colores concretos, no hex libre: los cuatro
     /// están medidos contra el fondo de las paletas (`npm run prueba-contraste`).
@@ -290,6 +297,10 @@ fn default_densidad() -> String {
     "comoda".to_string()
 }
 
+fn default_movimiento() -> String {
+    "sistema".to_string()
+}
+
 fn default_acento() -> String {
     "violeta".to_string()
 }
@@ -368,6 +379,7 @@ impl Default for Settings {
             chat_font_size: default_chat_font_size(),
             chat_font_family: default_chat_font_family(),
             densidad: default_densidad(),
+            movimiento: default_movimiento(),
             acento: default_acento(),
             avatar_style: default_avatar_style(),
             avatar_color: default_avatar_color(),

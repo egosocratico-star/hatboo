@@ -151,7 +151,7 @@ export default function Select({
         <ChevronDown
           className={`${
             size === "md" ? "h-4 w-4" : "h-3 w-3"
-          } shrink-0 text-zinc-500 transition-transform duration-150 ${open ? "rotate-180" : ""}`}
+          } shrink-0 text-zinc-500 transition-transform duration-rapido ${open ? "rotate-180" : ""}`}
         />
       </button>
 
@@ -185,7 +185,7 @@ export default function Select({
               <span className="min-w-0 flex-1">
                 <span className="block truncate">{op.etiqueta}</span>
                 {op.detalle && (
-                  <span className="mt-0.5 block text-[10px] leading-snug text-zinc-600">
+                  <span className="mt-0.5 block text-micro leading-snug text-zinc-600">
                     {op.detalle}
                   </span>
                 )}

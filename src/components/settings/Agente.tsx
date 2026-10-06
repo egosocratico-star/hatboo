@@ -44,13 +44,13 @@ export default function AjustesAgente({
           </p>
           <ul className="space-y-1">
             {APPROVAL_LEVELS.map((l) => (
-              <li key={l.id} className="flex flex-wrap gap-x-2 text-[11px]">
+              <li key={l.id} className="flex flex-wrap gap-x-2 text-etiqueta">
                 <span className="font-medium text-zinc-200">{t(l.label)}</span>
                 <span className="text-zinc-500">{t(l.help)}</span>
               </li>
             ))}
           </ul>
-          <p className="text-[11px] leading-snug text-zinc-500">
+          <p className="text-etiqueta leading-snug text-zinc-500">
             {t("Cada proyecto guarda su propio nivel; sin proyecto abierto, esto es el valor por defecto. Con «Acceso total» Hatboo no pide aprobación, pero las tools siguen encerradas en la carpeta del proyecto: el sandbox de rutas no se relaja nunca.")}
           </p>
         </div>
@@ -147,14 +147,14 @@ export default function AjustesAgente({
           <p className="text-xs font-medium text-zinc-300">
             {t("Carpetas ignoradas")}
           </p>
-          <p className="mt-0.5 mb-2 text-[11px] leading-snug text-zinc-500">
+          <p className="mt-0.5 mb-2 text-etiqueta leading-snug text-zinc-500">
             {t("LA MISMA lista para las tres cosas que miran el disco: el árbol de Archivos, su buscador y `list_dir` del agente. Si una carpeta no está en el panel, tampoco la ve el agente; si la ve él, también la ves tú.")}
           </p>
           <div className="flex flex-wrap gap-1">
             {(draft.ignoreDirs ?? []).map((d) => (
               <span
                 key={d}
-                className="inline-flex items-center gap-1 rounded-chip border border-base-border bg-base py-0.5 pr-0.5 pl-1.5 font-mono text-[11px] text-zinc-300"
+                className="inline-flex items-center gap-1 rounded-chip border border-base-border bg-base py-0.5 pr-0.5 pl-1.5 font-mono text-etiqueta text-zinc-300"
               >
                 {d}
                 <button
@@ -172,7 +172,7 @@ export default function AjustesAgente({
               </span>
             ))}
             {(draft.ignoreDirs ?? []).length === 0 && (
-              <span className="text-[11px] text-zinc-600">
+              <span className="text-etiqueta text-zinc-600">
                 {t("Ninguna: el árbol y el agente lo ven todo.")}
               </span>
             )}
@@ -197,11 +197,11 @@ export default function AjustesAgente({
               {t("Añadir")}
             </button>
           </div>
-          <p className="mt-1.5 text-[11px] leading-snug text-zinc-600">
+          <p className="mt-1.5 text-etiqueta leading-snug text-zinc-600">
             {t("Se salta por su nombre en cualquier nivel, sin distinguir mayúsculas. Escribe una ruta y se guarda solo el último tramo.")}
           </p>
         </div>
-        <p className="text-[11px] text-zinc-600">
+        <p className="text-etiqueta text-zinc-600">
           {t("El nivel de aprobación se ajusta por proyecto en la vista de Trabajo.")}
         </p>
       </section>

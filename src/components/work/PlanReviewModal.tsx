@@ -32,7 +32,7 @@ export default function PlanReviewModal() {
           <h2 className="text-sm font-semibold">
             {t("El agente propone este plan")}
           </h2>
-          <span className="ml-auto text-[10px] uppercase tracking-wider text-zinc-500">
+          <span className="ml-auto text-micro uppercase tracking-wider text-zinc-500">
             {t("no ejecuta nada todavía")}
           </span>
         </div>
@@ -40,7 +40,7 @@ export default function PlanReviewModal() {
         <div className="px-5 py-4 space-y-2 max-h-[50vh] overflow-y-auto">
           {pasos.map((paso, i) => (
             <div key={i} className="flex items-start gap-2">
-              <span className="shrink-0 mt-2 text-[11px] text-zinc-600 w-4 text-right">
+              <span className="shrink-0 mt-2 text-etiqueta text-zinc-600 w-4 text-right">
                 {i + 1}
               </span>
               <input

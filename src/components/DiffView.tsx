@@ -57,7 +57,7 @@ export default function DiffView({
   if (filas.length === 0) return null;
   return (
     <div className="overflow-hidden rounded-md border border-base-border">
-      <div className="flex items-center gap-2 border-b border-base-border bg-base-raised px-2 py-1 font-mono text-[10px] tabular-nums">
+      <div className="flex items-center gap-2 border-b border-base-border bg-base-raised px-2 py-1 font-mono text-micro tabular-nums">
         <span className="text-emerald-400">+{mas}</span>
         <span className="text-red-400">−{menos}</span>
         {largo && !todo && (
@@ -73,7 +73,7 @@ export default function DiffView({
         )}
       </div>
       <div
-        className="overflow-auto bg-base-code py-1 font-mono text-[11px] leading-relaxed"
+        className="overflow-auto bg-base-code py-1 font-mono text-etiqueta leading-relaxed"
         style={{ maxHeight: altoMax }}
       >
         {visibles.map((f, i) => (
@@ -81,7 +81,7 @@ export default function DiffView({
         ))}
       </div>
       {mas === 0 && menos === 0 && (
-        <p className="border-t border-base-border bg-base-raised px-2 py-1 text-[10px] text-zinc-500">
+        <p className="border-t border-base-border bg-base-raised px-2 py-1 text-micro text-zinc-500">
           {t("No hay líneas añadidas ni quitadas en este diff.")}
         </p>
       )}
@@ -100,7 +100,7 @@ export function ArchivoCompleto({
   const lineas = texto.split("\n");
   return (
     <div className="overflow-hidden rounded-md border border-base-border">
-      <div className="overflow-auto bg-base-code py-1 font-mono text-[11px] leading-relaxed text-zinc-300" style={{ maxHeight: altoMax }}>
+      <div className="overflow-auto bg-base-code py-1 font-mono text-etiqueta leading-relaxed text-zinc-300" style={{ maxHeight: altoMax }}>
         {lineas.map((l, i) => (
           <div key={i} className="flex w-max min-w-full px-2">
             <span className={NUMERO}>{i + 1}</span>

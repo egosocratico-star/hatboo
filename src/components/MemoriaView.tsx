@@ -165,7 +165,7 @@ export default function MemoriaView() {
                       inputNueva.current?.focus();
                     }}
                     title={t("Dejarla escrita en el compositor")}
-                    className="rounded-full border border-base-border px-2.5 py-1 text-left text-[11px] text-zinc-400 transition-colors hover:border-accent/50 hover:text-zinc-100"
+                    className="rounded-full border border-base-border px-2.5 py-1 text-left text-etiqueta text-zinc-400 transition-colors hover:border-accent/50 hover:text-zinc-100"
                   >
                     {t(e)}
                   </button>
@@ -223,7 +223,7 @@ export default function MemoriaView() {
                   </p>
                   <span
                     title={new Date(n.updated_at).toLocaleString()}
-                    className="shrink-0 pt-0.5 text-[11px] tabular-nums text-zinc-600"
+                    className="shrink-0 pt-0.5 text-etiqueta tabular-nums text-zinc-600"
                   >
                     {haceRelativo(n.updated_at)}
                   </span>
@@ -283,7 +283,7 @@ export default function MemoriaView() {
             className={`${CAMPO} resize-none`}
           />
           <div className="mt-2 flex items-center justify-between gap-2">
-            <span className="text-[11px] text-zinc-600">
+            <span className="text-etiqueta text-zinc-600">
               {nueva.trim()
                 ? t("Sumaría ~{k} tokens a cada mensaje.", { k: extra })
                 : t("Se guarda en este equipo y no sale de aquí salvo en el prompt.")}
@@ -331,11 +331,11 @@ export default function MemoriaView() {
                 })}
               </p>
               {verPrompt && (
-                <pre className="mt-2.5 max-h-64 overflow-auto whitespace-pre-wrap rounded-lg border border-base-border bg-base p-3 font-mono text-[11px] leading-relaxed text-zinc-400">
+                <pre className="mt-2.5 max-h-64 overflow-auto whitespace-pre-wrap rounded-lg border border-base-border bg-base p-3 font-mono text-etiqueta leading-relaxed text-zinc-400">
                   {bloque}
                 </pre>
               )}
-              <p className="mt-2 text-[11px] leading-snug text-zinc-600">
+              <p className="mt-2 text-etiqueta leading-snug text-zinc-600">
                 {t(
                   "Los tokens son una estimación a ~4 caracteres por token, no el contador del proveedor.",
                 )}

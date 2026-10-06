@@ -5,7 +5,7 @@
  * que salirle de aquí, no inventarlas otra vez.
  */
 const BOTON =
-  "inline-flex items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-[13px] font-medium transition-colors";
+  "inline-flex items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-ui font-medium transition-colors";
 
 export const BOTON_PRIMARIO = `${BOTON} bg-accent text-white hover:bg-accent-dim disabled:opacity-40`;
 export const BOTON_SECUNDARIO = `${BOTON} border border-base-border text-zinc-300 hover:border-zinc-500 hover:text-layer`;

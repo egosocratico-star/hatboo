@@ -165,7 +165,7 @@ export default function ProjectsView() {
                       abrir(p);
                     }
                   }}
-                  className="group relative z-0 flex min-h-[132px] cursor-pointer flex-col gap-3 rounded-tarjeta border border-base-border/60 bg-base-card p-5 shadow-apoyada transition-[background-color,border-color,box-shadow] duration-200 ease-suave hover:z-10 hover:border-accent/50 hover:bg-base-raised hover:shadow-flotante"
+                  className="group relative z-0 flex min-h-[132px] cursor-pointer flex-col gap-3 rounded-tarjeta border border-base-border/60 bg-base-card p-5 shadow-apoyada transition-[background-color,border-color,box-shadow] duration-normal ease-suave hover:z-10 hover:border-accent/50 hover:bg-base-raised hover:shadow-flotante"
                 >
                   <div className="flex items-start gap-2.5">
                     {/* La casilla del icono va HUNDIDA (`.pozo`), que es el mismo
@@ -180,13 +180,13 @@ export default function ProjectsView() {
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="min-w-0 flex-1 truncate text-[15px] font-medium">
+                        <span className="min-w-0 flex-1 truncate text-sm font-medium">
                           {p.name}
                         </span>
                         {/* La clase de carpeta se decide por lo que hay dentro, no
                             por cómo la llamó el usuario. */}
                         <span
-                          className="shrink-0 rounded-md border border-base-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-zinc-500"
+                          className="shrink-0 rounded-md border border-base-border px-1.5 py-0.5 text-micro uppercase tracking-wide text-zinc-500"
                           title={
                             p.esCodigo
                               ? t(
@@ -206,13 +206,13 @@ export default function ProjectsView() {
                           />
                         )}
                       </div>
-                      <p className="truncate font-mono text-[11px] text-zinc-600" title={p.rootPath}>
+                      <p className="truncate font-mono text-etiqueta text-zinc-600" title={p.rootPath}>
                         {p.rootPath}
                       </p>
                     </div>
                   </div>
 
-                  <div className="mt-auto flex items-center gap-2 border-t border-base-border/60 pt-3 text-[11px] text-zinc-500">
+                  <div className="mt-auto flex items-center gap-2 border-t border-base-border/60 pt-3 text-etiqueta text-zinc-500">
                     <MessageCircle className="h-3 w-3 shrink-0" />
                     <span>{t("{n} sesión(es)", { n: sesionesDe.get(p.id) ?? 0 })}</span>
                     <span className="text-zinc-700">·</span>
@@ -232,7 +232,7 @@ export default function ProjectsView() {
                         idioma de los mandos de la lateral y de la cabecera del
                         trabajo. Sigue apareciendo al pasar el ratón o al enfocar
                         desde el teclado, no con `hidden`. */}
-                    <span className="ml-auto flex shrink-0 items-center gap-0.5 rounded-md border border-base-border/70 bg-base-card p-0.5 opacity-0 shadow-apoyada transition-[opacity,box-shadow] duration-200 ease-suave focus-within:opacity-100 group-hover:opacity-100">
+                    <span className="ml-auto flex shrink-0 items-center gap-0.5 rounded-md border border-base-border/70 bg-base-card p-0.5 opacity-0 shadow-apoyada transition-[opacity,box-shadow] duration-normal ease-suave focus-within:opacity-100 group-hover:opacity-100">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();

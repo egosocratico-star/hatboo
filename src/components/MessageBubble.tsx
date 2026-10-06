@@ -68,7 +68,7 @@ function SelectorVariantes({ message }: { message: Message }) {
       >
         <ChevronLeft className="h-3.5 w-3.5" />
       </button>
-      <span className="text-[10px] tabular-nums text-zinc-500">
+      <span className="text-micro tabular-nums text-zinc-500">
         {v.posicion}/{v.total}
       </span>
       <button
@@ -128,7 +128,7 @@ function Sello({ ms }: { ms: number }) {
   return (
     <span
       title={fmtDate(ms)}
-      className="px-1 text-[11px] tabular-nums text-zinc-600 select-none"
+      className="px-1 text-etiqueta tabular-nums text-zinc-600 select-none"
     >
       {haceRelativo(ms)}
     </span>
@@ -280,7 +280,7 @@ function MessageBubble({
         {docAtts.map((a, i) => (
           <span
             key={i}
-            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] border ${
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-etiqueta border ${
               isUser && solida
                 ? "border-white/25 bg-white/10 text-white"
                 : "border-base-border bg-base-raised text-zinc-300"
@@ -434,7 +434,7 @@ function MessageBubble({
                 ? t("Propuesto")
                 : t("Sin verificar");
           return (
-            <div className="mt-1.5 text-[11px] text-zinc-400">
+            <div className="mt-1.5 text-etiqueta text-zinc-400">
               <div className="flex items-center gap-1.5">
                 <span
                   aria-hidden
@@ -472,7 +472,7 @@ function MessageBubble({
         <SourcesBlock sources={message.webSources} />
       )}
       {avisoLectura && (
-        <p className="mt-1 text-[12px] leading-snug text-red-400/90">{avisoLectura}</p>
+        <p className="mt-1 text-xs leading-snug text-red-400/90">{avisoLectura}</p>
       )}
       <div
         className={`${acciones} left-0 -ml-1.5 ${
@@ -505,7 +505,7 @@ function MessageBubble({
           {leyendo ? (
             <Square className="w-3.5 h-3.5" />
           ) : (
-            <Volume2 className={`w-3.5 h-3.5 ${saliendo ? "animate-pulse" : ""}`} />
+            <Volume2 className={`w-3.5 h-3.5 ${saliendo ? "animate-pulse mov-bucle" : ""}`} />
           )}
         </ActionButton>
         <ActionButton

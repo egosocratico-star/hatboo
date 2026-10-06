@@ -44,7 +44,7 @@ export default function ApprovalLevelPicker({ projectId }: { projectId: string }
         ref={triggerRef}
         onClick={() => setOpen((v) => !v)}
         title={t("Nivel de aprobación: {l} — {h}", { l: t(current.label), h: t(current.help) })}
-        className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] transition-colors ${
+        className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 text-etiqueta transition-colors ${
           level === "full_access"
             ? "border-red-500/60 text-red-300 hover:border-red-400"
             : "border-base-border bg-base-raised text-zinc-400 hover:border-accent/50 hover:text-zinc-200"
@@ -82,10 +82,10 @@ export default function ApprovalLevelPicker({ projectId }: { projectId: string }
                     {t(l.label)}
                   </span>
                   {l.id === level && (
-                    <span className="ml-auto text-[10px] text-accent-soft">{t("activo")}</span>
+                    <span className="ml-auto text-micro text-accent-soft">{t("activo")}</span>
                   )}
                 </span>
-                <span className="block pl-[22px] pt-0.5 text-[11px] leading-snug text-zinc-500">
+                <span className="block pl-[22px] pt-0.5 text-etiqueta leading-snug text-zinc-500">
                   {t(l.help)}
                 </span>
               </button>
@@ -97,7 +97,7 @@ export default function ApprovalLevelPicker({ projectId }: { projectId: string }
                   ? t("Activar Acceso total")
                   : t("Salir de Acceso total")}
               </p>
-              <p className="text-[11px] leading-snug text-zinc-400">
+              <p className="text-etiqueta leading-snug text-zinc-400">
                 {confirming === "full_access"
                   ? t("Hatboo ejecutará TODAS las acciones sin pedir aprobación, incluida escritura de archivos y comandos. El sandbox de rutas dentro de la carpeta del proyecto se mantiene.")
                   : t("Vas a cambiar fuera de Acceso total: las tools de alto riesgo volverán a pedir aprobación.")}

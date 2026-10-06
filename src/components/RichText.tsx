@@ -57,13 +57,13 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
     // el botón se sale de la caja y desaparece con el desplazamiento.
     <div className="group my-2.5 rounded-lg border border-base-border bg-base-code">
       <div className="flex items-center gap-2 px-3 pt-2">
-        <span className="text-[10px] uppercase tracking-wider text-accent-soft">
+        <span className="text-micro uppercase tracking-wider text-accent-soft">
           {lang}
         </span>
         <button
           onClick={() => void copia()}
           title={copiado ? t("Copiado") : t("Copiar código")}
-          className="ml-auto inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-zinc-500 opacity-0 transition-opacity hover:text-zinc-200 focus:opacity-100 group-hover:opacity-100"
+          className="ml-auto inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-micro text-zinc-500 opacity-0 transition-opacity hover:text-zinc-200 focus:opacity-100 group-hover:opacity-100"
         >
           {copiado ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
           {t("Copiar")}
@@ -75,7 +75,7 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
           <button
             onClick={() => void abrir()}
             title={t("Abrir en el panel de la derecha")}
-            className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-zinc-500 opacity-0 transition-opacity hover:text-accent-soft focus:opacity-100 group-hover:opacity-100"
+            className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-micro text-zinc-500 opacity-0 transition-opacity hover:text-accent-soft focus:opacity-100 group-hover:opacity-100"
           >
             <PanelRightOpen className="w-3 h-3" />
             {t("Abrir")}

@@ -85,7 +85,7 @@ export default function ContextMenu({ x, y, items, onClose }: Props) {
           <span className="min-w-0 flex-1">
             {it.label}
             {it.detail && (
-              <span className="block text-[10px] leading-snug text-zinc-500">{it.detail}</span>
+              <span className="block text-micro leading-snug text-zinc-500">{it.detail}</span>
             )}
           </span>
         </button>

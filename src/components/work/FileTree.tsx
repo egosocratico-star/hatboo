@@ -182,7 +182,7 @@ function Rama({
              se corta nunca por la mitad, y el botón sigue alcanzable con teclado
              — con `display:none` un elemento no se puede enfocar. */
           <span className="relative flex h-4 min-w-[22px] shrink-0 items-center justify-end pl-1">
-            <span className="text-[10px] tabular-nums text-zinc-600 transition-opacity group-hover/fila:opacity-0">
+            <span className="text-micro tabular-nums text-zinc-600 transition-opacity group-hover/fila:opacity-0">
               {tamano(entry.size)}
             </span>
             <button
@@ -195,7 +195,7 @@ function Rama({
             </button>
           </span>
         ) : (
-          <span className="min-w-[22px] shrink-0 pl-1 text-right text-[10px] tabular-nums text-zinc-600">
+          <span className="min-w-[22px] shrink-0 pl-1 text-right text-micro tabular-nums text-zinc-600">
             {tamano(entry.size)}
           </span>
         )}
@@ -244,7 +244,7 @@ function Rama({
       </button>
       {abierta && fallo && (
         <p
-          className="py-0.5 pr-1.5 text-[11px] leading-snug text-red-400/90"
+          className="py-0.5 pr-1.5 text-etiqueta leading-snug text-red-400/90"
           style={{ paddingLeft: (depth + 1) * 12 + 22 }}
         >
           {fallo}
@@ -308,7 +308,7 @@ function Resultados({
               <Icon className={`w-3.5 h-3.5 shrink-0 ${className}`} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate">{name}</span>
-                {dir && <span className="block truncate text-[10px] text-zinc-600">{dir}</span>}
+                {dir && <span className="block truncate text-micro text-zinc-600">{dir}</span>}
               </span>
             </button>
             {onAddFile && (
@@ -325,7 +325,7 @@ function Resultados({
         );
       })}
       {paths.length === 0 && (
-        <p className="px-2 py-2 text-[11px] text-zinc-600">{t("Sin coincidencias.")}</p>
+        <p className="px-2 py-2 text-etiqueta text-zinc-600">{t("Sin coincidencias.")}</p>
       )}
     </div>
   );
@@ -616,7 +616,7 @@ export default function FileTree({
         {/* La cinta del recorte: si busca solo en una carpeta tiene que estar
             escrito arriba, no solo notado en menos resultados. */}
         {dentro && (
-          <div className="mt-1.5 flex items-center gap-1.5 rounded-chip border border-accent/40 bg-accent/[0.08] py-0.5 pr-0.5 pl-1.5 text-[11px] text-accent-soft">
+          <div className="mt-1.5 flex items-center gap-1.5 rounded-chip border border-accent/40 bg-accent/[0.08] py-0.5 pr-0.5 pl-1.5 text-etiqueta text-accent-soft">
             <Folder className="h-3 w-3 shrink-0" />
             <span className="min-w-0 flex-1 truncate" title={dentro.path}>
               {t("en {n}", { n: dentro.nombre })}
@@ -634,11 +634,11 @@ export default function FileTree({
 
       <div className="min-h-0 flex-1 overflow-y-auto pb-2">
         {fallo && !buscando && (
-          <p className="px-3 py-1.5 text-[11px] leading-snug text-red-400/90">{fallo}</p>
+          <p className="px-3 py-1.5 text-etiqueta leading-snug text-red-400/90">{fallo}</p>
         )}
         {buscando ? (
           results === null ? (
-            <p className="px-3 py-2 text-[11px] text-zinc-600">{t("Buscando…")}</p>
+            <p className="px-3 py-2 text-etiqueta text-zinc-600">{t("Buscando…")}</p>
           ) : (
             <Resultados
               paths={results}
@@ -650,7 +650,7 @@ export default function FileTree({
         ) : (
           <>
             {visibles.length === 0 && (
-              <p className="px-3 py-2 text-[11px] text-zinc-600">
+              <p className="px-3 py-2 text-etiqueta text-zinc-600">
                 {entries.length > 0 ? t("Todo empieza por punto.") : t("Carpeta vacía.")}
               </p>
             )}
@@ -697,11 +697,11 @@ export default function FileTree({
           >
           <div className="flex shrink-0 items-center gap-1 px-2 py-1">
             <FileText className="h-3 w-3 shrink-0 text-zinc-500" />
-            <span className="min-w-0 flex-1 truncate text-[11px] text-zinc-300" title={previa}>
+            <span className="min-w-0 flex-1 truncate text-etiqueta text-zinc-300" title={previa}>
               {previa.split("/").pop()}
             </span>
             {datos && (
-              <span className="shrink-0 text-[10px] tabular-nums text-zinc-600">
+              <span className="shrink-0 text-micro tabular-nums text-zinc-600">
                 {tamano(datos.bytes)} · {t("{n} líneas", { n: datos.lineas })}
               </span>
             )}
@@ -724,18 +724,18 @@ export default function FileTree({
           </div>
           <div className="min-h-0 flex-1 overflow-auto border-t border-base-border/60">
             {falloPrevia && (
-              <p className="px-2 py-2 text-[11px] leading-snug text-red-400/90">{falloPrevia}</p>
+              <p className="px-2 py-2 text-etiqueta leading-snug text-red-400/90">{falloPrevia}</p>
             )}
             {!falloPrevia && !datos && (
-              <p className="px-2 py-2 text-[11px] text-zinc-600">{t("Leyendo…")}</p>
+              <p className="px-2 py-2 text-etiqueta text-zinc-600">{t("Leyendo…")}</p>
             )}
             {datos && (
               <>
-                <pre className="whitespace-pre px-2 py-1.5 font-mono text-[11px] leading-relaxed text-zinc-300">
+                <pre className="whitespace-pre px-2 py-1.5 font-mono text-etiqueta leading-relaxed text-zinc-300">
                   {datos.texto}
                 </pre>
                 {datos.truncado && (
-                  <p className="px-2 pb-2 text-[10px] text-zinc-600">
+                  <p className="px-2 pb-2 text-micro text-zinc-600">
                     {t("Se enseña el principio: el archivo es más grande que la vista previa.")}
                   </p>
                 )}

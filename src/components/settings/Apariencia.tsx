@@ -10,6 +10,7 @@ import {
   CHAT_FONT_STACKS,
   DENSIDAD_OPCIONES,
   LANGUAGE_OPTIONS,
+  MOVIMIENTO_OPCIONES,
   type LanguageChoice,
   type Settings as SettingsType,
 } from "../../types";
@@ -61,6 +62,30 @@ export default function AjustesApariencia({
                 }`}
               >
                 {t(d.label)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-base-border bg-base-card px-3 py-3">
+          <p className="text-sm text-zinc-200">{t("Movimiento")}</p>
+          <p className="mt-0.5 mb-2.5 text-xs text-zinc-500">
+            {t("«Reducido» quita las iteraciones, no solo la duración: los bucles que dicen que algo está trabajando (el giro de una descarga, los tres puntos del chat) siguen, pero a un ritmo lento; el resto se queda en su postura final. Hubo un ajuste así hasta la 0.6.0 que dejaba un `animate-pulse` parpadeando a 0,01 ms: esta vez la norma está en un solo sitio.")}
+          </p>
+          <div className="flex gap-1">
+            {MOVIMIENTO_OPCIONES.map((m) => (
+              <button
+                key={m.id}
+                onClick={() => void patchAppearance({ movimiento: m.id })}
+                aria-pressed={(draft.movimiento || "sistema") === m.id}
+                title={t(m.nota)}
+                className={`px-2.5 py-1 rounded-md text-xs transition-colors ${
+                  (draft.movimiento || "sistema") === m.id
+                    ? "bg-accent/20 text-accent-soft"
+                    : "text-zinc-500 hover:text-zinc-300"
+                }`}
+              >
+                {t(m.label)}
               </button>
             ))}
           </div>
@@ -212,7 +237,7 @@ export default function AjustesApariencia({
                 >
                   {t("Hola, Hatboo")}
                 </span>
-                <span className="mt-2 block text-[11px] text-zinc-500">
+                <span className="mt-2 block text-etiqueta text-zinc-500">
                   {t(b.label)}
                 </span>
               </button>

@@ -118,12 +118,12 @@ export default function TaskList({
     <div className="h-full flex flex-col">
       <div className="flex items-center gap-1.5 border-b border-base-border pl-2.5 pr-1.5 py-2">
         <ListChecks className="w-3.5 h-3.5 shrink-0 text-accent-soft" />
-        <span className="min-w-0 flex-1 truncate text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+        <span className="min-w-0 flex-1 truncate text-etiqueta font-medium uppercase tracking-wide text-zinc-500">
           {t("Tareas")}
         </span>
         {tasks.length > 0 && (
           <span
-            className="shrink-0 rounded-full bg-base-hover px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-zinc-400"
+            className="shrink-0 rounded-full bg-base-hover px-1.5 py-0.5 text-micro font-medium tabular-nums text-zinc-400"
             title={t("{n} de {total} pasos hechos", { n: hechos, total: tasks.length })}
           >
             {hechos}/{tasks.length}
@@ -131,7 +131,7 @@ export default function TaskList({
         )}
         {totalMs >= 1000 && (
           <span
-            className="shrink-0 text-[10px] tabular-nums text-zinc-600"
+            className="shrink-0 text-micro tabular-nums text-zinc-600"
             title={t("Suma de lo que tardaron las acciones medidas. Lo que pensó el modelo no cuenta.")}
           >
             {duracion(totalMs)}
@@ -173,7 +173,7 @@ export default function TaskList({
       {tasks.length > 0 && (
         <div className="h-px shrink-0 bg-base-border">
           <div
-            className="h-px bg-accent-soft transition-[width] duration-300 ease-out"
+            className="h-px bg-accent-soft transition-[width] duration-lento ease-out"
             style={{ width: `${Math.round((hechos / tasks.length) * 100)}%` }}
           />
         </div>
@@ -184,7 +184,7 @@ export default function TaskList({
             y otro párrafo, todo para decir que el panel se llena cuando haya tarea.
             Lo que había que decir —qué se ve aquí— cabe en una frase. */}
         {tasks.length === 0 && stepLines.length === 0 && (
-          <p className="flex items-start gap-2 px-0.5 py-1 text-[11px] leading-relaxed text-zinc-500">
+          <p className="flex items-start gap-2 px-0.5 py-1 text-etiqueta leading-relaxed text-zinc-500">
             <CircleDashed className="mt-px h-3.5 w-3.5 shrink-0 text-zinc-600" />
             {t("Todavía nada: aquí se ve el plan del agente, o las acciones que hizo si no hace plan.")}
           </p>
@@ -214,7 +214,7 @@ export default function TaskList({
         ))}
 
         {soloPendientes && tasks.length > 0 && visibles.length === 0 && (
-          <p className="flex items-center gap-2 px-1 py-2 text-[11px] text-zinc-600">
+          <p className="flex items-center gap-2 px-1 py-2 text-etiqueta text-zinc-600">
             <CircleCheck className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
             {t("No queda ningún paso por hacer.")}
           </p>
@@ -222,20 +222,20 @@ export default function TaskList({
 
         {/* Resumen de la vuelta: dónde está el agente ahora mismo, sin subir. */}
         {tasks.length > 0 && enCurso && !soloPendientes && (
-          <p className="px-1.5 pt-1 text-[11px] text-zinc-500">
+          <p className="px-1.5 pt-1 text-etiqueta text-zinc-500">
             {t("En curso: {p}", { p: sinNumero(enCurso.description).slice(0, 60) })}
           </p>
         )}
         {fallidos > 0 && (
           <div className="flex items-start gap-2 px-1.5 pt-1">
-            <p className="min-w-0 flex-1 text-[11px] text-red-400/90">
+            <p className="min-w-0 flex-1 text-etiqueta text-red-400/90">
               {t("{n} pasos fallaron", { n: fallidos })}
             </p>
             {onReintentar && (
               <button
                 onClick={() => onReintentar(pedidoDeReintento(tasks))}
                 title={t("Vuelve a pedirle los pasos fallidos, con la orden de mirar la causa antes de repetir")}
-                className="shrink-0 rounded-md border border-red-500/40 px-1.5 py-0.5 text-[11px] text-red-200 transition-colors hover:border-red-400/70 hover:bg-red-500/10"
+                className="shrink-0 rounded-md border border-red-500/40 px-1.5 py-0.5 text-etiqueta text-red-200 transition-colors hover:border-red-400/70 hover:bg-red-500/10"
               >
                 {t("Reintentar")}
               </button>
@@ -245,7 +245,7 @@ export default function TaskList({
 
         {tasks.length === 0 && stepLines.length > 0 && (
           <>
-            <p className="flex items-center justify-between gap-2 px-1 pb-0.5 text-[11px] text-zinc-600">
+            <p className="flex items-center justify-between gap-2 px-1 pb-0.5 text-etiqueta text-zinc-600">
               <span>{t("Sin plan: acciones de esta tarea")}</span>
               <span className="shrink-0 tabular-nums">{stepLines.length}</span>
             </p>
@@ -264,7 +264,7 @@ export default function TaskList({
                   )}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="inline-flex items-center gap-1 font-mono text-[11px] text-zinc-400">
+                  <span className="inline-flex items-center gap-1 font-mono text-etiqueta text-zinc-400">
                     <Wrench className="w-3 h-3 shrink-0" />
                     {l.toolName}
                   </span>
@@ -274,7 +274,7 @@ export default function TaskList({
                 </span>
                 {l.durationMs > 0 && (
                   <span
-                    className="mt-px shrink-0 text-[10px] tabular-nums text-zinc-600"
+                    className="mt-px shrink-0 text-micro tabular-nums text-zinc-600"
                     title={t("Tardó {d}", { d: duracion(l.durationMs) })}
                   >
                     {duracion(l.durationMs)}
@@ -283,7 +283,7 @@ export default function TaskList({
               </div>
             ))}
             {running && (
-              <p className="flex items-center gap-2 px-1 pt-0.5 text-[11px] text-zinc-500">
+              <p className="flex items-center gap-2 px-1 pt-0.5 text-etiqueta text-zinc-500">
                 <Dots />
                 {t("Trabajando…")}
               </p>
@@ -293,7 +293,7 @@ export default function TaskList({
 
         {cola.length > 0 && (
           <div className="mt-2 border-t border-base-border pt-2">
-            <p className="flex items-center justify-between gap-2 px-1 pb-1 text-[11px] text-zinc-600">
+            <p className="flex items-center justify-between gap-2 px-1 pb-1 text-etiqueta text-zinc-600">
               <span>{t("En cola para después")}</span>
               <span className="shrink-0 tabular-nums">{cola.length}</span>
             </p>
@@ -302,10 +302,10 @@ export default function TaskList({
                 key={`${i}-${c.slice(0, 8)}`}
                 className="group/cola flex items-start gap-1.5 rounded px-1 py-1 transition-colors hover:bg-base-hover"
               >
-                <span className="mt-px shrink-0 text-[10px] tabular-nums text-zinc-600">
+                <span className="mt-px shrink-0 text-micro tabular-nums text-zinc-600">
                   {i + 1}
                 </span>
-                <span className="min-w-0 flex-1 break-words text-[11px] leading-snug text-zinc-400 line-clamp-3">
+                <span className="min-w-0 flex-1 break-words text-etiqueta leading-snug text-zinc-400 line-clamp-3">
                   {c}
                 </span>
                 <button
@@ -319,12 +319,12 @@ export default function TaskList({
             ))}
             {colaEnPausa && (
               <div className="mt-1.5 flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1.5">
-                <span className="min-w-0 flex-1 text-[11px] leading-snug text-amber-200">
+                <span className="min-w-0 flex-1 text-etiqueta leading-snug text-amber-200">
                   {t("La cola está en pausa: la tarea anterior no terminó bien.")}
                 </span>
                 <button
                   onClick={onReanudar}
-                  className="shrink-0 rounded-md border border-amber-500/40 px-1.5 py-0.5 text-[11px] text-amber-100 transition-colors hover:border-amber-400/60"
+                  className="shrink-0 rounded-md border border-amber-500/40 px-1.5 py-0.5 text-etiqueta text-amber-100 transition-colors hover:border-amber-400/60"
                 >
                   {t("Seguir con la cola")}
                 </button>

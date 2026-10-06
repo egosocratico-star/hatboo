@@ -329,7 +329,7 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
             <button onClick={() => setCara("github")} className={item}>
               <Github className="w-4 h-4 text-accent-soft shrink-0" />
               <span className="flex-1">{t("GitHub")}</span>
-              <span className="text-[10px] text-zinc-600">{t("sin clonar")}</span>
+              <span className="text-micro text-zinc-600">{t("sin clonar")}</span>
               <ChevronRight className="h-3.5 w-3.5 shrink-0 text-zinc-600" />
             </button>
           )}
@@ -380,7 +380,7 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
               />
               <span className="flex-1">{t("Captura")}</span>
               {!visionOk && (
-                <span className="text-[10px] text-zinc-500">{t("sin marcar")}</span>
+                <span className="text-micro text-zinc-500">{t("sin marcar")}</span>
               )}
             </button>
           )}
@@ -397,7 +397,7 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
               >
                 <WandSparkles className="w-4 h-4 text-accent-soft shrink-0" />
                 <span className="flex-1">{imageBusy ? t("Dibujando…") : t("Imagen")}</span>
-                <span className="text-[10px] text-zinc-600">{motor.corto}</span>
+                <span className="text-micro text-zinc-600">{motor.corto}</span>
                 <ChevronRight className="h-3.5 w-3.5 shrink-0 text-zinc-600" />
               </button>
             ) : motorDelActivo ? (
@@ -411,7 +411,7 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
               >
                 <WandSparkles className="w-4 h-4 text-accent-soft shrink-0" />
                 <span className="flex-1">{t("Imagen")}</span>
-                <span className="shrink-0 text-[10px] text-zinc-500">
+                <span className="shrink-0 text-micro text-zinc-500">
                   {t("encender {p}", { p: motorDelActivo.corto })}
                 </span>
               </button>
@@ -430,7 +430,7 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
               >
                 <WandSparkles className="w-4 h-4 text-zinc-500 shrink-0" />
                 <span className="flex-1">{t("Imagen")}</span>
-                <span className="shrink-0 text-[10px] text-zinc-500">{t("Ajustes → API")}</span>
+                <span className="shrink-0 text-micro text-zinc-500">{t("Ajustes → API")}</span>
               </button>
             ))}
           {cara === "imagen" && motor && (
@@ -470,7 +470,7 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
               <button onClick={() => setCara("mas")} className={item}>
                 <Ellipsis className="w-4 h-4 text-accent-soft shrink-0" />
                 <span className="flex-1">{t("Más")}</span>
-                <span className="text-[10px] text-zinc-600">{t("plantillas y sesión")}</span>
+                <span className="text-micro text-zinc-600">{t("plantillas y sesión")}</span>
                 <ChevronRight className="h-3.5 w-3.5 shrink-0 text-zinc-600" />
               </button>
             </>
@@ -478,7 +478,7 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
           {cara === "mas" && (
             <>
           <MenuAtras hacia={t("Añadir")} onClick={() => setCara("anadir")} />
-          <div className="px-2 pt-0.5 pb-1 text-[10px] uppercase tracking-wider text-zinc-500">
+          <div className="px-2 pt-0.5 pb-1 text-micro uppercase tracking-wider text-zinc-500">
             {t("Plantillas")}
           </div>
           {skills.length === 0 ? (
@@ -494,7 +494,7 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
               >
                 <Plus className="w-4 h-4 text-accent-soft shrink-0" />
                 <span className="flex-1">{t("Crear plantilla")}</span>
-                <span className="shrink-0 text-[10px] text-zinc-500">{t("Ajustes → Skills")}</span>
+                <span className="shrink-0 text-micro text-zinc-500">{t("Ajustes → Skills")}</span>
               </button>
               <button onClick={() => void instalarPlantilla()} className={item}>
                 <Download className="w-4 h-4 text-accent-soft shrink-0" />
@@ -520,14 +520,14 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
                 <Sparkles className="w-4 h-4 text-accent-soft shrink-0" />
                 <span className="flex-1 truncate">{s.name}</span>
                 {s.enabled && (
-                  <span className="text-[10px] text-accent-soft/80">{t("siempre")}</span>
+                  <span className="text-micro text-accent-soft/80">{t("siempre")}</span>
                 )}
               </button>
             ))
           )}
 
           <div className="my-1.5 h-px bg-base-border" />
-          <div className="px-2 pt-0.5 pb-1 text-[10px] uppercase tracking-wider text-zinc-500">
+          <div className="px-2 pt-0.5 pb-1 text-micro uppercase tracking-wider text-zinc-500">
             {t("Sesión")}
           </div>
           <button
@@ -553,12 +553,12 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
               no ve, un .md que no se puede leer) y sin él se queda mudo para un
               lector de pantalla. */}
           {notice && (
-            <div role="alert" className="px-2.5 py-1.5 mt-1 text-[11px] text-red-400">
+            <div role="alert" className="px-2.5 py-1.5 mt-1 text-etiqueta text-red-400">
               {notice}
             </div>
           )}
           {info && (
-            <p className="px-2.5 py-1.5 mt-1 text-[11px] leading-snug text-zinc-400">{info}</p>
+            <p className="px-2.5 py-1.5 mt-1 text-etiqueta leading-snug text-zinc-400">{info}</p>
           )}
           {/* El arreglo al lado del problema: sin esto tocaría ir a Ajustes, buscar
               la ficha del modelo y volver con el archivo ya perdido. */}
@@ -566,7 +566,7 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
             <button onClick={declararVision} className={`${item} mt-0.5`}>
               <Eye className="w-4 h-4 shrink-0 text-accent-soft" />
               <span className="flex-1">{t("Mi modelo sí lee imágenes")}</span>
-              <span className="shrink-0 text-[10px] text-zinc-500">{t("marcar")}</span>
+              <span className="shrink-0 text-micro text-zinc-500">{t("marcar")}</span>
             </button>
           )}
       </Popover>

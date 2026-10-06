@@ -89,7 +89,7 @@ function Segmento({
           onClick={() => alElegir(o.id)}
           aria-pressed={valor === o.id}
           title={o.etiqueta}
-          className={`rounded-md px-1.5 py-0.5 text-[11px] leading-4 transition-colors ${
+          className={`rounded-md px-1.5 py-0.5 text-etiqueta leading-4 transition-colors ${
             valor === o.id
               ? "bg-accent/20 text-accent-soft"
               : "text-zinc-500 hover:text-zinc-200"
@@ -172,16 +172,16 @@ function EncabezadoSeccion({
         onClick={onPlegar}
         aria-expanded={abierto}
         title={abierto ? t("Ocultar la sección") : t("Mostrar la sección")}
-        className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.07em] text-zinc-500 transition-colors hover:text-zinc-300"
+        className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-0.5 text-left text-micro font-semibold uppercase tracking-[0.07em] text-zinc-500 transition-colors hover:text-zinc-300"
       >
         <ChevronRight
-          className={`h-3 w-3 shrink-0 text-zinc-600 transition-transform duration-200 ${
+          className={`h-3 w-3 shrink-0 text-zinc-600 transition-transform duration-normal ${
             abierto ? "rotate-90" : ""
           }`}
         />
         <span className="truncate">{titulo}</span>
         {typeof contador === "number" && contador > 0 && (
-          <span className="shrink-0 text-[10px] font-normal normal-case tracking-normal tabular-nums text-zinc-600">
+          <span className="shrink-0 text-micro font-normal normal-case tracking-normal tabular-nums text-zinc-600">
             {contador}
           </span>
         )}
@@ -256,7 +256,7 @@ function SessionRow({
   // que aparecía delante de todos los nombres.
   const dot =
     agentStatus === "running"
-      ? "bg-accent-soft animate-pulse"
+      ? "bg-accent-soft animate-pulse mov-bucle"
       : agentStatus === "awaiting"
         ? "bg-amber-400"
         : agentStatus === "error"
@@ -316,7 +316,7 @@ function SessionRow({
       </span>
       <span className="flex-1 truncate">{conv.title}</span>
       {conv.pinned && <Pin className="w-3 h-3 shrink-0 text-accent-soft/70" />}
-      <span className="shrink-0 text-[10px] tabular-nums text-zinc-600">
+      <span className="shrink-0 text-micro tabular-nums text-zinc-600">
         {haceRelativo(conv.updatedAt)}
       </span>
       {/* Encima de la hora, no en su lugar: si aparece y desaparece moviendo la
@@ -344,7 +344,7 @@ function SessionRow({
 function Grupo({ titulo }: { titulo: string }) {
   return (
     <div className="flex items-center gap-2 pl-2 pr-3 pb-1 pt-2.5">
-      <span className="shrink-0 text-[10px] text-zinc-600">{titulo}</span>
+      <span className="shrink-0 text-micro text-zinc-600">{titulo}</span>
       <span aria-hidden className="h-px min-w-0 flex-1 bg-base-border/70" />
     </div>
   );
@@ -430,7 +430,7 @@ function AvisoAtencion({
 }) {
   return (
     <div className="mb-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.06] px-2 py-1.5">
-      <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-amber-300/80">
+      <span className="flex items-center gap-1.5 text-micro uppercase tracking-wider text-amber-300/80">
         <Bell className="h-3 w-3 shrink-0" />
         {t("Necesita tu atención")}
       </span>
@@ -439,11 +439,11 @@ function AvisoAtencion({
           key={a.pid + a.sessionId}
           onClick={() => onAbrir(a.pid, a.sessionId)}
           title={t("Entrar en esa sesión")}
-          className="mt-1 flex w-full items-center gap-1.5 rounded-md px-1 py-0.5 text-left text-[11px] text-zinc-300 transition-colors hover:bg-base-hover"
+          className="mt-1 flex w-full items-center gap-1.5 rounded-md px-1 py-0.5 text-left text-etiqueta text-zinc-300 transition-colors hover:bg-base-hover"
         >
           <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${a.color}`} />
           <span className="min-w-0 flex-1 truncate">{a.nombre}</span>
-          <span className="shrink-0 text-[10px] text-zinc-500">{a.motivo}</span>
+          <span className="shrink-0 text-micro text-zinc-500">{a.motivo}</span>
         </button>
       ))}
     </div>
@@ -680,7 +680,7 @@ export default function Sidebar() {
       : "idle";
 
   if (hidden) {
-    return <aside className="w-0 shrink-0 overflow-clip transition-[width] duration-200 ease-[cubic-bezier(.2,.8,.2,1)]" />;
+    return <aside className="w-0 shrink-0 overflow-clip transition-[width] duration-normal ease-[cubic-bezier(.2,.8,.2,1)]" />;
   }
 
   /** Menú rápido de la tarjeta de perfil. El mismo contenido en el panel ancho y
@@ -722,7 +722,7 @@ export default function Sidebar() {
         >
           <Settings className="w-3.5 h-3.5 shrink-0 text-zinc-500" />
           {t("Ajustes")}
-          <span className="ml-auto text-[10px] text-zinc-600">Ctrl+,</span>
+          <span className="ml-auto text-micro text-zinc-600">Ctrl+,</span>
         </button>
         <button
           onClick={() => {
@@ -735,7 +735,7 @@ export default function Sidebar() {
         >
           <Palette className="w-3.5 h-3.5 shrink-0 text-zinc-500" />
           {t("Paletas y tipografía")}
-          <span className="ml-auto text-[10px] text-zinc-600">{t("Ajustes")}</span>
+          <span className="ml-auto text-micro text-zinc-600">{t("Ajustes")}</span>
         </button>
         <button
           onClick={() => {
@@ -750,7 +750,7 @@ export default function Sidebar() {
             <PanelLeftClose className="w-3.5 h-3.5 shrink-0 text-zinc-500" />
           )}
           {compact ? t("Desplegar la barra lateral") : t("Plegar la barra lateral")}
-          <span className="ml-auto text-[10px] text-zinc-600">Ctrl+B</span>
+          <span className="ml-auto text-micro text-zinc-600">Ctrl+B</span>
         </button>
       </div>
     </>
@@ -758,7 +758,7 @@ export default function Sidebar() {
 
   if (compact) {
     return (
-      <aside className="w-14 shrink-0 h-full flex flex-col gap-1 px-2.5 py-2 border-r border-base-border bg-base-raised filo-luz transition-[width] duration-200 ease-[cubic-bezier(.2,.8,.2,1)]">
+      <aside className="w-14 shrink-0 h-full flex flex-col gap-1 px-2.5 py-2 border-r border-base-border bg-base-raised filo-luz transition-[width] duration-normal ease-[cubic-bezier(.2,.8,.2,1)]">
         {/* El logo, el plegado y la búsqueda viven ahora en la barra de título:
             el rail empieza directo por lo que hace. */}
         <button
@@ -855,7 +855,7 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="w-64 shrink-0 h-full flex flex-col border-r border-base-border bg-base-raised filo-luz transition-[width] duration-200 ease-[cubic-bezier(.2,.8,.2,1)]">
+    <aside className="w-64 shrink-0 h-full flex flex-col border-r border-base-border bg-base-raised filo-luz transition-[width] duration-normal ease-[cubic-bezier(.2,.8,.2,1)]">
       {/* Zona de acción. Era una píldora morada centrada que competía con todo
           lo de abajo; ahora es un control del mismo nivel que las filas: caja
           discreta, icono a la izquierda y el atajo a la derecha. */}
@@ -863,13 +863,13 @@ export default function Sidebar() {
         <button
           onClick={() => void newConversation()}
           title={t("Chat suelto, sin carpeta de proyecto")}
-          className="flex w-full items-center gap-2 rounded-campo border border-base-border/60 bg-base-card py-1.5 pl-1.5 pr-2 text-left text-[13px] text-zinc-200 shadow-apoyada transition-colors hover:border-accent/40 hover:bg-base-hover"
+          className="flex w-full items-center gap-2 rounded-campo border border-base-border/60 bg-base-card py-1.5 pl-1.5 pr-2 text-left text-ui text-zinc-200 shadow-apoyada transition-colors hover:border-accent/40 hover:bg-base-hover"
         >
           <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-accent/[0.16] text-accent-soft">
             <Plus className="h-3.5 w-3.5" />
           </span>
           <span className="min-w-0 flex-1 truncate">{t("Nueva conversación")}</span>
-          <span className="shrink-0 text-[10px] text-zinc-600">Ctrl+N</span>
+          <span className="shrink-0 text-micro text-zinc-600">Ctrl+N</span>
         </button>
       </div>
 
@@ -958,7 +958,7 @@ export default function Sidebar() {
                 {/* Plegada, la carpeta no dice qué hay dentro; abierta, sobra el
                     número porque ya se ven las sesiones. */}
                 {!isOpen && sessions.length > 0 && (
-                  <span className="shrink-0 text-[10px] tabular-nums text-zinc-600">
+                  <span className="shrink-0 text-micro tabular-nums text-zinc-600">
                     {sessions.length}
                   </span>
                 )}
@@ -1028,7 +1028,7 @@ export default function Sidebar() {
           /* Una línea, no otra tarjeta: con las dos cajas de las secciones vacías
              la barra parecía recién instalada a propósito. Lo de «aparecerá aquí»
              es un pie de página, no un hueco que haya que resolver. */
-          <p className="px-2 py-1 text-[11px] leading-snug text-zinc-600">
+          <p className="px-2 py-1 text-etiqueta leading-snug text-zinc-600">
             {t("Aún no hay conversaciones. En cuanto escribas en el chat, aparecerá aquí.")}
           </p>
         )}
@@ -1080,7 +1080,7 @@ export default function Sidebar() {
                   verArtefacto(a.id);
                 }}
                 title={`${a.titulo} · ${a.lenguaje} · v${a.version}`}
-                className={`mb-0.5 flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-[11px] transition-colors ${
+                className={`mb-0.5 flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-etiqueta transition-colors ${
                   artefactoAbierto?.id === a.id
                     ? "bg-accent/[0.14] text-zinc-100"
                     : "text-zinc-400 hover:bg-base-hover hover:text-zinc-200"
@@ -1092,7 +1092,7 @@ export default function Sidebar() {
                   }`}
                 />
                 <span className="min-w-0 flex-1 truncate">{a.titulo}</span>
-                <span className="shrink-0 font-mono text-[10px] text-zinc-600">
+                <span className="shrink-0 font-mono text-micro text-zinc-600">
                   v{a.version}
                 </span>
               </button>
@@ -1111,7 +1111,7 @@ export default function Sidebar() {
           {archivadasTotal > 0 && (
             <button
               onClick={() => setShowArchived((v) => !v)}
-              className="mb-1 flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-zinc-500 transition-colors hover:bg-base-hover hover:text-zinc-300"
+              className="mb-1 flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-etiqueta text-zinc-500 transition-colors hover:bg-base-hover hover:text-zinc-300"
               title={t("Las archivadas no se borran: solo salen de la lista")}
             >
               <Archive className="w-3 h-3 shrink-0" />
@@ -1124,7 +1124,7 @@ export default function Sidebar() {
             <span aria-hidden className="shrink-0 opacity-[0.55]">
               <Mascot state={poseLateral} size={26} />
             </span>
-            <p className="min-w-0 flex-1 text-[10px] leading-snug text-zinc-600">
+            <p className="min-w-0 flex-1 text-micro leading-snug text-zinc-600">
               {t("Ctrl+K busca en chats, sesiones y carpetas")}
             </p>
           </div>
@@ -1148,7 +1148,7 @@ export default function Sidebar() {
             name={assistantName}
             size={24}
           />
-          <span className="min-w-0 flex-1 truncate text-[13px] text-zinc-300">
+          <span className="min-w-0 flex-1 truncate text-ui text-zinc-300">
             {assistantName}
           </span>
           <ChevronsUpDown className="w-3.5 h-3.5 shrink-0 text-zinc-600" />

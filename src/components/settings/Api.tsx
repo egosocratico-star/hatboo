@@ -73,7 +73,7 @@ function Capacidades({
 
   const fila = "flex items-start justify-between gap-4 py-2";
   const etiqueta = "text-sm text-zinc-200";
-  const detalle = "mt-0.5 text-[11px] leading-snug text-zinc-500";
+  const detalle = "mt-0.5 text-etiqueta leading-snug text-zinc-500";
 
   return (
     <div className="mt-3 rounded-xl border border-base-border bg-base px-3 py-1.5">

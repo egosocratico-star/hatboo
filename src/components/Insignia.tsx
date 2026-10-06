@@ -42,8 +42,8 @@ export default function Insignia({
       title={title}
       className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap ${
         cuadrada
-          ? `rounded px-1.5 py-px ${mono ? "font-mono text-[10px]" : "text-[11px]"}`
-          : "rounded-full px-2 py-0.5 text-[10px]"
+          ? `rounded px-1.5 py-px ${mono ? "font-mono text-micro" : "text-etiqueta"}`
+          : "rounded-full px-2 py-0.5 text-micro"
       } ${RECETA[tipo]} ${className}`}
     >
       {punto && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" />}

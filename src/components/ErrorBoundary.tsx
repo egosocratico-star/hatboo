@@ -41,7 +41,7 @@ export default class ErrorBoundary extends Component<Props, State> {
             zona: this.props.zona,
           })}
         </p>
-        <p className="max-w-md break-words font-mono text-[11px] text-zinc-600">{error.message}</p>
+        <p className="max-w-md break-words font-mono text-etiqueta text-zinc-600">{error.message}</p>
         <div className="mt-1 flex items-center gap-2">
           <button className={BOTON_PRIMARIO} onClick={() => this.setState({ error: null })}>
             {t("Reintentar la vista")}

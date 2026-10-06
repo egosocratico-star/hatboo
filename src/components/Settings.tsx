@@ -35,7 +35,7 @@ import { useWorkStore } from "../store/workStore";
 import SkillsSettings from "./SkillsSettings";
 import MemoriaView from "./MemoriaView";
 import AdjuntosView from "./AdjuntosView";
-import { applyAccent, applyDensity, applyTheme } from "../theme";
+import { applyAccent, applyDensity, applyMovimiento, applyTheme } from "../theme";
 import { type Settings as SettingsType, type StorageInfo } from "../types";
 import { PROVEEDORES } from "../proveedores";
 
@@ -179,6 +179,7 @@ export default function Settings() {
     setDraft(next);
     if (part.theme) applyTheme(part.theme);
     if (part.densidad) applyDensity(part.densidad);
+    if (part.movimiento) applyMovimiento(part.movimiento);
     if (part.acento) applyAccent(part.acento);
     if (part.uiLanguage) setLanguage(part.uiLanguage);
     setSaveErr(null);
@@ -249,7 +250,7 @@ export default function Settings() {
                   <Icon className="w-4 h-4 shrink-0" />
                   <span className="flex-1">{t(c.label)}</span>
                   {!c.ready && (
-                    <span className="text-[9px] uppercase tracking-wide text-zinc-600">
+                    <span className="text-micro uppercase tracking-wide text-zinc-600">
                       pronto
                     </span>
                   )}
@@ -367,7 +368,7 @@ export default function Settings() {
               {savingMsg ? t("Guardado ✓") : t("Guardar ajustes")}
             </button>
             {saveErr && <span className="text-xs text-red-400">{saveErr}</span>}
-            <span className="ml-auto text-[11px] text-zinc-600">
+            <span className="ml-auto text-etiqueta text-zinc-600">
               {t("Esc para cerrar")}
             </span>
           </div>

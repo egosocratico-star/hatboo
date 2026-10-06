@@ -82,7 +82,7 @@ function FilaCambio({ projectId, cambio }: { projectId: string; cambio: Cambio }
 
   return (
     <div className="rounded-lg border border-base-border overflow-hidden">
-      <div className="flex items-center gap-1.5 px-2 py-1.5 bg-base text-[11px]">
+      <div className="flex items-center gap-1.5 px-2 py-1.5 bg-base text-etiqueta">
         {cambio.creado ? (
           <FilePlus2 className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
         ) : (
@@ -95,7 +95,7 @@ function FilaCambio({ projectId, cambio }: { projectId: string; cambio: Cambio }
         </span>
         <button
           onClick={carga}
-          className="shrink-0 rounded border border-base-border px-1 py-px text-[10px] text-zinc-500 transition-colors hover:bg-base-hover hover:text-zinc-200"
+          className="shrink-0 rounded border border-base-border px-1 py-px text-micro text-zinc-500 transition-colors hover:bg-base-hover hover:text-zinc-200"
         >
           {entero ? t("Ver el diff") : t("Verlo entero")}
         </button>
@@ -106,11 +106,11 @@ function FilaCambio({ projectId, cambio }: { projectId: string; cambio: Cambio }
         ) : cambio.diff ? (
           <DiffView diff={cambio.diff} altoMax={200} corte={80} />
         ) : (
-          <p className="px-1 py-1 text-[11px] text-zinc-500">{t("(sin diff)")}</p>
+          <p className="px-1 py-1 text-etiqueta text-zinc-500">{t("(sin diff)")}</p>
         )}
-        {fallo && <p className="mt-1 text-[10px] text-red-300">{fallo}</p>}
+        {fallo && <p className="mt-1 text-micro text-red-300">{fallo}</p>}
         {entero && archivo?.truncado && (
-          <p className="mt-1 text-[10px] text-zinc-500">{t("Se enseña el principio: el archivo es más grande que la vista previa.")}</p>
+          <p className="mt-1 text-micro text-zinc-500">{t("Se enseña el principio: el archivo es más grande que la vista previa.")}</p>
         )}
       </div>
     </div>
@@ -194,7 +194,7 @@ export default function SessionChanges({
               ? t("{n} archivo escrito en esta sesión", { n: total })
               : t("{n} archivos escritos en esta sesión", { n: total })
         }
-        className={`flex h-[26px] min-w-[26px] items-center justify-center gap-1 rounded-md px-1 text-[11px] transition-colors ${
+        className={`flex h-[26px] min-w-[26px] items-center justify-center gap-1 rounded-md px-1 text-etiqueta transition-colors ${
           total > 0
             ? "bg-accent/10 text-accent-soft hover:bg-accent/20"
             : "text-zinc-500 hover:bg-base-hover hover:text-zinc-200"
@@ -216,7 +216,7 @@ export default function SessionChanges({
           {t("Cambios de esta sesión")}
         </p>
         {devuelto && (
-          <p className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5 text-[11px] leading-relaxed text-emerald-200">
+          <p className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5 text-etiqueta leading-relaxed text-emerald-200">
             {devuelto}
           </p>
         )}
@@ -236,12 +236,12 @@ export default function SessionChanges({
             <button
               onClick={pideDeshacer}
               title={t("Devuelve cada archivo a como estaba antes de esta sesión")}
-              className="flex items-center gap-1.5 rounded-lg border border-red-500/40 bg-red-500/10 px-2 py-1.5 text-[11px] text-red-200 transition-colors hover:border-red-500 hover:bg-red-500/20"
+              className="flex items-center gap-1.5 rounded-lg border border-red-500/40 bg-red-500/10 px-2 py-1.5 text-etiqueta text-red-200 transition-colors hover:border-red-500 hover:bg-red-500/20"
             >
               <Undo2 className="w-3.5 h-3.5 shrink-0" />
               {t("Deshacer sesión")}
             </button>
-            <p className="mt-1.5 text-[10px] leading-relaxed text-zinc-500">
+            <p className="mt-1.5 text-micro leading-relaxed text-zinc-500">
               {t("Solo devuelve lo que la sesión pudo respaldar al escribir; no toca ningún otro archivo.")}
             </p>
           </div>

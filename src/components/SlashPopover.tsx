@@ -34,11 +34,11 @@ export default function SlashPopover({ lista, indice, onPick }: Props) {
           <Sparkles className="h-3.5 w-3.5 shrink-0 text-accent-soft" />
           <span className="min-w-0 flex-1 truncate">{s.name}</span>
           {s.enabled && (
-            <span className="shrink-0 text-[10px] text-accent-soft/80">{t("siempre")}</span>
+            <span className="shrink-0 text-micro text-accent-soft/80">{t("siempre")}</span>
           )}
         </button>
       ))}
-      <p className="px-2 pt-1 text-[10px] text-zinc-600">
+      <p className="px-2 pt-1 text-micro text-zinc-600">
         {t("Subir y bajar: flechas · insertar: Enter o Tab · cerrar: Esc")}
       </p>
     </div>

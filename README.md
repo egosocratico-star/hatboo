@@ -156,10 +156,17 @@ Tema **oscuro**, **claro** o **Sistema** (sigue el de Windows mientras la app es
 abierta), y tamaño del texto del chat. Los colores están tokenizados en variables
 CSS, así que cambiar de tema no toca ningún componente.
 
-**Movimiento**: Hatboo anima siempre. Hubo un ajuste **Reducido** (y un recorte
-que obedecía a `prefers-reduced-motion`) que se quitó en la 0.6.0: dejaba las
-transiciones en 0,01 ms sin quitar las iteraciones, y eso convertía cualquier
-`animate-pulse` en un estroboscopio. Si vuelve, tiene que traer las dos cosas.
+**Movimiento**: Ajustes → Apariencia tiene **Sistema** (el que pida Windows por
+`prefers-reduced-motion`), **Cómodo** y **Reducido**. Reducido quita las
+**iteraciones**, no solo la duración: los bucles que dicen que algo está trabajando
+(el giro de una descarga, los tres puntos del chat, la mascota en `pensando`/
+`trabajando`) siguen, pero a 1,6 s; el resto se queda en su postura final. Hubo un
+ajuste anterior (y un recorte que obedecía a `prefers-reduced-motion`) que se quitó
+en la 0.6.0 porque dejaba las transiciones en 0,01 ms **sin quitar las iteraciones**,
+y eso convertía cualquier `animate-pulse` en un estroboscopio. Esta vez la norma está
+en un solo sitio —`src/index.css`, tres duraciones (`--mov-rapido`, `--mov-normal`,
+`--mov-lento`) y una curva (`--curva-suave`)— y `npm run prueba-movimiento` no deja
+volver a escribir una duración a mano.
 
 ## Atajos
 

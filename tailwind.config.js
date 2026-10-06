@@ -59,10 +59,25 @@ export default {
       fontFamily: {
         mono: ["JetBrains Mono", "Cascadia Code", "Consolas", "monospace"],
       },
-      // Radios y sombras salen de `src/index.css`, igual que los colores, para
-      // que redondear algo nuevo sea elegir una clase y no inventar un valor.
-      // Los cuatro están puestos para que coincidan con lo que ya había: esto
-      // documenta la forma, no la cambia.
+      // Radios, sombras, tamaños de letra y duraciones salen de `src/index.css`,
+      // igual que los colores, para que elegir uno sea elegir una clase y no
+      // inventar un valor. Los cuatro valores son los que ya estaban en uso: esto
+      // documenta la forma, no la cambia. En `rem` a propósito — la densidad mueve
+      // el `font-size` del `<html>` y un `px` no le hace caso.
+      //
+      // Ojo: cada clave nueva vive en el config, y el `tauri dev` en marcha no lo
+      // releer (ver el aviso en `boxShadow`).
+      fontSize: {
+        micro: "var(--letra-micro)",
+        etiqueta: "var(--letra-etiqueta)",
+        ui: "var(--letra-ui)",
+        saludo: "var(--letra-saludo)",
+      },
+      transitionDuration: {
+        rapido: "var(--mov-rapido)",
+        normal: "var(--mov-normal)",
+        lento: "var(--mov-lento)",
+      },
       borderRadius: {
         chip: "var(--radio-chip)",
         campo: "var(--radio-campo)",
