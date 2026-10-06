@@ -1,11 +1,16 @@
 //! Proveedores e inteligencia: modelos disponibles, prueba de conexión, imagen
 //! generada y voz.
+//!
+//! El disco de la imagen dibujada y del audio sintetizado está en
+//! [`crate::servicios::adjuntos`], que es el dueño de la carpeta `attachments/`:
+//! el `create_dir_all`, el `write` y el `read` del data URI, con los mensajes
+//! literales de siempre. Aquí queda la ruta de ajuste (motor, modelo, voz, tamaño),
+//! los topes de peso y el lock de la conexión.
 
-use super::_comunes::remove_image_files;
 use crate::db;
 use crate::providers;
+use crate::servicios::adjuntos::{self, remove_image_files};
 use crate::state::{self, AppState};
-use std::path::Path;
 use tauri::State;
 
 /// Lista los modelos instalados en un servidor Ollama para el selector de Ajustes.
@@ -66,16 +71,10 @@ async fn imagen_al_hilo(
             imagen.bytes.len() / 1_048_576
         ));
     }
-    let ext = match imagen.media_type.as_str() {
-        "image/jpeg" => "jpg",
-        "image/webp" => "webp",
-        "image/gif" => "gif",
-        _ => "png",
-    };
     let dir = app.data_dir.join("attachments");
-    std::fs::create_dir_all(&dir).map_err(|e| format!("No se pudo crear la carpeta: {e}"))?;
-    let dest = dir.join(format!("{}.{}", uuid::Uuid::new_v4(), ext));
-    std::fs::write(&dest, &imagen.bytes).map_err(|e| format!("No se pudo guardar: {e}"))?;
+    // El `create_dir_all` + `write` y la elección de extensión viven en el dueño de
+    // la carpeta; los dos mensajes de error son los literales de siempre.
+    let (dest, ext) = adjuntos::guarda_imagen_generada(&dir, &imagen.bytes, &imagen.media_type)?;
 
     // La descripción se recorta al escribirla en el hilo: el prompt completo ya
     // no hace falta en cada turno siguiente, y sin límite un prompt largo se
@@ -153,48 +152,21 @@ pub async fn regenerate_image(
 /// devolviera otra cosa, se corta aquí en vez de escribirlo.
 const AUDIO_MAX_BYTES: usize = 20 * 1024 * 1024;
 
-/// Devuelve un archivo de audio de `attachments/` como data URI. Mismo candado
-/// que las imágenes: la ruta se canonicaliza y tiene que seguir dentro de la
-/// carpeta de Hatboo.
-fn audio_data_uri(attachments_dir: &Path, file: &str) -> Result<String, String> {
-    use base64::{engine::general_purpose, Engine as _};
-    let root = attachments_dir
-        .canonicalize()
-        .map_err(|_| "La carpeta de adjuntos no existe.".to_string())?;
-    let path = Path::new(file)
-        .canonicalize()
-        .map_err(|_| "El audio ya no está disponible.".to_string())?;
-    if !path.starts_with(&root) {
-        return Err("Ese archivo no está en la carpeta de adjuntos de Hatboo.".into());
-    }
-    let media_type = match path
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.to_ascii_lowercase())
-        .unwrap_or_default()
-        .as_str()
-    {
-        "mp3" => "audio/mpeg",
-        "wav" => "audio/wav",
-        "ogg" => "audio/ogg",
-        "aac" => "audio/aac",
-        "flac" => "audio/flac",
-        _ => return Err("Formato de audio no soportado.".into()),
-    };
-    let bytes = std::fs::read(&path).map_err(|e| format!("No se pudo leer: {e}"))?;
-    Ok(format!(
-        "data:{media_type};base64,{}",
-        general_purpose::STANDARD.encode(&bytes)
-    ))
-}
-
 /// Lee un mensaje del hilo en voz alta con el motor de Ajustes → API y devuelve
 /// un data URI listo para meter en un `<audio>`.
 ///
 /// El archivo se guarda como `attachments/voz-<id del mensaje>.mp3`, así que al
 /// segundo clic no se vuelve a llamar al motor: cobrar dos veces por escuchar lo
-/// mismo no tiene defensa. Si mañana se pide otro `response_format`, el nombre
-/// de aquí abajo tiene que cambiar con él.
+/// mismo no tiene defensa. Si mañana se pide otro `response_format`, el nombre de
+/// la caché tiene que cambiar con él —y cambia aquí y en
+/// [`adjuntos::audio_en_cache`] juntos, que es la razón de que el nombre lo ponga
+/// el servicio y no este comando.
+///
+/// La escritura del archivo y el candado de rutas del data URI —la ruta se
+/// canonicaliza y tiene que seguir dentro de la carpeta de Hatboo— están en
+/// [`crate::servicios::adjuntos`]. Lo que es de este comando: validar el `id` antes
+/// de que acabe en un nombre de archivo, mirar el tope de peso y leer el texto
+/// desde la base de datos.
 #[tauri::command]
 pub async fn speak_message(
     app: State<'_, AppState>,
@@ -211,9 +183,8 @@ pub async fn speak_message(
     }
     let settings = state::load_settings(&app);
     let dir = app.data_dir.join("attachments");
-    let cached = dir.join(format!("voz-{message_id}.mp3"));
-    if cached.is_file() {
-        return audio_data_uri(&dir, &cached.display().to_string());
+    if let Some(cached) = adjuntos::audio_en_cache(&dir, &message_id) {
+        return adjuntos::audio_data_uri(&dir, &cached.display().to_string());
     }
     let (motor, modelo, voz) = (
         settings.audio_provider.clone(),
@@ -233,9 +204,8 @@ pub async fn speak_message(
             audio.bytes.len() / 1_048_576
         ));
     }
-    std::fs::create_dir_all(&dir).map_err(|e| format!("No se pudo crear la carpeta: {e}"))?;
-    std::fs::write(&cached, &audio.bytes).map_err(|e| format!("No se pudo guardar el audio: {e}"))?;
-    audio_data_uri(&dir, &cached.display().to_string())
+    let cached = adjuntos::guarda_audio(&dir, &message_id, &audio.bytes)?;
+    adjuntos::audio_data_uri(&dir, &cached.display().to_string())
 }
 
 /// Los modelos que deja usar la clave guardada de un proveedor. La lista la da
@@ -251,30 +221,13 @@ pub async fn list_provider_models(
 /// Suelta un modelo de la memoria de Ollama. Es lo que hace `ollama stop`:
 /// `POST /api/generate` con `keep_alive: 0` y sin prompt, que responde
 /// `done_reason: "unload"` sin generar nada.
+///
+/// El comando no monta el cliente: llama al servicio, y el servicio a
+/// `providers::local`, que es quien conoce la ruta nativa de Ollama. Estar aquí
+/// era el único HTTP escrito a mano que quedaba dentro de la capa IPC.
 #[tauri::command]
 pub async fn unload_local_model(endpoint: String, model: String) -> Result<(), String> {
-    let model = model.trim().to_string();
-    if model.is_empty() {
-        return Err("Falta el nombre del modelo.".into());
-    }
-    let url = format!("{}/api/generate", endpoint.trim_end_matches('/'));
-    let client = reqwest::Client::builder()
-        // Un modelo grande puede tardar en soltarse más de lo que tarda en responder.
-        .timeout(std::time::Duration::from_secs(60))
-        .build()
-        .map_err(|e| e.to_string())?;
-    let response = client
-        .post(&url)
-        .json(&serde_json::json!({ "model": model, "keep_alive": 0 }))
-        .send()
-        .await
-        .map_err(|e| format!("No se pudo conectar con Ollama: {e}"))?;
-    let estado = response.status().as_u16();
-    if estado >= 400 {
-        let cuerpo = response.text().await.unwrap_or_default();
-        return Err(format!("Ollama respondió {estado}: {cuerpo}"));
-    }
-    Ok(())
+    crate::servicios::modelo::ModelService::descarga_modelo(&endpoint, &model).await
 }
 
 /// Prueba de conexión para un proveedor (sin enviar un mensaje real).

@@ -9,6 +9,7 @@ pub mod machine;
 pub mod providers;
 pub mod redact;
 pub mod rules;
+pub mod servicios;
 pub mod state;
 pub mod web;
 

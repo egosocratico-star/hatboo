@@ -13,6 +13,7 @@
 
 use crate::db;
 use crate::providers::{self, ChatMessage, StreamDelta};
+use crate::servicios::contexto::Material;
 use crate::state::{self, AppState};
 use crate::web;
 use serde::Serialize;
@@ -228,25 +229,24 @@ pub(crate) fn spawn_chat_stream(
                 return;
             }
         };
-        let settings = state::load_settings(&state);
         let provider_name = provider.name().to_string();
         let mut messages = prompt;
 
-        let skills = state
-            .db
-            .lock()
-            .ok()
-            .and_then(|conn| db::enabled_skills_prompt(&conn).ok())
-            .unwrap_or_default();
-        let memoria = state
-            .db
-            .lock()
-            .ok()
-            .and_then(|conn| db::memoria_prompt(&conn).ok())
-            .unwrap_or_default();
+        // El material del prompt lo recoge `ContextService` con UN solo lock de la
+        // base de datos —antes eran tres: ajustes, plantillas y memoria, cada uno
+        // con su `lock()`—. Si leer plantillas o memoria falla, el turno sale sin
+        // esos bloques, como salía cuando las dos lecturas estaban escritas aquí a
+        // mano: el prompt se arma igual y la respuesta no se cae.
+        let material = crate::servicios::contexto::ContextService::material_de_chat(&state)
+            .unwrap_or_else(|_| Material::sin_bloques(state::load_settings(&state)));
+        let settings = material.settings;
         // El prompt se arma donde siempre: `commands/_comunes.rs` lo comparte con
         // `system_prompt_of` (ver el prompt) y con `context_usage` (el medidor).
-        let system = crate::commands::_comunes::chat_system_prompt(&settings, &skills, &memoria);
+        let system = crate::commands::_comunes::chat_system_prompt(
+            &settings,
+            &material.skills,
+            &material.memoria,
+        );
         let system = system.trim();
         if !system.is_empty() {
             messages.insert(

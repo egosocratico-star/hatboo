@@ -24,8 +24,9 @@ pub mod system;
 
 // Fuera del crate se llama a estas cuatro funciones por la ruta de siempre —
 // `hatboo_lib::commands::…` es la firma pública que prueba el Trust Gate en
-// `tests/db.rs`, y `crate::commands::project_rules_for_prompt` la que usa el
-// bucle del agente. Partir el archivo no puede romper ese camino: se reexporta.
+// `tests/db.rs`, y `crate::commands::projects::project_rules_for_prompt` la que
+// abre la puerta del `HATBOO.md` desde `servicios::contexto`. Partir el archivo no
+// puede romper ese camino: se reexporta.
 pub use projects::{approve_rules, project_rules_for_prompt, revoke_rules, rules_status};
 
 // Lo mismo con la palabra del restablecimiento de fábrica: pública y reachable

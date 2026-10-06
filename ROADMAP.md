@@ -24,7 +24,7 @@ produjo. **No hace falta más Hatboo: hace falta menos Hatboo, mejor organizado.
 | --- | --- | --- |
 | **A** | cerrar lo que estaba a medias | **cerrado el 2026-10-05**, incluido **A.2.4** (el campo `contexto_producto` del `BrainRequest`) |
 | **B** | partir `commands.rs` por dominio | **cerrado el 2026-10-05**: `commands.rs` desaparecido, 85 comandos en 11 módulos + `_comunes` |
-| **C** | servicios de verdad | sin empezar |
+| **C** | servicios de verdad | **cerrado el 2026-10-05**: ocho servicios, y la capa IPC sin disco, HTTP ni SQL en producción |
 | **D** | design system y UI | sin empezar |
 | **E** | una sola fuente de verdad | **cerrado hoy** (ver abajo) |
 | **F** | el gate M0: benchmark baseline vs Brain | **cerrado el 2026-10-05**: mejora en el modelo divagador, **regresión medida** (+344 %) en el que sostiene la suite |
@@ -97,14 +97,50 @@ Queda para C: `files.rs` (869 líneas) tiene un corte natural entre adjuntos y �
 del proyecto que no se tomó aquí porque sería *cambiar*, no *mover*; y la duplicación
 `audio_data_uri` / `image_data_uri`, que se dejó intacta por el mismo motivo.
 
-## C. Servicios de verdad
+## C. Servicios de verdad — **cerrado el 2026-10-05**
 
 Sacar del comando lo que no es IPC: el ensamblado del system prompt
 (`ContextService`), la resolución de proveedor + modelo (`ModelService`), el
 arranque del agente (`AgentService`). Cada uno con prueba propia, sin pantalla.
 
 **Gate:** ningún módulo de `commands/` hace `fs`, SQL o HTTP directamente, y cada
-comportamiento sacado del comando tiene su prueba en el servicio.
+comportamiento sacado del comando tiene su prueba en el servicio. **Cumplido y
+medido con `grep` sobre `src-tauri/src/commands/`: 0 líneas de producción tocando el
+disco** (las 39 que aparecen están todas dentro de `#[cfg(test)]`: el escenario que
+cada prueba se monta), **0 `reqwest`** y **0 SQL crudo**. Antes: 70 de disco, 5 de
+HTTP y 2 de SQL. `npm run check` sube de 175 a **214 verdes** (181 del lib) con las
+pruebas de los servicios.
+
+Ocho módulos en `src-tauri/src/servicios/`: `contexto.rs` (352), `modelo.rs` (336),
+`archivo.rs` (643), `agente.rs` (368), `adjuntos.rs` (284), `proyecto.rs` (141),
+`captura.rs` (132) y `plantillas.rs` (104). La capa IPC pasa a 2655 líneas de puro
+contrato.
+
+Dos arreglos de fondo que trae este bloque, y son los que valen:
+
+- **La recolección del prompt tenía cuatro escrituras a mano** (el visor del system
+  prompt, el medidor de contexto, el streaming del chat y el bucle del agente), cada
+  una con su forma de tomar el mutex. Ahora es `ContextService`, con el lock tomado
+  **una sola vez**, y `load_settings` se lee antes de cogerlo: comparten mutex, y
+  leerlo dentro es un deadlock silencioso.
+- **El Trust Gate tenía dos caminos.** La lectura que inyecta `HATBOO.md` estaba
+  escrita en la capa IPC y el bucle del agente decides otra vez qué entraba. Ahora
+  hay una sola (`crate::rules::para_prompt`), a la que llaman el servicio y la
+  pantalla de reglas: la interfaz ya no puede declarar «aprobadas» sobre un texto
+  que el modelo no está recibiendo.
+
+Se fue **todo** el disco de la capa IPC, incluido el explorador de archivos:
+`commands/files.rs` es ahora un adaptador fino sobre `servicios/archivo.rs`, y lo
+mismo `plantillas.rs` sobre `servicios/plantillas.rs`. Lo que se llevó cada mudanza
+fue su validación intacta — la sandbox de rutas contra la raíz del proyecto, el tope
+de 4 MB y el formato no soportado de `guardar_imagen`, el truncado/binario de
+`read_attachment`, el `../` — y tres de esas validaciones **no estaban atadas a ninguna
+prueba**: ahora sí lo están (`list_project_dir`, `preview_project_file` y
+`search_project_files` con su `../`, además del tope y del adjunto grande).
+
+Quedan apuntados, sin hacer a propósito porque serían *cambiar* y no *mover*: partir
+`servicios/archivo.rs` (643 líneas) en adjuntos y árbol, y unificar `audio_data_uri`
+con `image_data_uri`, que son el mismo cuerpo con dos nombres.
 
 ## D. Design system y UI
 

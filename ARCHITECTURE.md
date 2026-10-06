@@ -24,10 +24,14 @@ React (src/)
    │  invoke(nombre, args)      ← 85 comandos registrados en src-tauri/src/lib.rs
    │  escucha chat:* / agent:*   ← 15 eventos
    ▼
-commands/  (3336 líneas en 12 módulos)   ← la capa IPC. Sigue haciendo SQL, fs y HTTP.
-   │  chat 441 · agent 458 · files 869 · projects 344 · models 288 · _comunes 250
-   │  plantillas 223 · data 217 · system 97 · git 46 · settings 37 · memoria 33
-   │  (y 33 de `mod.rs`: la documentación del reparto y las reexportaciones)
+commands/  (2655 líneas en 12 módulos)   ← la capa IPC. Sin disco, sin HTTP, sin SQL:
+   │  chat 425 · agent 389 · files 373 · projects 302 · models 241 · _comunes 241 ·
+   │  data 225 · plantillas 222 · system 87 · git 46 · settings 37 · memoria 33
+   │  eso lo hacen los servicios de abajo.          (medido con `wc`/`grep`, 05-10)
+   ├─ servicios/      lo que el comando no debe saber: archivo 643 · agente 368 ·
+   │                  contexto 352 (ContextService, el único que recoge el material
+   │                  del prompt) · modelo 336 (el único con HTTP) · adjuntos 284 ·
+   │                  proyecto 141 · captura 132 · plantillas 104
    │
    ├─ state.rs        AppState: conexión SQLite, data_dir, ajustes, builders de proveedor
    ├─ db/             esquema (schema.sql) y acceso a datos          (2507)
@@ -35,12 +39,13 @@ commands/  (3336 líneas en 12 módulos)   ← la capa IPC. Sigue haciendo SQL, 
    ├─ chat/           streaming del chat: tarea, cancelación, guardado (534)
    ├─ agent/          loop del modo trabajo y sus herramientas       (3255)
    ├─ cerebro/        la costura con hatboo-brain                    (2057)
-   ├─ rules.rs        Trust Gate del HATBOO.md (SHA-256)             (131)
+   ├─ rules.rs        Trust Gate del HATBOO.md: el hash, la lectura
+   │                  que inyecta (`para_prompt`) y la única puerta
    ├─ redact.rs       tapado de secretos antes de salir              (175)
    ├─ web.rs          DuckDuckGo sin clave                           (365)
-   ├─ machine.rs      qué hay en esta máquina: RAM, núcleos, GPU     (101)
+   ├─ machine.rs      qué hay en esta máquina: RAM, núcleos, GPU y el tamaño de un directorio
    ├─ behavior.rs     conductas de la sesión                         (228)
-   └─ backup.rs       export/import/fábrica en un JSON               (411)
+   └─ backup.rs       export/import/fábrica en un JSON               (501)
 ```
 
 `commands/_comunes.rs` no es un dominio: son los helpers que usan varios a la vez
@@ -156,7 +161,7 @@ sobre un `.env`, no sustituye a un gestor de secretos.
 
 | Comando | Qué corre | Nota |
 | --- | --- | --- |
-| `npm run check` | `tsc --noEmit` + `cargo test --lib --test db --test backup --test git_tools --test tools` | **174 verdes** medidas en `ec8b549` (141 del lib + 3 backup + 24 db + 3 git_tools + 3 tools) |
+| `npm run check` | `tsc --noEmit` + `cargo test --lib --test db --test backup --test git_tools --test tools` | **214 verdes** medidas tras el bloque C (181 del lib + 24 db + 3 backup + 3 git_tools + 3 tools) |
 | `npm run i18n` | claves usadas con `t()` que faltan en `src/i18n-en.ts` | la clave es su propio texto en español |
 | `npm run version:comprobar` | que `package.json`, `tauri.conf.json`, `Cargo.toml`, el bloque del README y el CHANGELOG digan la misma versión | falla la CI si divergen |
 | CI (`windows-latest`) | `npm ci` → `npm run build` → `cargo clippy --all-targets -D warnings` → los cuatro targets de prueba | `--all-targets` **compila** las tres pruebas que no se corren aquí |
@@ -167,20 +172,27 @@ sobre un `.env`, no sustituye a un gestor de secretos.
 
 - **Hecho el 2026-10-05 (bloque B):** `commands.rs` —3175 líneas y 85 comandos en un
   solo archivo— está repartido en `commands/` por dominio, sin cambiar una firma ni un
-  nombre IPC. Lo que eso **no** arregla es lo que sigue abierto en el bloque **C**:
-  la capa IPC sigue siendo lógica de negocio, solo que ahora repartida en doce
-  archivos. Un comando arma el system prompt cruzando ajustes, skills, memoria,
-  proyecto y reglas (`_comunes::chat_system_prompt`, llamada desde tres sitios con la
-  recolección escrita a mano en cada uno), dos comandos montan su propio cliente HTTP
-  (`models::unload_local_model`, `files::fetch_github`), `system::capture_screen`
-  codifica el PNG y escribe disco desde el comando, y hay **70 líneas de la capa IPC
-  que tocan el disco directamente** (`grep -rE "std::fs::|fs::(write|read_|remove|
-  create_dir|rename|copy|metadata)" commands/`). `ContextService`, `ModelService` y
-  `AgentService` son el bloque C.
+  nombre IPC.
+- **Hecho el 2026-10-05 (bloque C):** la capa IPC dejó de conocer el mundo. Medido con
+  `grep` sobre `src-tauri/src/commands/`: **0 líneas de producción** tocan el disco
+  (las 39 que salen están todas dentro de `#[cfg(test)]`, que es el escenario que se
+  monta cada prueba), **0** `reqwest` y **0** SQL crudo (`query_row` / `.execute(`).
+  Antes: 70 de disco, 5 de HTTP y 2 de SQL. Quién lo hace ahora está en
+  `servicios/` —`contexto.rs` (352, `ContextService`), `modelo.rs` (336,
+  `ModelService`), `archivo.rs` (643), `agente.rs` (368), `adjuntos.rs` (284),
+  `captura.rs` (132), `proyecto.rs` (141), `plantillas.rs` (104)—, y cada uno con sus
+  pruebas sin pantalla. Dos cosas que esto arregla de verdad, no de adorno: la
+  recolección del material del prompt tenía **cuatro** escrituras a mano (ahora es
+  `ContextService`, con el lock tomado una vez), y la lectura del `HATBOO.md` con el
+  Trust Gate tenía **dos** (ahora una sola, en `crate::rules::para_prompt`, a la que
+  llaman el servicio y la pantalla de reglas — así la interfaz no puede declarar
+  «aprobadas» sobre un texto que el modelo no está recibiendo).
 - El reparto trajo una palabra nueva que hay que conocer para leer el árbol:
   `commands/plantillas.rs` y `commands/memoria.rs` son los dominios de Ajustes, y
   **no** son `crate::cerebro`, que es el puente al crate `hatboo-brain`. Los nombres
-  se separaron a propósito porque compartir la palabra era mentir.
+  se separaron a propósito porque compartir la palabra era mentir. Por el mismo
+  motivo `servicios/plantillas.rs` (leer y escribir el `.md`) no es
+  `commands/plantillas.rs`.
 - El contexto del producto **ya viaja en su propio sitio** (A.2.4, cerrado el
   2026-10-05): `BrainRequest.contexto_producto` es la capa `producto` del system
   prompt del crate, dentro de `Presupuesto.fijo`, y por tanto no la recorta el Plan.

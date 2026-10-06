@@ -58,6 +58,60 @@ pub fn text_for_prompt(
     applies(aprobado, archivo).then(|| archivo.texto.chars().take(max_chars).collect())
 }
 
+/// Nombre del archivo de reglas. Fijo: lo único que viene de fuera es la raíz del
+/// proyecto, que la eligió el usuario al abrirla.
+pub const ARCHIVO: &str = "HATBOO.md";
+/// Techo de lo que se inyecta en el prompt; más allá de esto ya es un libro y el
+/// modelo empieza a perder el hilo.
+pub const MAX_CHARS: usize = 6_000;
+
+/// Ruta del `HATBOO.md` de un proyecto registrado.
+pub fn ruta_de_reglas(p: &crate::db::Project) -> std::path::PathBuf {
+    std::path::PathBuf::from(&p.root_path).join(ARCHIVO)
+}
+
+/// La fila del proyecto dueño de las reglas: el id que trae la pantalla o la
+/// conversación y, si no lo hay, la carpeta registrada que coincida con esta raíz.
+pub fn proyecto_dueno(
+    conn: &rusqlite::Connection,
+    project_id: Option<&str>,
+    raiz: &Path,
+) -> Option<crate::db::Project> {
+    match project_id {
+        Some(id) => crate::db::get_project(conn, id).ok(),
+        None => crate::db::find_project_by_root(conn, &raiz.to_string_lossy())
+            .ok()
+            .flatten(),
+    }
+}
+
+/// Contenido de `HATBOO.md` para el system prompt, **con el gate puesto**. Cadena
+/// vacía si no hay proyecto registrado, si no existe el archivo, si nunca se aprobó
+/// o si cambió desde la aprobación.
+///
+/// Esta es la única lectura que inyecta. `ContextService` llama aquí y la pantalla
+/// de reglas llama al mismo sitio para enseñar el estado: si cada una calculara su
+/// hash por su cuenta, la interfaz podría declarar «aprobadas» sobre un texto que
+/// el modelo no está recibiendo — que era exactamente el fallo que vivía en
+/// `commands/projects.rs`, con el gate implementado dos veces.
+///
+/// Con `project_id` `None` el proyecto se busca por la raíz. El archivo que se
+/// compara es siempre el de la raíz del proyecto, no el de la subcarpeta donde se
+/// esté trabajando.
+pub fn para_prompt(
+    conn: &rusqlite::Connection,
+    project_id: Option<&str>,
+    raiz: &Path,
+) -> String {
+    let Some(proyecto) = proyecto_dueno(conn, project_id, raiz) else {
+        return String::new();
+    };
+    let Some(archivo) = read_file(&ruta_de_reglas(&proyecto)) else {
+        return String::new();
+    };
+    text_for_prompt(proyecto.rules_hash.as_deref(), &archivo, MAX_CHARS).unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

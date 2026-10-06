@@ -1,8 +1,15 @@
 //! Datos: exportar, importar y el restablecimiento de fábrica.
+//!
+//! Ninguno toca disco. La escritura del export y el peso del archivo que se declara
+//! en el resumen viven en [`crate::backup`] —el módulo de lo que sale del PC— y el
+//! vaciado de la carpeta de adjuntos en [`crate::servicios::adjuntos`], que es su
+//! dueño. Aquí queda lo que es de la capa IPC: leer el hilo en la base de datos,
+//! elegir el serializador y comprobar la palabra de confirmación antes de borrar.
 
 use crate::backup;
 use crate::db;
 use crate::providers;
+use crate::servicios::adjuntos;
 use crate::state::AppState;
 use serde::Serialize;
 use std::path::Path;
@@ -30,8 +37,7 @@ pub fn export_conversation(
         _ => render_markdown(&title, &messages),
     };
 
-    std::fs::write(&path, content).map_err(|e| format!("No se pudo escribir el archivo: {e}"))?;
-    Ok(())
+    backup::write_text(Path::new(&path), &content)
 }
 
 fn render_json(title: &str, messages: &[db::Message]) -> String {
@@ -130,7 +136,7 @@ pub fn export_all_data(app: State<AppState>, path: String) -> Result<ExportSumma
     };
     backup::write_snapshot(Path::new(&path), &snapshot)?;
     Ok(ExportSummary {
-        bytes: std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0),
+        bytes: backup::file_size(Path::new(&path)),
         path,
         conversations: snapshot.conversations.len(),
         messages: snapshot.messages.len(),
@@ -149,6 +155,13 @@ pub fn import_all_data(app: State<AppState>, path: String) -> Result<backup::Imp
 
 /// Deja la app como recién instalada: borra conversaciones, mensajes, proyectos,
 /// tareas, ajustes, las imágenes en disco y las claves del llavero.
+///
+/// El `read_dir` + `remove_file` de la carpeta es de
+/// [`adjuntos::vaciar_carpeta`] —la dueña de `attachments/`—, y se sigue ignorando
+/// cada error individual: una imagen abierta por otro programa no puede dejar el
+/// restablecimiento a medias. El orden tampoco cambia: primero la base de datos,
+/// luego el disco y al final el llavero, que es lo que hace que una interrupción
+/// temprano no borre imágenes que la base de datos todavía referencia.
 #[tauri::command]
 pub fn factory_reset(app: State<AppState>, token: String) -> Result<(), String> {
     if token.trim() != RESET_TOKEN {
@@ -158,12 +171,7 @@ pub fn factory_reset(app: State<AppState>, token: String) -> Result<(), String> 
         let conn = app.db.lock().map_err(|e| e.to_string())?;
         db::wipe_all(&conn)?;
     }
-    let attachments = app.data_dir.join("attachments");
-    if let Ok(entries) = std::fs::read_dir(&attachments) {
-        for entry in entries.flatten() {
-            let _ = std::fs::remove_file(entry.path());
-        }
-    }
+    adjuntos::vaciar_carpeta(&app.data_dir.join("attachments"));
     // Las claves viven en el llavero del sistema, no en la base de datos: hay
     // que borrarlas aquí para que el restablecimiento sea de verdad completo.
     for provider in ["anthropic", "openai", "openrouter", "gemini", "hf", "groq"] {

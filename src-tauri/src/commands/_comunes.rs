@@ -32,20 +32,11 @@ pub(crate) fn titulo_breve(texto: &str) -> String {
 
 /// Máximo de bytes que se leen de un archivo adjunto de texto (M2).
 ///
-/// `pub(crate)`: lo mide el «+» de `files`, pero también lo comprueba `install_skill`
-/// (`cerebro`) para no leerse un libro como plantilla.
+/// `pub(crate)`: lo mide el «+» de `servicios::archivo` (y su puerta en `files`),
+/// pero también lo comprueba `install_skill` (`commands::plantillas`) para no
+/// leerse un libro como plantilla y lo mismo hace
+/// [`crate::servicios::modelo::ModelService::adjunto_de_github`].
 pub(crate) const ATTACHMENT_MAX_BYTES: usize = 200_000;
-
-/// Borra del disco las imágenes referenciadas (ignora errores: pueden faltar).
-///
-/// `pub(crate)`: lo mismo que borra `delete_conversation` y `clear_conversation_messages`
-/// (`chat`) es lo que borra el reintento de un dibujo (`models`) y el de un proyecto
-/// (`projects`).
-pub(crate) fn remove_image_files(paths: Vec<String>) {
-    for p in paths {
-        let _ = std::fs::remove_file(p);
-    }
-}
 
 /// Prompt de sistema del modo código. También lo usa el agente del modo trabajo,
 /// para que el chip «Código» signifique lo mismo en las dos vistas.

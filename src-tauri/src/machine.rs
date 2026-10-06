@@ -6,6 +6,7 @@
 //! equipo sin GPU, sería un cero con muy buena pinta. El presupuesto es la RAM.
 
 use serde::Serialize;
+use std::path::Path;
 use sysinfo::{Components, Disks, System};
 
 #[derive(Serialize, Clone, Debug)]
@@ -88,6 +89,36 @@ pub fn lee_hardware() -> Hardware {
     }
 }
 
+/// Cuánto ocupan los archivos de un árbol y cuántos son: es la respuesta a «qué
+/// está llenando este PC» en Ajustes → Sistema, y se usa solo con la carpeta de
+/// adjuntos.
+///
+/// Vive aquí, y no dentro del comando, porque es **mirar la máquina**: no necesita
+/// la base de datos ni la ventana, y `commands/system.rs` es la capa IPC. Un árbol
+/// que no se puede leer devuelve `(0, 0)` en vez de fallar —la pantalla de
+/// almacenamiento no se cae porque la carpeta de adjuntos todavía no exista—, y una
+/// carpeta que no se puede recorrer se salta, igual que cuando el bucle estaba
+/// escrito en el comando.
+pub fn dir_size(path: &Path) -> (u64, usize) {
+    let mut bytes = 0u64;
+    let mut files = 0usize;
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return (0, 0);
+    };
+    for entry in entries.flatten() {
+        let child = entry.path();
+        if child.is_dir() {
+            let (b, f) = dir_size(&child);
+            bytes += b;
+            files += f;
+        } else if let Ok(meta) = child.metadata() {
+            bytes += meta.len();
+            files += 1;
+        }
+    }
+    (bytes, files)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -97,5 +128,24 @@ mod tests {
         let h = lee_hardware();
         assert!(h.ram_total_bytes > 0);
         assert!(h.ram_libre_bytes <= h.ram_total_bytes);
+    }
+
+    /// El recuento de almacenamiento, que es lo que se fue del comando: la suma
+    /// tiene que bajar a los subdirectorios —ahí es donde caen las capturas y los
+    /// audios— y una carpeta que no existe tiene que dar cero sin decir nada.
+    #[test]
+    fn dir_size_suma_los_niveles_y_no_inventa() {
+        let base = std::env::temp_dir().join(format!("hatboo-machine-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(base.join("hijo")).unwrap();
+        std::fs::write(base.join("a.mp3"), vec![b'x'; 10]).unwrap();
+        std::fs::write(base.join("hijo/b.png"), vec![b'x'; 5]).unwrap();
+
+        let (bytes, archivos) = dir_size(&base);
+        assert_eq!(bytes, 15, "el peso de la carpeta de dentro también cuenta");
+        assert_eq!(archivos, 2, "lo que se suma son dos archivos, no un directorio");
+
+        // Una carpeta que no está: (0, 0) y ningún error que suba al invoke.
+        assert_eq!(dir_size(&base.join("no-hay-nada")), (0, 0));
+        std::fs::remove_dir_all(&base).ok();
     }
 }

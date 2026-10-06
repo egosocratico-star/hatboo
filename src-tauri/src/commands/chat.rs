@@ -4,12 +4,13 @@
 //! van juntos a propósito: los cuatro hablan con `AppState.chat_runs`, el mapa que
 //! sujeta el canal de cancelación de la respuesta en curso.
 
-use super::_comunes::{chat_system_prompt, remove_image_files, titulo_breve};
-use super::projects::project_rules_for_prompt;
+use super::_comunes::{chat_system_prompt, titulo_breve};
+use crate::agent::loop_runner::{system_prompt, PromptDeSistema};
 use crate::db;
-use crate::state::{self, AppState};
+use crate::servicios::adjuntos::{self, remove_image_files};
+use crate::servicios::contexto::{ContextService, Material};
+use crate::state::AppState;
 use serde::Serialize;
-use std::path::PathBuf;
 use tauri::{Manager, State};
 
 // Lo que se fue a `chat/stream.rs` sigue llamándose igual desde aquí: la lectura
@@ -49,38 +50,29 @@ pub fn delete_conversation(app: State<AppState>, conversation_id: String) -> Res
 /// El prompt con el que se manda cada respuesta. No se guarda en ninguna parte:
 /// se vuelve a armar con las mismas funciones que lo envían, para que lo que se
 /// lee aquí sea literalmente lo que lee el modelo.
+///
+/// La recolección del material es [`ContextService`]: antes las lecturas de
+/// plantillas, memoria y proyecto estaban escritas a mano aquí, y el bucle del
+/// agente volvía a abrir el Trust Gate por su cuenta. Dos puertas escritas dos
+/// veces son dos oportunidades de discrepar.
 #[tauri::command]
 pub fn system_prompt_of(app: State<AppState>, conversation_id: String) -> Result<String, String> {
-    let aj = state::load_settings(&app);
-    let skills = {
-        let conn = app.db.lock().map_err(|e| e.to_string())?;
-        let texto = db::enabled_skills_prompt(&conn)?;
-        let memoria = db::memoria_prompt(&conn)?;
-        match db::get_conversation(&conn, &conversation_id)
-            .map_err(|_| "Esta conversación ya no existe.".to_string())?
-            .project_id
-        {
-            None => return Ok(chat_system_prompt(&aj, &texto, &memoria)),
-            Some(pid) => {
-                let proyecto = db::get_project(&conn, &pid)?;
-                let raiz = PathBuf::from(proyecto.root_path);
-                // Aquí también pasa por el gate: si el prompt que se muestra llevara
-                // reglas sin aprobar, esta pantalla prometería texto que el modelo no ve.
-                let reglas = project_rules_for_prompt(&conn, Some(&pid), &raiz);
-                (texto, memoria, raiz, proyecto.approval_level, reglas)
-            }
-        }
+    let m = ContextService::material_de_conversacion(&app, &conversation_id)?;
+    let Some(proyecto) = m.proyecto else {
+        return Ok(chat_system_prompt(&m.settings, &m.skills, &m.memoria));
     };
-    Ok(crate::agent::loop_runner::system_prompt(
-        &skills.2,
-        &crate::agent::loop_runner::PromptDeSistema {
-            approval_level: &skills.3,
-            assistant_name: &aj.assistant_name,
-            skills: &skills.0,
-            code_mode: aj.code_mode,
-            rules: &skills.4,
-            memoria: &skills.1,
-            tz_offset_min: aj.tz_offset_min,
+    // Aquí también pasa por el gate: si el prompt que se muestra llevara reglas sin
+    // aprobar, esta pantalla prometería texto que el modelo no ve.
+    Ok(system_prompt(
+        &proyecto.raiz,
+        &PromptDeSistema {
+            approval_level: &proyecto.approval_level,
+            assistant_name: &m.settings.assistant_name,
+            skills: &m.skills,
+            code_mode: m.settings.code_mode,
+            rules: &m.reglas_aprobadas,
+            memoria: &m.memoria,
+            tz_offset_min: m.settings.tz_offset_min,
         },
     ))
 }
@@ -161,16 +153,15 @@ pub async fn send_message(
             None,
             &attachments,
         )?;
-        let conv_title: String = conn
-            .query_row(
-                "SELECT title FROM conversations WHERE id = ?1",
-                rusqlite::params![conversation_id],
-                |row| row.get(0),
-            )
-            .unwrap_or_default();
-        if conv_title == "Nueva conversación" {
-            let _ = db::rename_conversation(&conn, &conversation_id, &titulo_breve(&content));
-        }
+        // Titular con las primeras palabras, y solo si el chat sigue llamándose
+        // como nace. El `SELECT` a mano que hacía esto vive ahora en `db`, y la
+        // decisión en `AgentService`; aquí no se escribe SQL.
+        let _ = crate::servicios::agente::AgentService::titular_desde_el_pedido(
+            &conn,
+            &conversation_id,
+            &content,
+            "Nueva conversación",
+        );
         msg
     };
 
@@ -321,6 +312,10 @@ pub fn set_message_feedback(
 /// Copia las imágenes que entran en la rama a archivos nuevos. Si la rama
 /// apuntara a los mismos ficheros, borrar una de las dos conversaciones se
 /// llevaría las imágenes de la otra (`delete_conversation` limpia disco).
+///
+/// La copia es de [`crate::servicios::adjuntos`], que es el dueño de esa carpeta;
+/// aquí se decide hasta qué mensaje se ramifica y se pasa el mapa `viejo -> nuevo`
+/// a `db::branch_conversation`, que es quien reescribe el JSON del hilo.
 #[tauri::command]
 pub fn branch_conversation(
     app: State<AppState>,
@@ -341,24 +336,8 @@ pub fn branch_conversation(
             .collect::<Vec<_>>()
     };
 
-    let dir = app.data_dir.join("attachments");
-    let mut renombre = std::collections::HashMap::new();
-    for viejo in &imagenes {
-        if renombre.contains_key(viejo) {
-            continue;
-        }
-        let destino = format!(
-            "{}{}",
-            uuid::Uuid::new_v4(),
-            std::path::Path::new(viejo)
-                .extension()
-                .map(|e| format!(".{}", e.to_string_lossy()))
-                .unwrap_or_default()
-        );
-        std::fs::copy(dir.join(viejo), dir.join(&destino))
-            .map_err(|e| format!("No se pudo copiar una imagen de la rama: {e}"))?;
-        renombre.insert(viejo.clone(), destino);
-    }
+    let renombre =
+        adjuntos::copia_imagenes_de_rama(&app.data_dir.join("attachments"), &imagenes)?;
 
     let conn = app.db.lock().map_err(|e| e.to_string())?;
     db::branch_conversation(&conn, &conversation_id, &up_to_message_id, &renombre)
@@ -416,14 +395,19 @@ pub struct ContextUsage {
 /// Lo que ocuparía el prompt del próximo turno de esta conversación. Cuenta el
 /// mismo `history()` que usa `spawn_chat_stream`, así que el adjunto ya va
 /// antepuesto como `[Archivo adjunto: …]` y el número no se desvía del real.
+///
+/// El *system prompt* lo arma la misma función que envía —y con el mismo material
+/// que recoge `ContextService`—, que es lo único que hace que esta pantalla no
+/// mienta.
 #[tauri::command]
 pub fn context_usage(app: State<AppState>, conversation_id: String) -> Result<ContextUsage, String> {
     let messages = history(&app, &conversation_id)?;
-    let settings = state::load_settings(&app);
-    let conn = app.db.lock().map_err(|e| e.to_string())?;
-    let skills = db::enabled_skills_prompt(&conn)?;
-    let memoria = db::memoria_prompt(&conn)?;
-    drop(conn);
+    let Material {
+        settings,
+        skills,
+        memoria,
+        ..
+    } = ContextService::material_de_chat(&app)?;
     let system = chat_system_prompt(&settings, &skills, &memoria);
 
     let system_chars = system.trim().chars().count();

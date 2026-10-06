@@ -8,6 +8,7 @@
 
 use super::_comunes::ATTACHMENT_MAX_BYTES;
 use crate::db;
+use crate::servicios::plantillas as servicio_plantillas;
 use crate::state::AppState;
 use std::path::PathBuf;
 use tauri::State;
@@ -111,20 +112,15 @@ fn parse_skill_markdown(crudo: &str, defecto: &str) -> (String, String) {
 /// Instala una plantilla desde un archivo `.md` o desde la carpeta que la
 /// contiene (`mi-plantilla/SKILL.md`, que es como se comparten). Si ya existe
 /// una con el mismo nombre se actualiza: instalar dos veces no duplica.
+///
+/// Qué archivo es y cómo se lee es de [`crate::servicios::plantillas`], que es donde
+/// está el `std::fs`; el techo de tamaño, el nombre por el que se reutiliza la fila,
+/// el parseo del markdown y el guardado en la base de datos siguen siendo del comando.
 #[tauri::command]
 pub fn install_skill(app: State<AppState>, path: String) -> Result<db::Skill, String> {
     let ruta = PathBuf::from(&path);
-    let archivo = if ruta.is_dir() {
-        ["SKILL.md", "skill.md", "README.md"]
-            .iter()
-            .map(|n| ruta.join(n))
-            .find(|p| p.is_file())
-            .ok_or_else(|| "La carpeta no tiene un SKILL.md ni un README.md.".to_string())?
-    } else {
-        ruta.clone()
-    };
-    let crudo = std::fs::read_to_string(&archivo)
-        .map_err(|e| format!("No se pudo leer «{}»: {e}", archivo.display()))?;
+    let archivo = servicio_plantillas::archivo_de_instalacion(&ruta)?;
+    let crudo = servicio_plantillas::leer_crudo(&archivo)?;
     if crudo.len() > ATTACHMENT_MAX_BYTES {
         return Err("El archivo es demasiado grande para ser una plantilla.".into());
     }
@@ -161,6 +157,10 @@ pub fn install_skill(app: State<AppState>, path: String) -> Result<db::Skill, St
 
 /// Devuelve una plantilla a un archivo `.md` para poder compartirla o
 /// versionarla. Lo que se exporta se vuelve a instalar tal cual.
+///
+/// La forma del archivo la arma este comando —cabecera `---` con `name:` y el
+/// cuerpo, que es lo que [`parse_skill_markdown`] vuelve a leer sin perder nada—; la
+/// escritura está en [`crate::servicios::plantillas`], con su mensaje de siempre.
 #[tauri::command]
 pub fn export_skill(app: State<AppState>, id: String, path: String) -> Result<(), String> {
     let skill = {
@@ -175,8 +175,7 @@ pub fn export_skill(app: State<AppState>, id: String, path: String) -> Result<()
     lineas.push_str("---\n\n");
     lineas.push_str(&skill.prompt);
     lineas.push('\n');
-    std::fs::write(PathBuf::from(&path), lineas)
-        .map_err(|e| format!("No se pudo escribir «{path}»: {e}"))
+    servicio_plantillas::escribir_markdown(&path, &lineas)
 }
 
 #[cfg(test)]

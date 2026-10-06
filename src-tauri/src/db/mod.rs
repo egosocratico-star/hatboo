@@ -373,6 +373,22 @@ pub fn rename_conversation(conn: &Connection, id: &str, title: &str) -> Result<(
     Ok(())
 }
 
+/// El título guardado de una conversación, o cadena vacía si la fila no existe.
+///
+/// Es la consulta que los dos arranques de tarea (`commands::chat::send_message` y
+/// `commands::agent::start_work_task`) escribían a mano dentro del comando para
+/// decidir si el título aún era el de borrador y convenía renombrar. Va aparte para
+/// que la capa IPC no vuelva a tener SQL crudo: quien quiere saber el título llama
+/// aquí.
+pub fn titulo_de_conversacion(conn: &Connection, id: &str) -> String {
+    conn.query_row(
+        "SELECT title FROM conversations WHERE id = ?1",
+        params![id],
+        |row| row.get(0),
+    )
+    .unwrap_or_default()
+}
+
 pub fn touch_conversation(conn: &Connection, id: &str) -> Result<(), String> {
     conn.execute(
         "UPDATE conversations SET updated_at = ?1 WHERE id = ?2",
@@ -1843,28 +1859,36 @@ pub fn finish_all_tasks(conn: &Connection, conversation_id: &str, status: &str) 
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
+/// Lo que se pide registrar de una tool. `ToolCall` es la fila leída (dueña de
+/// `created_at`, que lo pone la base de datos en el momento de escribir); este es el
+/// pedido, y existe para que `insert_tool_call` reciba una cosa con nombre en vez de
+/// ocho argumentos sueltos — que es como se arregla `too_many_arguments` en la causa,
+/// sin `#[allow]` que lo tape.
+pub struct NuevaLlamada<'a> {
+    pub id: &'a str,
+    pub conversation_id: &'a str,
+    pub tool_name: &'a str,
+    pub input: &'a str,
+    pub output: Option<&'a str>,
+    pub status: &'a str,
+    pub duration_ms: i64,
+    pub brief: Option<&'a str>,
+}
+
 pub fn insert_tool_call(
     conn: &Connection,
-    id: &str,
-    conversation_id: &str,
-    tool_name: &str,
-    input: &str,
-    output: Option<&str>,
-    status: &str,
-    duration_ms: i64,
-    brief: Option<&str>,
+    llamada: NuevaLlamada<'_>,
 ) -> Result<ToolCall, String> {
     let call = ToolCall {
-        id: id.to_string(),
-        conversation_id: conversation_id.to_string(),
-        tool_name: tool_name.to_string(),
-        input: input.to_string(),
-        output: output.map(|s| s.to_string()),
-        status: status.to_string(),
+        id: llamada.id.to_string(),
+        conversation_id: llamada.conversation_id.to_string(),
+        tool_name: llamada.tool_name.to_string(),
+        input: llamada.input.to_string(),
+        output: llamada.output.map(|s| s.to_string()),
+        status: llamada.status.to_string(),
         created_at: now_ms(),
-        duration_ms,
-        brief: brief.map(|s| s.to_string()),
+        duration_ms: llamada.duration_ms,
+        brief: llamada.brief.map(|s| s.to_string()),
     };
     conn.execute(
         "INSERT INTO tool_calls (id, conversation_id, tool_name, input, output, status, created_at, duration_ms, brief)
@@ -2334,40 +2358,46 @@ mod tests {
         let primera = add_message(&conn, &sesion.id, "user", "haz cosas", None).unwrap();
         insert_tool_call(
             &conn,
-            "p1",
-            &sesion.id,
-            "read_file",
-            "{}",
-            Some("{}"),
-            "completed",
-            40,
-            Some("a.txt"),
+            NuevaLlamada {
+                id: "p1",
+                conversation_id: &sesion.id,
+                tool_name: "read_file",
+                input: "{}",
+                output: Some("{}"),
+                status: "completed",
+                duration_ms: 40,
+                brief: Some("a.txt"),
+            },
         )
         .unwrap();
         insert_tool_call(
             &conn,
-            "p2",
-            &sesion.id,
-            "write_file",
-            "{}",
-            Some("{}"),
-            "completed",
-            12,
-            Some("b.txt"),
+            NuevaLlamada {
+                id: "p2",
+                conversation_id: &sesion.id,
+                tool_name: "write_file",
+                input: "{}",
+                output: Some("{}"),
+                status: "completed",
+                duration_ms: 12,
+                brief: Some("b.txt"),
+            },
         )
         .unwrap();
         let respuesta1 =
             add_message(&conn, &sesion.id, "assistant", "listo", Some("agent")).unwrap();
         insert_tool_call(
             &conn,
-            "p3",
-            &sesion.id,
-            "razonamiento",
-            "{}",
-            None,
-            "completed",
-            0,
-            Some("pienso luego escribo"),
+            NuevaLlamada {
+                id: "p3",
+                conversation_id: &sesion.id,
+                tool_name: "razonamiento",
+                input: "{}",
+                output: None,
+                status: "completed",
+                duration_ms: 0,
+                brief: Some("pienso luego escribo"),
+            },
         )
         .unwrap();
         let respuesta2 =
@@ -2458,8 +2488,20 @@ mod tests {
         add_message(&conn, &sesion.id, "user", "hola", None).unwrap();
         add_message(&conn, &sesion.id, "assistant", "hola", Some("hf")).unwrap();
         replace_tasks(&conn, &sesion.id, &["paso 1".into(), "paso 2".into()]).unwrap();
-        insert_tool_call(&conn, "tc-1", &sesion.id, "read_file", "{}", Some("ok"), "done", 12, None)
-            .unwrap();
+        insert_tool_call(
+            &conn,
+            NuevaLlamada {
+                id: "tc-1",
+                conversation_id: &sesion.id,
+                tool_name: "read_file",
+                input: "{}",
+                output: Some("ok"),
+                status: "done",
+                duration_ms: 12,
+                brief: None,
+            },
+        )
+        .unwrap();
         let chat_suelto = create_conversation(&conn, "charla", None).unwrap();
         add_message(&conn, &chat_suelto.id, "user", "hola", None).unwrap();
 
@@ -2492,8 +2534,20 @@ mod tests {
         let sesion = create_conversation(&conn, "hola", Some(&proyecto.id)).unwrap();
         add_message(&conn, &sesion.id, "user", "hola", None).unwrap();
         replace_tasks(&conn, &sesion.id, &["paso 1".into()]).unwrap();
-        insert_tool_call(&conn, "tc-2", &sesion.id, "list_dir", "{}", None, "pending", 0, None)
-            .unwrap();
+        insert_tool_call(
+            &conn,
+            NuevaLlamada {
+                id: "tc-2",
+                conversation_id: &sesion.id,
+                tool_name: "list_dir",
+                input: "{}",
+                output: None,
+                status: "pending",
+                duration_ms: 0,
+                brief: None,
+            },
+        )
+        .unwrap();
 
         delete_conversation(&conn, &sesion.id).unwrap();
 

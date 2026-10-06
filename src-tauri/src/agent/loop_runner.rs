@@ -124,14 +124,16 @@ pub(crate) fn emit_reasoning(app: &tauri::AppHandle, conversation_id: &str, bloc
     if let Ok(conn) = state.db.lock() {
         let _ = db::insert_tool_call(
             &conn,
-            &uuid::Uuid::new_v4().to_string(),
-            conversation_id,
-            "razonamiento",
-            "{}",
-            None,
-            "completed",
-            0,
-            Some(&text),
+            db::NuevaLlamada {
+                id: &uuid::Uuid::new_v4().to_string(),
+                conversation_id,
+                tool_name: "razonamiento",
+                input: "{}",
+                output: None,
+                status: "completed",
+                duration_ms: 0,
+                brief: Some(&text),
+            },
         );
     }
     let _ = app.emit(
@@ -721,34 +723,26 @@ async fn run_loop(
         .and_then(|conn| db::sources_por_raiz(&conn, project_root).ok())
         .unwrap_or_default();
     let agent_tools = tools::build_tools(&settings, &fuentes);
-    let skills_prompt = state
-        .db
-        .lock()
-        .ok()
-        .and_then(|conn| db::enabled_skills_prompt(&conn).ok())
-        .unwrap_or_default();
-    let memoria_prompt = state
-        .db
-        .lock()
-        .ok()
-        .and_then(|conn| db::memoria_prompt(&conn).ok())
-        .unwrap_or_default();
-    // Trust Gate: el proyecto de esta conversación es el que aprobó unas reglas,
-    // y solo entran si el hash del archivo sigue siendo el aprobado. Sin
-    // aprobación el bloque de reglas no existe en el prompt.
-    let rules_prompt = state
-        .db
-        .lock()
-        .ok()
-        .and_then(|conn| {
-            let pid = db::get_conversation(&conn, conversation_id).ok()?.project_id;
-            Some(crate::commands::projects::project_rules_for_prompt(
-                &conn,
-                pid.as_deref(),
-                project_root,
-            ))
-        })
-        .unwrap_or_default();
+    // El material del system prompt lo recoge `ContextService` con un solo lock.
+    // Aquí abajo estaban tres tomas separadas —plantillas, memoria y reglas—, y las
+    // reglas con el Trust Gate aplicado por su cuenta: era el segundo sitio donde
+    // se decidía qué `HATBOO.md` entraba, además del visor de prompt.
+    //
+    // Trust Gate: las reglas del proyecto de esta conversación solo entran si el
+    // hash del archivo sigue siendo el aprobado. Sin aprobación el bloque de reglas
+    // no existe en el prompt.
+    let crate::servicios::contexto::Material {
+        skills: skills_prompt,
+        memoria: memoria_prompt,
+        reglas_aprobadas: rules_prompt,
+        ..
+    } = crate::servicios::contexto::ContextService::material_de_agente(
+        &state,
+        &settings,
+        conversation_id,
+        project_root,
+    )
+    .unwrap_or_else(|_| crate::servicios::contexto::Material::sin_bloques(settings.clone()));
     // Tapar solo tiene sentido cuando lo leído va a salir de la máquina: con el
     // proveedor local el contenido viaja a tu propio Ollama.
     let redactar = settings.redact_secrets
@@ -1106,14 +1100,16 @@ pub(crate) async fn handle_agent_tool(
             let conn = state.db.lock().map_err(|e| e.to_string())?;
             db::insert_tool_call(
                 &conn,
-                &tool_call_id,
-                conversation_id,
-                &call.name,
-                &input_str,
-                None,
-                "pending_approval",
-                0,
-                None,
+                db::NuevaLlamada {
+                    id: &tool_call_id,
+                    conversation_id,
+                    tool_name: &call.name,
+                    input: &input_str,
+                    output: None,
+                    status: "pending_approval",
+                    duration_ms: 0,
+                    brief: None,
+                },
             )?;
         }
         let (tx, rx) = tokio::sync::oneshot::channel::<bool>();
@@ -1232,14 +1228,16 @@ pub(crate) async fn handle_agent_tool(
             // Registro de auditoría para tools que no requieren aprobación.
             db::insert_tool_call(
                 &conn,
-                &tool_call_id,
-                conversation_id,
-                &call.name,
-                &input_str,
-                Some(&output_json),
-                status,
-                duracion_ms,
-                Some(&brief),
+                db::NuevaLlamada {
+                    id: &tool_call_id,
+                    conversation_id,
+                    tool_name: &call.name,
+                    input: &input_str,
+                    output: Some(&output_json),
+                    status,
+                    duration_ms: duracion_ms,
+                    brief: Some(&brief),
+                },
             )?;
         }
     }

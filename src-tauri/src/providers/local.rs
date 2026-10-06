@@ -73,6 +73,46 @@ impl LocalProvider {
     }
 }
 
+/// Suelta un modelo de la memoria de Ollama. Es lo que hace `ollama stop`:
+/// `POST /api/generate` con `keep_alive: 0` y sin prompt, que responde
+/// `done_reason: "unload"` sin generar nada.
+///
+/// Vive aquí, junto al proveedor local, y no dentro de un comando: es la ruta
+/// nativa de Ollama —el chat usa la capa compatible `/v1/chat/completions`—, así
+/// que el único sitio que sabe de ella es este módulo. Quien la expone al frontend
+/// es `commands::models::unload_local_model`, a través de `ModelService`.
+pub async fn descargar_modelo(endpoint: &str, model: &str) -> Result<(), String> {
+    let url = url_de_generate(endpoint);
+    let client = reqwest::Client::builder()
+        // Un modelo grande puede tardar en soltarse más de lo que tarda en responder.
+        .timeout(std::time::Duration::from_secs(60))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let response = client
+        .post(&url)
+        .json(&cuerpo_de_descarga(model))
+        .send()
+        .await
+        .map_err(|e| format!("No se pudo conectar con Ollama: {e}"))?;
+    let estado = response.status().as_u16();
+    if estado >= 400 {
+        let cuerpo = response.text().await.unwrap_or_default();
+        return Err(format!("Ollama respondió {estado}: {cuerpo}"));
+    }
+    Ok(())
+}
+
+/// La ruta de generate a partir del endpoint guardado, que el usuario puede escribir
+/// con o sin barra final.
+fn url_de_generate(endpoint: &str) -> String {
+    format!("{}/api/generate", endpoint.trim_end_matches('/'))
+}
+
+/// El cuerpo exacto de un `ollama stop`: sin `prompt`, con `keep_alive: 0`.
+fn cuerpo_de_descarga(model: &str) -> serde_json::Value {
+    serde_json::json!({ "model": model, "keep_alive": 0 })
+}
+
 /// El JSON de Ollama tal cual no se le puede dejar a nadie: veinte caracteres de
 /// backend por dos frases que dicen qué hacer.
 fn dice_local(cuerpo: &str) -> String {
@@ -192,5 +232,28 @@ mod tests {
         // Lo que no se reconoce sale como entró: inventar menos que el mensaje
         // crudo sería peor.
         assert_eq!(dice_local("algo rarísimo"), "algo rarísimo");
+    }
+
+    /// Las dos piezas de `descargar_modelo` que se pueden medir sin Ollama: la
+    /// ruta y el cuerpo. Lo demás es el `POST`, y ese necesita el servidor despierto.
+    #[test]
+    fn la_ruta_de_generate_no_duplica_la_barra() {
+        assert_eq!(
+            url_de_generate("http://localhost:11434"),
+            "http://localhost:11434/api/generate"
+        );
+        assert_eq!(
+            url_de_generate("http://localhost:11434/"),
+            "http://localhost:11434/api/generate"
+        );
+    }
+
+    #[test]
+    fn soltar_un_modelo_es_keep_alive_cero_sin_prompt() {
+        let cuerpo = cuerpo_de_descarga("qwen3:1.7b");
+        assert_eq!(cuerpo["model"], json!("qwen3:1.7b"));
+        assert_eq!(cuerpo["keep_alive"], json!(0));
+        // Con `prompt` Ollama generaría texto —y cobraría tiempo— en vez de soltar.
+        assert!(cuerpo.get("prompt").is_none(), "{cuerpo}");
     }
 }

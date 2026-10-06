@@ -1,11 +1,19 @@
 //! Proyectos: registro, fuentes y el Trust Gate de `HATBOO.md`.
 //!
 //! `project_rules_for_prompt`, `rules_status`, `approve_rules` y `revoke_rules` no son
-//! comandos pero siguen siendo `pub`: los llama `agent/loop_runner.rs` y la batería
-//! `tests/db.rs`, y `commands/mod.rs` los reexporta por la ruta de siempre.
+//! comandos pero siguen siendo `pub`: `project_rules_for_prompt` es la puerta que
+//! abre `servicios::contexto` al recoger el material del prompt —el bucle del
+//! agente y el visor de prompt la llamaban cada uno por su cuenta—, y la batería
+//! `tests/db.rs` las prueba por la ruta de siempre que reexporta `commands/mod.rs`.
+//!
+//! El disco está en [`crate::servicios::proyecto`]: crear la carpeta nueva con su
+//! `HATBOO.md` de ejemplo y guardar las reglas que el usuario edita. Aquí quedan la
+//! selección de la ruta (que sale de la base de datos o del diálogo del frontend),
+//! el candado de las fuentes y el gate, que es de [`crate::rules`].
 
-use super::_comunes::remove_image_files;
 use crate::db;
+use crate::servicios::adjuntos::remove_image_files;
+use crate::servicios::proyecto;
 use crate::state::{self, AppState};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -65,58 +73,30 @@ pub fn remove_source(app: State<AppState>, id: String) -> Result<(), String> {
     db::remove_source(&conn, &id)
 }
 
-/// Archivo de reglas del proyecto: instrucciones que el usuario escribe una vez y
-/// se pegan al system prompt del agente en cada sesión de ese proyecto, pero solo
-/// después de que él aprueba el contenido exacto que hay en el disco (Trust Gate).
-pub(crate) const RULES_FILE: &str = "HATBOO.md";
-/// Techo de lo que se inyecta en el prompt; más allá de esto ya es un libro y el
-/// modelo empieza a perder el hilo.
-const RULES_MAX_CHARS: usize = 6_000;
-/// Techo de lo que se deja guardar desde la app.
+/// Nombre del archivo de reglas, dicho por su módulo dueño (`crate::rules`). El
+/// bucle del agente lo cita en el prompt, y la pantalla lo usa para decir qué
+/// archivo se está aprobando.
+pub(crate) const RULES_FILE: &str = crate::rules::ARCHIVO;
+/// Techo de lo que se deja guardar desde la app. Para el de inyección está
+/// `crate::rules::MAX_CHARS`, que es el que aplica el gate.
 const RULES_SAVE_MAX: usize = 20_000;
 
-/// Contenido de `HATBOO.md` para el system prompt, con el Trust Gate puesto.
-/// Cadena vacía si no hay proyecto registrado, si no existe el archivo, si nunca
-/// se aprobó o si cambió desde la aprobación: la mayoría de proyectos no lo
-/// tendrá, y eso no debe cambiar el prompt.
-///
-/// Con `project_id` `None` el proyecto se busca por la raíz. El archivo que se
-/// compara es siempre el de la raíz del proyecto, no el de la subcarpeta donde se
-/// esté trabajando: es el mismo que ve y aprueba la pantalla de reglas.
+/// Ver [`crate::rules::para_prompt`]. Sigue expuesto por esta ruta porque así lo
+/// llamaban `agent/loop_runner.rs`, `commands/mod.rs` y `tests/db.rs`, y partir el
+/// archivo no podía romper ese camino. El gate, en cambio, ya no vive aquí: la
+/// única lectura que inyecta está en `rules.rs`, y `ContextService` llama allí, no
+/// a la capa IPC.
 pub fn project_rules_for_prompt(
     conn: &rusqlite::Connection,
     project_id: Option<&str>,
     raiz: &Path,
 ) -> String {
-    let Some(proyecto) = rules_project(conn, project_id, raiz) else {
-        return String::new();
-    };
-    let Some(archivo) = crate::rules::read_file(&rules_ruta(&proyecto)) else {
-        return String::new();
-    };
-    crate::rules::text_for_prompt(proyecto.rules_hash.as_deref(), &archivo, RULES_MAX_CHARS)
-        .unwrap_or_default()
+    crate::rules::para_prompt(conn, project_id, raiz)
 }
 
-/// La fila del proyecto dueño de las reglas: el id que trae la pantalla o la
-/// conversación y, si no lo hay, la carpeta registrada que coincida con esta raíz.
-fn rules_project(
-    conn: &rusqlite::Connection,
-    project_id: Option<&str>,
-    raiz: &Path,
-) -> Option<db::Project> {
-    match project_id {
-        Some(id) => db::get_project(conn, id).ok(),
-        None => db::find_project_by_root(conn, &raiz.to_string_lossy())
-            .ok()
-            .flatten(),
-    }
-}
-
-/// Ruta del `HATBOO.md` del proyecto. El nombre del archivo es fijo — lo único
-/// que viene de fuera es la raíz, que el usuario eligió al abrir el proyecto.
+/// Ruta del `HATBOO.md` del proyecto.
 fn rules_ruta(p: &db::Project) -> PathBuf {
-    PathBuf::from(&p.root_path).join(RULES_FILE)
+    crate::rules::ruta_de_reglas(p)
 }
 
 /// Estado del Trust Gate tal como lo ve la pantalla: lo que hay en el disco y si
@@ -156,6 +136,10 @@ pub fn project_rules(app: State<AppState>, project_id: String) -> Result<Project
 
 /// Escribe `HATBOO.md`. Guardar NO aprueba: si el archivo ya estaba aprobado, el
 /// gate se cierra solo por no cuadrar el hash, y eso es lo que devuelve aquí.
+///
+/// El tope que se aplica es el de **guardar** desde la app, no el de inyección
+/// ([`crate::rules::MAX_CHARS`], que mide el gate): por eso se recorta aquí y el
+/// servicio solo escribe bytes.
 #[tauri::command]
 pub fn save_project_rules(
     app: State<AppState>,
@@ -165,8 +149,7 @@ pub fn save_project_rules(
     let conn = app.db.lock().map_err(|e| e.to_string())?;
     let proyecto = db::get_project(&conn, &project_id)?;
     let recortado: String = content.chars().take(RULES_SAVE_MAX).collect();
-    std::fs::write(rules_ruta(&proyecto), recortado.as_bytes())
-        .map_err(|e| format!("No se pudo escribir {RULES_FILE}: {e}"))?;
+    proyecto::guarda_reglas(&proyecto, &recortado)?;
     Ok(rules_status(&proyecto))
 }
 
@@ -261,29 +244,12 @@ pub fn open_project(app: State<AppState>, path: String) -> Result<db::Project, S
     register_project(&app, &path)
 }
 
-/// Un `HATBOO.md` de arranque. Sale con una carpeta de proyecto nueva, que es el
-/// único momento en el que Hatboo escribe un archivo sin que se lo pidan: la
-/// carpeta la acaba de crear él, así que no pisa nada.
-const RULES_EJEMPLO: &str = "\
-# Reglas de este proyecto
-
-Lo que escribas aquí se pega al prompt del agente en cada sesión de trabajo.
-Sirve para CÓMO quieres que trabaje, no para la tarea de hoy.
-
-## Dónde puede tocar
-- (las carpetas que son del proyecto)
-
-## Cómo quieres el código
-- (comentarios, nombrado, pruebas)
-
-## Fuera de los límites
-- (archivos que no se tocan aunque los vea)
-
-Las carpetas de la lista de ignoradas (Ajustes → Agente: `.git`, `node_modules`,
-`target`…) no las ve ni el árbol ni `list_dir`.
-";
-
 /// Crea una carpeta nueva de proyecto y la registra.
+///
+/// La carpeta y su `HATBOO.md` de ejemplo los escribe
+/// [`proyecto::crea_carpeta`]; aquí queda la validación del nombre —un nombre con
+/// separadores saldría de la carpeta elegida— y el registro, que es de la base de
+/// datos.
 #[tauri::command]
 pub fn create_project(
     app: State<AppState>,
@@ -294,15 +260,7 @@ pub fn create_project(
     if name.is_empty() || name.contains(['/', '\\']) {
         return Err("Nombre de proyecto inválido.".into());
     }
-    let new_dir = std::path::Path::new(&parent_path).join(name);
-    std::fs::create_dir_all(&new_dir)
-        .map_err(|e| format!("No se pudo crear la carpeta: {e}"))?;
-    // `create_dir_all` también pasa si la carpeta ya estaba, así que se comprueba
-    // antes de escribir: si alguien tiene sus propias reglas, esas se quedan.
-    let reglas = new_dir.join(RULES_FILE);
-    if !reglas.exists() {
-        let _ = std::fs::write(&reglas, RULES_EJEMPLO);
-    }
+    let new_dir = proyecto::crea_carpeta(Path::new(&parent_path), name)?;
     register_project(&app, &new_dir.display().to_string())
 }
 

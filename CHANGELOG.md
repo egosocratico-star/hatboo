@@ -44,6 +44,12 @@ no es release: no hay binario publicado con estos cambios.
   cabe todo, el Plan lo dice en su motivo en vez de cortar una plantilla a medias. De
   paso deja de desaparecer por la puerta de Anthropic, que filtra los mensajes de
   sistema del historial.
+- **El `HATBOO.md` se aprueba por un solo camino.** Hasta ahora la lectura que
+  inyecta reglas estaba escrita dos veces —una en la pantalla de reglas y otra en el
+  bucle del agente—, con dos criterios que podían discrepar. Ahora hay una sola, así
+  que la pantalla no puede decir «aprobadas» sobre un texto que el modelo no está
+  recibiendo. Lo mismo con las plantillas y la memoria del chat: se recogían a mano
+  en cuatro sitios; ahora en uno, con la base de datos bloqueada una sola vez.
 - **CI**: clippy con `--all-targets` y `-D warnings` (destapa las tres pruebas de
   integración que llevan meses sin compilarse), y la versión comprobada contra su
   única fuente.

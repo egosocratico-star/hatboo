@@ -229,7 +229,25 @@ fn chrono_now_ms() -> i64 {
 
 pub fn write_snapshot(path: &Path, snapshot: &Snapshot) -> Result<(), String> {
     let json = serde_json::to_string_pretty(snapshot).map_err(|e| e.to_string())?;
-    std::fs::write(path, json).map_err(|e| format!("No se pudo escribir el archivo: {e}"))
+    write_text(path, &json)
+}
+
+/// Escribe texto en la ruta que eligió el usuario, creando nada y pisando lo que
+/// hubiera. Es el único `fs::write` de las dos salidas de datos —la copia completa
+/// y el export de una conversación—, y las dos decían ya el mismo literal, así que
+/// ahora lo dicen en un sitio.
+///
+/// Vive aquí porque `backup.rs` es el módulo de los datos que salen del PC; la capa
+/// IPC decide **qué** texto se escribe, y aquí se escribe.
+pub fn write_text(path: &Path, contenido: &str) -> Result<(), String> {
+    std::fs::write(path, contenido).map_err(|e| format!("No se pudo escribir el archivo: {e}"))
+}
+
+/// Cuánto pesa el archivo que acabamos de escribir, para el resumen que se muestra
+/// en Ajustes → Datos. Cero cuando el sistema no lo puede decir: el informe no puede
+/// fallar por una cifra estética después de que la exportación salió bien.
+pub fn file_size(path: &Path) -> u64 {
+    std::fs::metadata(path).map(|m| m.len()).unwrap_or(0)
 }
 
 pub fn read_snapshot(path: &Path) -> Result<Snapshot, String> {
@@ -407,5 +425,77 @@ fn extension_of(name: &str) -> String {
         raw
     } else {
         "bin".to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `write_text` es hoy la única salida a disco de las dos exportaciones, y
+    /// `file_size` es la cifra que se enseña en Ajustes → Datos. Se comprueban
+    /// juntas porque son las dos mitades del mismo informe: el resumen dice cuánto
+    /// pesa el archivo que el `write_text` de al lado acabó de escribir.
+    #[test]
+    fn escribir_y_medir_el_export_con_los_mensajes_de_siempre() {
+        let dir = std::env::temp_dir().join(format!("hatboo-backup-export-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let archivo = dir.join("hilo.md");
+        let texto = "# Titulo\n\nUsuario: hola\n";
+
+        write_text(&archivo, texto).unwrap();
+        // Lo que se escribió es lo que se lee, sin un BOM ni un final de línea
+        // añadido: el export lo vuelve a abrir el usuario.
+        assert_eq!(std::fs::read_to_string(&archivo).unwrap(), texto);
+        assert_eq!(file_size(&archivo) as usize, texto.len());
+
+        // Pisar la ruta que eligió el usuario, que es el comportamiento de siempre.
+        write_text(&archivo, "corto").unwrap();
+        assert_eq!(file_size(&archivo) as usize, 5);
+
+        // El informe no puede fallar por una cifra estética: un archivo que ya no
+        // está devuelve cero y la exportación sigue teniendo éxito.
+        assert_eq!(file_size(&dir.join("no-esta.md")), 0);
+
+        // Y el error del escrito sigue diciendo el literal de siempre, con la causa.
+        let e = write_text(&dir.join("no-hay-nada/x.md"), "x").unwrap_err();
+        assert!(e.starts_with("No se pudo escribir el archivo: "), "{e}");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// La copia pasa por el mismo `write_text`: el literal de su error es el de
+    /// siempre, y `read_snapshot` vuelve a abrir lo que se escribió por esa ruta.
+    #[test]
+    fn la_copia_completa_escribe_por_el_mismo_camino() {
+        let dir = std::env::temp_dir().join(format!("hatboo-backup-snap-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let archivo = dir.join("copia.json");
+        let instantanea = Snapshot {
+            app: APP_TAG.to_string(),
+            version: FORMAT_VERSION,
+            exported_at: chrono_now_ms(),
+            settings: None,
+            projects: Vec::new(),
+            conversations: vec![ConversationRow {
+                id: "c1".into(),
+                title: "El plan del finde".into(),
+                created_at: 1,
+                updated_at: 2,
+                project_id: None,
+                pinned: false,
+                archived: false,
+            }],
+            messages: Vec::new(),
+            skills: Vec::new(),
+            images: BTreeMap::new(),
+        };
+
+        write_snapshot(&archivo, &instantanea).unwrap();
+        assert!(file_size(&archivo) > 0, "la copia se escribió en disco");
+        assert_eq!(read_snapshot(&archivo).unwrap().conversations.len(), 1);
+
+        let e = write_snapshot(&dir.join("falta/dentro.json"), &instantanea).unwrap_err();
+        assert!(e.starts_with("No se pudo escribir el archivo: "), "{e}");
+        std::fs::remove_dir_all(&dir).ok();
     }
 }

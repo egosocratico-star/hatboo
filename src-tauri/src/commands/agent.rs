@@ -1,10 +1,15 @@
 //! Modo trabajo: el bucle del agente, su traza, sus cancelaciones y su deshacer.
+//!
+//! El disco del deshacer y el agregado de la pantalla de cambios viven en
+//! [`crate::servicios::agente`]; aquí queda el `#[tauri::command]` con la misma
+//! firma de siempre y el lock de la conexión, que es lo único que un comando tiene
+//! que saber hacer.
 
-use super::_comunes::titulo_breve;
 use crate::db;
+use crate::servicios::agente::{self as servicio_agente, CambioSesion};
 use crate::state::{self, AppState};
 use serde::Serialize;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tauri::{Manager, State};
 
 #[tauri::command]
@@ -26,16 +31,14 @@ pub async fn start_work_task(
         let conn = state.db.lock().map_err(|e| e.to_string())?;
         let project = db::get_project(&conn, &project_id)?;
         db::add_message(&conn, &conversation_id, "user", &request, Some("agent"))?;
-        let title: String = conn
-            .query_row(
-                "SELECT title FROM conversations WHERE id = ?1",
-                rusqlite::params![conversation_id],
-                |row| row.get(0),
-            )
-            .unwrap_or_default();
-        if title == "Sesión de trabajo" {
-            let _ = db::rename_conversation(&conn, &conversation_id, &titulo_breve(&request));
-        }
+        // El mismo paso que en `send_message`: la consulta vive en `db` y la
+        // decisión de renombrar en `AgentService`, no aquí.
+        let _ = crate::servicios::agente::AgentService::titular_desde_el_pedido(
+            &conn,
+            &conversation_id,
+            &request,
+            "Sesión de trabajo",
+        );
         db::touch_project(&conn, &project_id)?;
         (PathBuf::from(project.root_path), project.approval_level)
     };
@@ -64,18 +67,11 @@ pub async fn start_work_task(
     Ok(())
 }
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CambioSesion {
-    pub ruta: String,
-    /// El diff de la última vez que se escribió: si el agente reescribió el
-    /// archivo tres veces, lo que importa es el estado final.
-    pub diff: String,
-    pub creado: bool,
-    pub escrituras: u32,
-}
-
 /// Resumen de lo que el agente cambió en esta sesión de trabajo.
+///
+/// El agregado por ruta —y qué se enseña de la salida JSON de `write_file`— está
+/// en [`CambioSesion`] y en el servicio; el comando solo abre la conexión, lee las
+/// filas y las pasa.
 #[tauri::command]
 pub fn session_changes(
     app: State<AppState>,
@@ -85,33 +81,7 @@ pub fn session_changes(
         let conn = app.db.lock().map_err(|e| e.to_string())?;
         db::session_writes(&conn, &conversation_id)?
     };
-    // Se agregan por ruta conservando el orden de la primera aparición.
-    let mut orden: Vec<String> = Vec::new();
-    let mut acumulado: std::collections::HashMap<String, CambioSesion> =
-        std::collections::HashMap::new();
-    for r in registros {
-        let Some(salida) = r.output else { continue };
-        let Ok(valor) = serde_json::from_str::<serde_json::Value>(&salida) else {
-            continue;
-        };
-        let Some(ruta) = valor["path"].as_str() else { continue };
-        let entrada = acumulado.entry(ruta.to_string()).or_insert_with(|| {
-            orden.push(ruta.to_string());
-            CambioSesion {
-                ruta: ruta.to_string(),
-                diff: String::new(),
-                creado: false,
-                escrituras: 0,
-            }
-        });
-        entrada.diff = valor["diff"].as_str().unwrap_or_default().to_string();
-        entrada.creado = valor["created"].as_bool().unwrap_or(false);
-        entrada.escrituras += 1;
-    }
-    Ok(orden
-        .into_iter()
-        .filter_map(|r| acumulado.remove(&r))
-        .collect())
+    Ok(servicio_agente::AgentService::cambios_de_sesion(&registros))
 }
 
 /// Una línea de la traza, con la forma que el frontend ya usa en vivo.
@@ -215,9 +185,13 @@ pub fn session_trace(
 }
 
 /// Devuelve los archivos que esta sesión tocó a como estaban antes de tocarlos.
-/// Se recorre en orden inverso: es la única forma de que dos escrituras del
-/// mismo archivo terminen en el original y no en el penúltimo estado. Un
-/// deshacer dos veces seguidas no borra nada más, porque los respaldos se van.
+///
+/// El recorrido en orden inverso, el `remove_file` de lo que la sesión creó, el
+/// `copy` desde el respaldo y el llevarse la carpeta de respaldos están en
+/// [`servicio_agente::deshace`], que es quien toca disco. Aquí queda lo que solo
+/// sabe la app: **de qué sesión** se habla —la conversación tiene que ser de un
+/// proyecto, y la raíz sale de la base de datos— y en qué carpeta están los
+/// respaldos, que la nombra `crate::agent::loop_runner`.
 #[tauri::command]
 pub fn deshace_sesion(
     app: State<AppState>,
@@ -236,52 +210,7 @@ pub fn deshace_sesion(
         )
     };
     let respaldos = crate::agent::loop_runner::respaldos_de(&app.data_dir, &conversation_id);
-    let devueltos = revierte(&raiz, &respaldos, &registros)?;
-    let _ = std::fs::remove_dir_all(&respaldos);
-    Ok(devueltos)
-}
-
-/// El cuerpo de `deshace_sesion`, aparte para poder probarlo sin Tauri ni BD.
-fn revierte(
-    raiz: &Path,
-    respaldos: &Path,
-    registros: &[db::ToolCall],
-) -> Result<Vec<String>, String> {
-    let mut devueltos: Vec<String> = Vec::new();
-    for r in registros.iter().rev() {
-        let Some(salida) = &r.output else { continue };
-        let Ok(valor) = serde_json::from_str::<serde_json::Value>(salida) else {
-            continue;
-        };
-        let Some(rel) = valor["path"].as_str() else { continue };
-        // La ruta la escribió el modelo, así que se vuelve a validar contra el
-        // proyecto antes de pisar o borrar, igual que al ejecutar la tool.
-        let Ok(destino) = crate::agent::tools::resolve_in_project(raiz, rel) else {
-            continue;
-        };
-        let novedad = valor["created"].as_bool().unwrap_or(false);
-        let hecho = if novedad {
-            // Lo que la sesión creó no existía antes: deshacer es borrarlo.
-            match std::fs::remove_file(&destino) {
-                Ok(_) => true,
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => false,
-                Err(e) => return Err(format!("No se pudo borrar {rel}: {e}")),
-            }
-        } else {
-            let original = crate::agent::loop_runner::respaldo_de(respaldos, &r.id);
-            if original.exists() {
-                std::fs::copy(&original, &destino)
-                    .map_err(|e| format!("No se pudo devolver {rel}: {e}"))?;
-                true
-            } else {
-                false
-            }
-        };
-        if hecho && !devueltos.iter().any(|d| d == rel) {
-            devueltos.push(rel.to_string());
-        }
-    }
-    Ok(devueltos)
+    servicio_agente::deshace(&raiz, &respaldos, &registros)
 }
 
 /// Pide cancelar una tarea del agente en curso.
@@ -399,7 +328,9 @@ pub fn agent_layers(app: State<AppState>) -> Result<Capas, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
+    // La prueba es la misma de siempre; lo único que cambió es la ruta: `revierte`
+    // ya no vive en este archivo, sino en el servicio de agente.
+    use crate::servicios::agente::revierte;
 
         #[test]
         fn deshacer_devuelve_el_original_y_borra_lo_creado() {
