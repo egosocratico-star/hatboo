@@ -5,6 +5,58 @@ lo que hay que ver para poder decir «cerrado». Un bloque no empieza con el
 anterior sin cerrar. Lo que se hizo ya está en `CHANGELOG.md`; cómo está organizado
 el código hoy está en `ARCHITECTURE.md`.
 
+## Estado del corte: **0.7.0 compilada el 07-10, sin publicar**
+
+`package.json`, `tauri.conf.json`, `Cargo.toml` y el bloque generado del README dicen
+`0.7.0`, y el `CHANGELOG.md` tiene su entrada (es lo que comprueba
+`npm run version:comprobar`). El `npm run tauri build` de esta máquina salió bien en
+**14 m 19 s** y dejó dos instaladores:
+
+```text
+src-tauri/target/release/bundle/msi/Hatboo_0.7.0_x64_en-US.msi    8,56 MB
+src-tauri/target/release/bundle/nsis/Hatboo_0.7.0_x64-setup.exe   5,41 MB
+```
+
+**Los dos ficheros son de las 15:51 del 08-10 y llevan el corte entero** (el stream
+letra a letra, el prompt adaptado al Plan sin nombrar capacidades, el `think: false`
+explícito, el tope de inactividad, el techo de razonamiento llegando al Plan y las dos
+notas nuevas del chat). Los de las 14:24 del 07-10 se habían quedado fuera, y también los
+dos recompilados aquel día (19:51 y 21:55): al primero le faltaba el arreglo del `Timeout`
+que se comió un «hola», y a los dos la recitación del prompt. Comprobado sobre el binario,
+no sobre la esperanza: en `hatboo.exe` están las cadenas `Este turno se responde con
+texto`, `Turno: una pregunta`, `apagado por el nivel` (crate) y `es una conversación`
+(app), y en el ACL generado `core:window:allow-destroy` —el permiso que faltaba y por el
+que la X no cerraba la app, sino que la reiniciaba—. Cerrado el binario nuevo con una
+petición de cierre normal, el proceso **termina**; el anterior llevaba desde las 14:47 del
+07-10 sin poder morir.
+
+Verificado sobre el binario, no sobre la esperanza: el `Cargo.lock` resuelve
+`hatboo-brain` **sin `source`**, o sea por el `[patch]` local, así que el instalador
+lleva dentro el Governor del 06-10 (comprobado buscando en el ejecutable las cadenas
+`Se corre a` y `ventana corta`, que solo existen ahí). Y en el `dist/` que se
+empaquetó está el tooltip nuevo del buscador y **no** está la línea del pie que se
+borró. El binario arranca y se queda en pie (log `C:\tmp\hatboo-release-070.log`).
+
+**Lo que falta para que sea una release de verdad**, en este orden y cada uno con su
+riesgo dicho: (1) commitear los dos repos, (2) empujar el crate y sacar su primera
+etiqueta, (3) regenerar `src-tauri/Cargo.lock` contra el rev publicado **sin** el
+`[patch]` y reconstruir —si no, el instalador que se suba a GitHub no es
+reproducible: lleva un crate que está en un directorio de mi portátil—, (4) la
+etiqueta `v0.7.0` de Hatboo y la publicación. **No se hizo ninguna de las cuatro**:
+empujar y publicar es acción sobre lo compartido, y no se hace sin que él lo diga
+explícitamente. Tampoco se instaló nada: se ejecutó el binario, no el `.msi`.
+
+**Y una nota sobre «añadir cosas»**, porque el 05-10 se tomó la decisión contraria y
+está escrita arriba: «**0.7 no añade funciones**… No hace falta más Hatboo: hace
+falta menos Hatboo, mejor organizado». En esta tanda se hicieron mejoras y quites
+(honestidad de la previa de Apariencia, allowlist del T7, un solo dueño de la curva,
+Ajustes en dos tramos, el compositor más corto, el nivel por defecto recuperado) y
+**ninguna función nueva**. Si ahora toca añadir, eso es reabrir esa decisión —o
+moverlo a 0.8—, y las candidatas que ya están en los papeles son: página de Seguridad
+y página de Diagnósticos propias, partir `Api` (seis temas en una pantalla), FTS5
+para el `Ctrl+K` con su comparación medida, y volver a montar el medidor de contexto
+con la puerta de G.5.
+
 La decisión de fondo, tomada el 2026-10-05: **0.7 no añade funciones**. Hatboo ya
 tiene chat multi-proveedor, streaming, razonamiento, web, imágenes, GitHub,
 plantillas, proyectos, sandbox, aprobaciones, plan editable, `HATBOO.md`, cambios
@@ -178,9 +230,12 @@ que no esté pasando.
   contra el fichero, y desde la raíz del repo el string se intentaría parsear como
   semver.
 
-**Sin cerrar de E:** el crate (`hatboo-brain`) no tiene etiquetas ni `CHANGELOG.md`;
-lo que Hatboo clava es un rev de `main` en su `Cargo.lock`. Se necesita una sola
-publicación del crate para poder decir «la dependencia tiene versión».
+**Sin cerrar de E (actualizado el 06-10):** el crate ya tiene `CHANGELOG.md` —escrito
+desde su `git log`, agrupado por lo que nota el consumidor, y enlazado desde su
+README— y su `docs/decision-log.md`. Lo que sigue sin haber es **etiqueta**:
+`Cargo.toml` dice `0.1.0` sin ningún `v*`, así que lo que Hatboo clava sigue siendo un
+rev de `main` en su `Cargo.lock`. Publicar la primera versión del crate es decisión
+suya (empuja con los commits pendientes), no trabajo pendiente de arquitectura.
 
 ## F. El gate M0 — **cerrado el 2026-10-05, con regresión medida**
 
@@ -212,6 +267,25 @@ ni se abre la Fase 7. Lo que abre es una tarea concreta antes de eso: bajar el c
 de recarga (el `keep_alive` y el vaivén de `num_ctx`) en el camino de coste bajo, y
 añadir entradas a la suite — el 100 % de la batería `--decisiones` es saturación, no
 virtud.
+
+**Addendum del 05-10, cerrado el gate.** La tarea de recarga se atacó el mismo día, y
+por el lado que él pidió: la RAM dejó de ser una puerta. La escalera bajó a cinco
+peldaños con los dos nuevos medidos (`num_ctx_suelo` por debajo de lo que el nivel
+pide), el Governor aprieta la ventana o gasta el margen en vez de negar el turno, y
+con el modelo residente a una ventana que cumple el nivel no se le mueve —que es lo
+que producía las 24 recargas, 3,7 s cada una—. Medido en un pase corto sobre este
+mismo modelo (8 saludos, `--reps 2`, 1936 MB libres): **1 carga, 0 rechazos**, 1237 ms
+de mediana [776–1704]. Eso **no** es un delta contra las 72 corridas de arriba —otras
+condiciones, otra categoría y menos repeticiones—; el `--comparar` al mismo nivel
+sigue pendiente, y con él la decisión de encender. `Verificado` 0 → 9 no se toca: la
+verificación nunca dependió de la puerta. Entrada 26 del `decision-log` del crate.
+
+Y el otro freno que él señaló —«el modelo está cargando y después continúa el brain»—
+no era el modelo: era la app reconociendo la máquina en cada mensaje. Medido con su
+propio config: **4414 ms** por turno (1386 de `/api/tags` + 3028 de las once fichas
+pedidas de una en una). Las fichas van en paralelo (306 ms) y el listado se guarda en
+caché 90 s; la sonda del adaptador lo comprueba: frío 1237 ms, caliente 0 ms, decidir
+0 ms. Entrada 27 del mismo registro.
 
 Para llegar aquí hubo que arreglar el instrumento: el `--comparar` metía los rechazos
 de 2 ms y 0 tokens en la mediana de coste y sacaba «-99,9 % de mejora» de un modelo que

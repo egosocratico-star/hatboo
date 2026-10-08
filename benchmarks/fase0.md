@@ -161,7 +161,15 @@ Tres rutas para cerrarlo, con su coste. **El 02-10 eligió la 1** y abajo está 
 
 `npm run fase0 -- suite --model gemma3:1b --reps 3 --ruta app` → **180 corridas en 60,4 min**, 176 válidas y 4 timeouts de 600 s (`archivo-08` rep 1 y `riesgo-10` las tres repes: la respuesta colgó del todo). Crudo en `resultados/suite-app-gemma3_1b-sintope-2026-10-02.json`.
 
-El system prompt no se transcribió: lo vuelca el propio código con `HATBOO_VOLCAR_PROMPT=1 cargo test --lib volcar_system_prompt` (`commands.rs::volcar_system_prompt_para_el_arnes`), y `benchmarks/system-prompt-app.md` lleva su fecha y el aviso de que es copia. Saludo y ambigüedad van por el prompt de chat; código, archivo, riesgo y tool por el del agente, con la misma regla que `modo_de` en el arnés del crate.
+El system prompt no se transcribió: lo vuelca el propio código con
+`HATBOO_VOLCAR_PROMPT=../benchmarks/system-prompt-app.md cargo test --lib volcar_system_prompt`
+—la variable **es la ruta de destino**, no un `1`: con `1` el test escribe un fichero
+llamado `1` en el directorio actual y el volcado de verdad no se entera (corregido el
+06-10, al ir a correr el piloto)—, en
+`commands/_comunes.rs::volcar_system_prompt_para_el_arnes` (hasta el bloque B estaba en
+`commands.rs`), y `benchmarks/system-prompt-app.md` lleva su fecha y el aviso de que es
+copia. Saludo y ambigüedad van por el prompt de chat; código, archivo, riesgo y tool
+por el del agente, con la misma regla que `modo_de` en el arnés del crate.
 
 | | proveedor pelado (§1) | **puerta de la app (§7.1)** |
 |---|---|---|
@@ -173,6 +181,19 @@ El system prompt no se transcribió: lo vuelca el propio código con `HATBOO_VOL
 | residente | 878 MB a ctx 2048 | **1009 MB a ctx 32768** |
 
 Por categoría (mediana de `total_ms` / tokens de salida): saludo 583 / 6 · ambigüedad 672 / 6 · tool 1227 / 18 · riesgo 1454 / 22 · archivo 2891 / 48 · **código 12880 / 128**.
+
+**Refresco del piloto el 06-10, con el prompt posterior al bloque C y en el otro
+modelo.** `npm run fase0 -- pilot --model qwen2.5-coder:1.5b --ruta app` → 12 prompts ×
+1 rep, **0 errores**, TTFT mediano **462 ms**, total mediano **1254 ms**, **16,2
+tok/s**, 2123 MB de RAM y 62,9 s de corrida; proyección de la suite completa 15,7 min
+(crudo en `resultados/piloto-app-qwen2.5_coder_1.5b-sintope-2026-10-07.json`). Para
+que esto pudiera correr hicieron falta dos arreglos del instrumento, no de la app: el
+volcado del prompt se leía **vacío** porque git lo entrega con `\r\n` y el arnés buscaba
+```` ```\n ```` literal, y la instrucción de esta misma sección mandaba
+`HATBOO_VOLCAR_PROMPT=1` cuando la variable es la **ruta de destino**. Con `1` el test
+escribía un fichero llamado `1` y el volcado real no se enteraba. La salida de este
+piloto es corta (5-13 tokens) porque el prompt de la app pide brevedad: es la misma
+lectura de la tabla de arriba, en el coder.
 
 Lo que se puede afirmar y lo que no:
 

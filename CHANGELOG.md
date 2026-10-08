@@ -10,10 +10,20 @@ Formato: lo que **añadió** cada versión para quien usa la app, lo que **cambi
 comportamiento y lo que se **quitó**. El trabajo interno de arquitectura no sale
 aquí; para eso está `docs/` y `ARCHITECTURE.md`.
 
-## [Sin publicar] — 0.7 en curso
+## [0.7.0] - 2026-10-07
 
-Lo que hay en `main` desde `v0.6.0` (2026-09-29 → 2026-10-05). Todavía no es
-release: no hay binario publicado con estos cambios.
+Lo que hay desde `v0.6.0` (2026-09-29 → 2026-10-07). Es la primera versión con el
+cerebro aparte (`hatboo-brain`) detrás de un interruptor, y la primera que se compila
+en el equipo de referencia (8,45 GB, sin GPU) con estos cambios: hasta hoy eran
+trabajo en `main` sin binario.
+
+Para quien usa la app, lo que cambia de cara: el chat y el modo trabajo pueden pasar
+por un cerebro que decide el esfuerzo, firma un Plan, recorta contexto y verifica la
+salida — y **ya no le niega la respuesta** cuando la máquina va justa (aprieta la
+ventana o gasta el margen y lo dice); el modelo que él elige es el que corre; la
+interfaz tiene una sola escala de letra, una sola familia de duraciones y una sola
+curva de frenado; Ajustes se partió en Básico y Avanzado; y el reconocimiento de la
+máquina que costaba 4,4 s por mensaje quedó cacheado.
 
 - **El ajuste de movimiento vuelve, y trae las dos cosas.** Ajustes → Apariencia
   tiene *Sistema* (manda `prefers-reduced-motion` de Windows), *Cómodo* y
@@ -33,6 +43,43 @@ release: no hay binario publicado con estos cambios.
 - **Una sola familia de duraciones** (`--mov-rapido` 120 ms, `--mov-normal` 180 ms,
   `--mov-lento` 320 ms, más la barra de descarga determinista), con su guardia
   `npm run prueba-movimiento`.
+- **Y una sola dueña de la curva.** La app tenía diez `ease-*` escritos en los
+  componentes que **no hacían nada**: la regla de `src/index.css` sobre el `*` está
+  fuera de capa y gana a cualquier utilidad de Tailwind — ese era el segundo dueño,
+  con la casualidad de que cinco de ellos pedían además una curva distinta. Fuera los
+  diez (sin cambiar un píxel: lo que se veía ya era la global), fuera
+  `ease-suave` del `tailwind.config.js` —una clase que no manda—, y
+  `npm run prueba-movimiento` vigila ahora la curva con presupuesto 0.
+- **El nivel de aprobación por defecto vuelve a poder cambiarse.** `PermissionPicker`
+  era el único sitio donde se editaba `defaultApprovalLevel` —el valor con el que
+  nace cada proyecto nuevo, que lee `commands/projects.rs`—, así que el resultado de
+  dejarlo sin montar era que **seguía habiendo ajuste, pero no había forma de
+  tocarlo**. Se quedó sin montar en la v0.5.0
+  (`5bc4ee4`), cuando el selector por proyecto de la vista de Trabajo (`ApprovalLevelPicker`)
+  le quitó el sitio: el import y la línea del compositor salieron en ese commit y el
+  fichero se quedó detrás. El control se fue a su sitio natural,
+  Ajustes → Agente, dentro de la tarjeta que ya explicaba los cuatro niveles: cuatro
+  chips con el activo marcado y la misma confirmación al entrar o salir de «Acceso
+  total» que tiene el selector por proyecto. Borrado el componente huérfano y sus
+  cinco cadenas de traducción.
+- **El pie de la barra lateral deja de repetir el buscador.** Fuera la línea fija
+  «Ctrl+K busca en chats, sesiones y carpetas», que duplicaba el botón de la barra de
+  título. Y al mirarla resultó que contaba **menos** de lo que busca la paleta, así
+  que el tooltip del buscador dice ahora lo que hace: «Buscar en chats, sesiones,
+  proyectos o modelos (Ctrl+K)». La mascota del pie se queda —es el estado del agente
+  de la carpeta abierta— y eso es lo que explica su título; antes era un adorno
+  `aria-hidden` con una frase de atajo al lado que no le pertenecía.
+- **Ajustes tiene dos alturas.** El raíl se partió en **Básico** (General,
+  Apariencia, API y modelos, Perfil, Atajos) y **Avanzado** (Agente, Skills, Memoria,
+  Adjuntos, Sistema, Datos), y «Acerca de» se quedó fuera de los dos: no es un
+  ajuste, es información del programa. La búsqueda del raíl filtra dentro del tramo y
+  esconde el rótulo del que queda vacío.
+- **El compositor, más corto y más claro.** Los chips de *Código* y *Búsqueda web*
+  apagados eran dos pastillas con palabra fijada delante del cursor; ahora el chip
+  apagado es un icono y **la palabra solo sale cuando el modo está puesto**, que es
+  cuando tiene que ser imposible de pasar por alto (el prompt cambia con él). La nota
+  del Brain enseña primero **el motivo** —lo que la frase de Ajustes promete— y las
+  cifras del Plan firmado se quedan a un clic.
 
 - **El cerebro externo, detrás de un interruptor.** El chat y el modo trabajo pueden
   pasar por [`hatboo-brain`](https://github.com/egosocratico-star/hatboo-brain):
@@ -43,6 +90,30 @@ release: no hay binario publicado con estos cambios.
   (`respetar_modelo`). Si el Brain quiere otro, lo dice con el motivo y sus números;
   no lo cambia en silencio. Medido antes de decidir esto: 34,7 s y 3 tokens por un
   «Hola.» por culpa de un re routing que nadie pidió.
+- **Y el Brain dejó de negar la respuesta por RAM.** Con lo de arriba puesto, un
+  «hola» con `qwen2.5-coder:1.5b` se quedó sin contestación: a 2048 de ventana pide
+  1109 MB, el margen de Ajustes son 250 y la sonda veía 1245 libres —faltaban 114 MB
+  que un saludo no necesita—. Desde el 05-10 la escalera tiene cinco peldaños (512 y
+  1024, medidos en esta máquina) y el Governor aprieta la ventana o gasta el margen,
+  escribiendo en la nota la cuenta que no cuadró («Se corre a 2048 sin margen»). Lo
+  mismo con el modelo residente: si su ventana ya cumple el nivel no se le mueve,
+  porque cada cambio de `num_ctx` son 3,7 s medidos y el pase del gate M0 acumuló 24
+  recargas. Re-medido tras el cambio, ocho saludos seguidos con el mismo modelo:
+  **una** sola carga, 0 rechazos, latencia mediana 1237 ms [776–1704] con 1936 MB
+  libres. Se reescribieron las dos frases de Ajustes que prometían que con el margen
+  alto «el Brain cortaría todos los pedidos» — ya no corta nada por RAM.
+- **El cerebro ya no reconoce la máquina en cada mensaje.** Medido con sus propios
+  ajustes y su Ollama: montar el Brain costaba **4,4 s por turno** —1,4 s de
+  `/api/tags` más 3,0 s de las once fichas pedidas de una en una—, y eso venía
+  *delante* de la respuesta: era el «carga el modelo y después sigue el brain». Las
+  fichas se piden ahora en paralelo (306 ms medidos) y el listado se cachea 90 s, así
+  que el primer turno paga 1,2 s y los siguientes 0 (la sonda está escrita:
+  `cargo test --no-default-features --features cerebro temp_mide -- --nocapture`). Y
+  el modelo se queda templado el tiempo que manda el Governor según cómo cupo:
+  15 minutos si cabía con margen, 5 si hubo que bajar la ventana, 1 minuto si hubo que
+  gastar el margen —antes era el default de Ollama para todos: 5 minutos, también para
+  una máquina que iba justa—). El retraso máximo para ver un modelo recién instalado
+  es de 90 segundos.
 - **El modo trabajo ve el proyecto real**: historial, skills, memoria y reglas
   llegan al Brain, y la detección de lenguajes es tri-estado («no lo sé» existe).
 - **Trust Gate del `HATBOO.md`**: entra al prompt solo el contenido exacto que
@@ -72,8 +143,82 @@ release: no hay binario publicado con estos cambios.
 - **CI**: clippy con `--all-targets` y `-D warnings` (destapa las tres pruebas de
   integración que llevan meses sin compilarse), y la versión comprobada contra su
   única fuente.
+- **La X de la barra de título sí cierra Hatboo.** El botón llamaba a `close()`, el
+  manejador de cierre paraba el stream y guardaba los borradores, y el último paso es
+  `destroy()` —pero a la ventana solo estaba concedido `allow-close`, no
+  `allow-destroy`. El permiso denegado se tragaba en el `catch` que devuelve la pantalla
+  al estado normal, y el resultado era lo que él describió: «no funciona, solo se
+  reinicia la app». Añadido `core:window:allow-destroy` en
+  `src-tauri/capabilities/default.json`. Comprobado sobre el binario nuevo: lanzado y
+  pedido cierre normal, el proceso termina, dos veces. Y blindado el agujero que había
+  detrás: el `catch` solo cubría el `destroy`, así que un fallo en cualquiera de los
+  pasos previos dejaba el interruptor de «ya estoy cerrando» levantado y la X **no
+  volvía a responder nunca** —ahora el apagado está en un `finally` y el interruptor se
+  resetea si el `destroy` falla—.
 - **Apariencia**: la paleta oscura pasa al gris industrial y la caja de entrada al
   rectángulo.
+- **El texto del chat sale letra a letra.** Se veía aparecer la respuesta entera de
+  golpe porque el lector de Ollama del cerebro acumulaba todo el cuerpo antes de dar
+  la primera letra; ahora cada token se emite en cuanto llega. La interfaz ya agrupaba
+  por cuadro de pantalla, así que el atasco no estaba ahí. Medido contra el Ollama de
+  esta máquina después del arreglo: primera letra a los **197 ms**, 26 letras repartidas
+  en 2,6 s (antes: una sola entrega al final).
+- **Un saludo ya no puede quedarse sin respuesta.** Con el stream letra a letra, el
+  tope de 30 s que el cerebro firma para un turno Instantáneo pasó a gobernar la
+  generación entera (antes no regía nada: el cuerpo se leía entero por detrás). En un
+  arranque en frío —modelo cargado desde cero más los ~1100 tokens de prompt del chat—
+  eso corta el turno por mitad y no queda mensaje. El tope ahora es de **silencio**:
+  se corta cuando deja de llegar cualquier señal durante 30 s, y el total lo fija lo que
+  el propio Plan autorizó generar. Coste dicho: un turno con el razonamiento encendido
+  puede correr minutos, que es lo que se pidió al poner «Medio».
+- **Con un modelo que piensa, el chat deja de salir vacío.** Dos causas del mismo
+  sitio: el cerebro decía «no pienses» *callando* la opción —y Ollama decidía pensar,
+  gastando el tope de tokens entero en su razonamiento y devolviendo una respuesta
+  vacía y truncada; con `qwen3.5:0.8b` eran 17,5 s para nada, y 3,1 s con la opción
+  mandada de verdad—, y el stream no miraba la clave por la que este Ollama manda el
+  pensamiento (`thinking`), así que el bloque de razonamiento se quedaba vacío aunque
+  el modelo estuviera escribiéndolo. Ahora el razonamiento se ve mientras sale, y el
+  interruptor de Ajustes es verdad: *off* significa que no piensa.
+- **Las dos notas de debajo de cada respuesta, más claras y menos ruidosas.** La línea
+  de verificación ya no pinta un punto ámbar en una respuesta de charla que no tenía
+  nada que verificar, y sus etiquetas se dicen en español llano («Sin comprobar»,
+  «Rechazado por el formato»). La nota morada del cerebro —`regla «charla-corta» ·
+  Instantáneo · ctx 2048 · salida 192`, que era el idioma interno del crate escrito tal
+  cual— pasa a `Cerebro · Instantáneo · qwen2.5:1.5b`, y las cifras (ventana, tope de
+  salida, verificación) y el motivo completo se quedan a un clic dentro del desplegable,
+  en el mismo tamaño micro que el resto de metadatos.
+- **El prompt deja de ser el mismo para todo un turno, y deja de dar tema.** Con el
+  cerebro encendido, un chat que no tiene herramientas en el Plan ya no recibe las
+  cinco líneas de *plan firmado / herramientas listadas / archivos*, ni los hechos del
+  proyecto (raíz, tests, lint, build), ni la cuenta de aprobaciones y escrituras
+  permitidas; la capa del modo lleva además una etiqueta corta del tipo de trabajo
+  («Turno: una pregunta.»). Del lado de la app: el párrafo que explica el bloque de
+  resultados de búsqueda solo entra con la búsqueda encendida —apagada, describía algo
+  que no aparece nunca—, y se quitó del bloque de chat la frase «no tienes herramientas
+  de disco en este modo». **Por qué tan poco**: la primera versión de este arreglo, de
+  la tarde del 07-10, acabó recitada por el modelo —a «todo bien» contestó «Soy Hatboo… no
+  tengo herramientas que aprobar ni permiso necesario en este turno; mi función es
+  responder directamente a tus peticiones en español sin inventar rutas o comandos»—.
+  Un modelo de 0,8 B no razona sobre lo que lee: lo repite. La regla pasó a ser que un
+  turno de charla no oiga ninguna palabra sobre herramientas, permisos, ejecuciones o
+  archivos, y hay una prueba que lo vigila en los dos repos. Medido sobre la copia
+  volcada del prompt: el bloque de conducta del chat pasó de 3878 a 3745 caracteres
+  (≈1108 a ≈1070 tokens). La guía de sensibilidad (`Personas`) se queda entera: recortar
+  la seguridad no era un ahorro, era un riesgo.
+- **El nivel de razonamiento hace algo, y dice cuándo no.** El valor elegido llegaba
+  guardado y viajaba al cerebro, pero el que firma el Plan leía otro campo —el nivel se
+  pone en la configuración y el Plan miraba el pedido—, así que **en ningún nivel** se
+  encendía el razonamiento: la pantalla se quedaba en «En espera…» y no había
+  razonamiento que ver. Arreglado el cruce, la regla es: Instantáneo no piensa (es el
+  nivel de contestar ya; reservar «Medio» son 4096 tokens y 79,7 s medidos hasta la
+  primera letra de un saludo), Normal sube como mucho a Bajo, y Enfocado/Profundo honran
+  lo que elegiste. Cuando el nivel apaga lo pedido, se lee en el «¿Por qué?» de la
+  respuesta en vez de quedarse callado.
+- **Lo que NO cambió, para que no se lea como resuelto.** El bloque de conducta del chat
+  sigue siendo fijo: 3883 caracteres ≈ 1110 tokens que entran en cada turno, medido
+  sobre la copia volcada del prompt. Con el recorte de arriba el crate deja de añadirle
+  lo suyo, pero la prosa del producto es materia de otra decisión —qué se queda, qué se
+  acorta— y se acorta solo si él lo decide.
 
 ## [0.6.0] - 2026-09-29
 

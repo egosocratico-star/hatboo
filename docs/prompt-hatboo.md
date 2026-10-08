@@ -94,6 +94,26 @@ el motor está activado en Ajustes. Si no lo está, di que no está activado y
 para ahí; no lo simules con texto.
 ```
 
+> **Desvío medido el 07-10, escrito aquí en vez de reescribir el bloque.** El
+> código (`behavior::CONDUCTA_CHAT`) ya no es este texto literal. Tres cambios: el
+> párrafo de los resultados de búsqueda se separó en `CONDUCTA_BUSQUEDA` y **solo entra
+> con `web_search` encendida** (apagada, describía un bloque que no aparece nunca); se
+> añadió la línea contra el interrogatorio —a un «todo bien» el modelo contestó «¿Qué tal
+> te fue en el trabajo hoy?», y eso no es conversar—; y se quitó «no tienes herramientas
+> de disco en este modo», que decía lo mismo que la frase de al lado usando una palabra
+> que el modelo devolvía recitada. Medido sobre la copia volcada: el bloque de conducta
+> del chat pasó de **3878 a 3745 caracteres** (≈1108 a ≈1070 tokens).
+>
+> **La regla que salió de la segunda medición del mismo día**: en el chat no se nombra
+> ninguna capacidad. Por la tarde, un `qwen3.5:0.8b` contestó a «todo bien» con «no tengo
+> herramientas que aprobar ni permiso necesario en este turno; mi función es responder
+> directamente a tus peticiones en español sin inventar rutas o comandos». Cada fragmento
+> estaba escrito en el system —dos los había añadido yo esa misma mañana al intentar
+> arreglar justo eso—. Un modelo pequeño no razona sobre lo que lee: lo repite. La guía de
+> `Personas` se quedó entera (es la que impide diagnosticar de mentira, y recortarla justo
+> cuando puede hacer falta no era un ahorro sino un riesgo) y tampoco se tocó la política
+> de que el `<datos>` sea material.
+
 ---
 
 ## Bloque de trabajo (agente dentro de una carpeta)

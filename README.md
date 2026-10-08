@@ -10,7 +10,7 @@ Escrito con **Tauri 2** (Rust) + **React 18** + **TypeScript** + **Tailwind** +
 **Zustand** + **SQLite** (`rusqlite`).
 
 <!-- VERSION:START -->
-> Estado: app personal en desarrollo, versión **0.6.0** para Windows. Funciona,
+> Estado: app personal en desarrollo, versión **0.7.0** para Windows. Funciona,
 > no hay autoactualización. Los binarios se publican como release de GitHub al
 > empujar una etiqueta `v*` — el flujo está probado (v0.3.0 en 8m32s, v0.4.0 en
 > 10m50s) y la release publicada más reciente es siempre
