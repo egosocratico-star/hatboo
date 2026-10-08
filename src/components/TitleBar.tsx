@@ -66,7 +66,7 @@ export default function TitleBar() {
       <button
         onClick={() => setSearchOpen(true)}
         className={CUADRO}
-        title={t("Buscar en todos los chats (Ctrl+K)")}
+        title={t("Buscar en chats, sesiones, proyectos o modelos (Ctrl+K)")}
       >
         <Search className="h-4 w-4" />
       </button>

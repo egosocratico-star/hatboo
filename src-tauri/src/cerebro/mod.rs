@@ -76,31 +76,5 @@ pub async fn turno(
     ))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::medidas::*;
-
-    #[test]
-    fn las_medidas_salen_del_arnes_nadie_interpola() {
-        assert_eq!(residente("gemma3:1b", 2048), Some(878));
-        assert_eq!(residente("qwen3:1.7b", 8192), Some(2419));
-        assert_eq!(residente("qwen3.5:0.8b", 4096), Some(1090));
-        // Fuera de la escalera no se inventa nada interpolando entre medidas.
-        assert_eq!(residente("gemma3:1b", 16384), None);
-        assert_eq!(residente("modelo-que-no-existe", 2048), None);
-        assert_eq!(escalones_medidos("qwen3.5:0.8b"), 3);
-        assert_eq!(escalones_medidos("modelo-que-no-existe"), 0);
-    }
-
-    #[test]
-    fn ninguna_medida_sale_fuera_de_la_escalera() {
-        // El Governor solo pregunta por {2048, 4096, 8192}; un ctx raro aquí sería
-        // una cifra que nadie va a leer nunca.
-        for (modelo, tabla) in MEDIDAS {
-            for (ctx, mb) in *tabla {
-                assert!(matches!(*ctx, 2048 | 4096 | 8192), "{modelo}: ctx {ctx}");
-                assert!(*mb > 0 && *mb < 8192, "{modelo}: {mb} MB es imposible");
-            }
-        }
-    }
-}
+// Las pruebas de la tabla viven en `medidas.rs`, que es su única fuente: aquí
+// estaban copiadas y con la escalera nueva se habrían desviado las dos a la vez.

@@ -34,7 +34,7 @@ export default function PantallaCarga({
             es cuántas cargas de las listas terminaron. */}
         <div className="h-px w-44 bg-base-border">
           <div
-            className="h-px bg-accent-soft transition-[width] duration-lento ease-out"
+            className="h-px bg-accent-soft transition-[width] duration-lento"
             style={{ width: `${Math.round((hechos / pasos.length) * 100)}%` }}
           />
         </div>

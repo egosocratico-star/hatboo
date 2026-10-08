@@ -189,7 +189,15 @@
  *
  * Solo se toca la curva, no la duración. Desde el bloque D las duraciones tampoco
  * son decisión de cada sitio: salen de `--mov-rapido`, `--mov-normal` y
- * `--mov-lento`, y `npm run prueba-movimiento` no deja escribir otra a mano. */
+ * `--mov-lento`, y `npm run prueba-movimiento` no deja escribir otra a mano.
+ *
+ * Y la curva tampoco: desde el 06-10 **ningún componente escribe `ease-*`**. Los
+ * diez que había estaban muertos —esta regla sin capa les gana, que es justo lo que
+ * los dejaba sin efecto— y encima cinco de ellos nombraban una curva distinta de
+ * `--curva-suave` (`cubic-bezier(.2,.8,.2,1)` en el plegado de la barra lateral y del
+ * panel de proyecto), así que el sistema tenía dos dueños y uno solo mandaba. Se
+ * borraron sin cambiar un píxel: lo que se veía ya era esta línea. La guardia de
+ * `npm run prueba-movimiento` no deja volver a escribirlos. */
 *,
 *::before,
 *::after {

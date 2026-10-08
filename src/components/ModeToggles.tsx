@@ -23,12 +23,17 @@ export default function ModeToggles({ disabled = false }: Props) {
     void saveSettings(next).catch(() => {});
   };
 
-  // El chip apagado lleva fondo de superficie elevada: sin él era un contorno
-  // sobre el panel, del mismo peso que los iconos sueltos de la cabecera, y no
-  // se leía como «esto se puede pulsar» hasta pasar el ratón por encima.
-  const chip = (active: boolean) =>
-    `flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs transition-colors disabled:opacity-40 ${
-      active
+  // El chip apagado es un icono, sin palabra: eran dos pastillas con rótulo fijo
+  // delante del cursor, ocupando la línea del compositor para decir «esto NO está
+  // activado». Encendido vuelve la palabra, que es cuando el estado tiene que ser
+  // imposible de pasar por alto —el prompt cambia con él—. Fondo de superficie
+  // elevada en el apagado: sin él era un contorno sobre el panel, del mismo peso
+  // que los iconos de la cabecera, y no se leía como «esto se puede pulsar».
+  const chip = (activo: boolean) =>
+    `flex items-center gap-1.5 rounded-full border py-1.5 text-xs transition-colors disabled:opacity-40 ${
+      activo ? "px-2.5" : "px-1.5"
+    } ${
+      activo
         ? "border-accent/60 bg-accent/10 text-accent-soft"
         : "border-base-border bg-base-card text-zinc-400 hover:bg-base-hover hover:text-zinc-100 hover:border-accent/50"
     }`;
@@ -47,7 +52,7 @@ export default function ModeToggles({ disabled = false }: Props) {
         className={chip(settings.codeMode)}
       >
         <Code2 className="w-3.5 h-3.5 shrink-0" />
-        <span className="hidden sm:inline">{t("Código")}</span>
+        {settings.codeMode && <span>{t("Código")}</span>}
       </button>
       <button
         onClick={() => toggle("webSearch")}
@@ -61,7 +66,7 @@ export default function ModeToggles({ disabled = false }: Props) {
         className={chip(settings.webSearch)}
       >
         <Globe className="w-3.5 h-3.5 shrink-0" />
-        <span className="hidden sm:inline">Web</span>
+        {settings.webSearch && <span>{t("Web")}</span>}
       </button>
     </>
   );

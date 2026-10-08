@@ -44,8 +44,13 @@ for (const f of ["src/types.ts", "src/components/Settings.tsx", "src/components/
 
 const dic = readFileSync(join(process.cwd(), "src/i18n-en.ts"), "utf8");
 const traducidas = new Set();
+const duplicadas = [];
+const vistas = new Set();
 for (const m of dic.matchAll(/^\s*(?:"((?:[^"\\]|\\.)*)"|([A-Za-zÁÉÍÓÚÑáéíóúñ¿¡]+)):\s*"/gm)) {
-  traducidas.add(m[1] ? JSON.parse(`"${m[1]}"`) : m[2]);
+  const k = m[1] ? JSON.parse(`"${m[1]}"`) : m[2];
+  if (vistas.has(k)) duplicadas.push(k);
+  vistas.add(k);
+  traducidas.add(k);
 }
 
 // Una clave también cuenta como usada si el texto español aparece literal en
@@ -61,4 +66,11 @@ const sobran = [...traducidas].filter((k) => !usadas.has(k));
 console.log(`usadas ${usadas.size} · traducidas ${traducidas.size} · faltan ${faltan.length} · sobran ${sobran.length}`);
 for (const k of faltan) console.log("  FALTA:", JSON.stringify(k));
 for (const k of sobran) console.log("  SOBRA:", JSON.stringify(k));
-process.exit(faltan.length ? 1 : 0);
+if (duplicadas.length) {
+  console.log(`  DUPLICADAS: ${duplicadas.map((k) => JSON.stringify(k)).join(" · ")}`);
+}
+// Las sobras también cortan: una clave que ya no usa nadie no es deuda, es un
+// texto muerto que se traduce, se revisa y no aparece en ninguna pantalla. Con
+// `Propuesto` y `Sin verificar` pasó justo eso —la palabra se cambió en la
+// interfaz y el diccionario se quedó con las dos viejas— y nadie se enteró.
+process.exit(faltan.length || sobran.length || duplicadas.length ? 1 : 0);

@@ -65,12 +65,25 @@ le des números ni planes de dieta o de ejercicio. En lo delicado, una respuesta
 corta y precisa es mejor que una larga y segura de sí misma.";
 
 /// Lo que solo aplica al chat suelto, sin carpeta de proyecto.
+///
+/// La última frase nació de una medición del 07-10 sobre la BD de la app: a un
+/// «todo bien» el modelo contestó «¿Qué tal te fue en el trabajo hoy?». El bloque
+/// `Personas` de arriba manda ocuparse del momento que atraviesa la persona, y un
+/// 1,5 B no distingue cortesía de señal de aviso: sondea. La guía de seguridad se
+/// queda (es la que no deja diagnosticar de mentira); lo que se quita es el
+/// interrogatorio.
 pub(crate) const CONDUCTA_CHAT: &str = "\
-Estás en un chat: conversas y respondes. Aquí no tocas archivos ni ejecutas \
-comandos: no tienes herramientas de disco en este modo. Lo que se arregla \
-escribiendo en una carpeta se lo dices y le propones abrir el modo trabajo con \
-esa carpeta; nunca lo hagas de mentira escribiendo en el chat un archivo que no \
-existe.
+Estás en un chat: conversas y respondes. Aquí no tocas archivos ni corres \
+comandos: es una conversación. Lo que se arregla escribiendo en una carpeta se \
+lo dices y le propones abrir el modo trabajo con esa carpeta; nunca lo hagas de \
+mentira escribiendo en el chat un archivo que no existe.
+No le preguntes por su trabajo, su día o su ánimo para abrir tema: te ocupas de \
+lo que él cuenta, y lo que no dijo no se sondea.";
+
+/// Lo que hay que saber de los resultados de la búsqueda web. Solo entra cuando la
+/// búsqueda está encendida: con ella apagada el bloque nunca aparece, y describirlo
+/// era otro material que el modelo comenta en vez de contestar.
+pub(crate) const CONDUCTA_BUSQUEDA: &str = "\
 Si arriba aparece un bloque de resultados de búsqueda, son de internet y traen \
 su dirección: úsalos y di de dónde sale cada dato. Si no aparece y hacía falta \
 un dato actual, di que no lo has comprobado en la red en vez de adivinarlo.";
@@ -204,7 +217,11 @@ mod tests {
             assert!(!todo.contains(prohibida), "{prohibida}");
         }
         // Lo que sí afirma, comprobado contra src-tauri/src/agent/tools.
-        assert!(CONDUCTA_CHAT.contains("no tienes herramientas de disco"));
+        // La palabra «herramienta» no aparece en el bloque: un 0,8 B la devolvía
+        // recitada en un saludo («no tengo herramientas que aprobar…»). Nombrar el
+        // tema, aunque sea para negarlo, le da tema.
+        assert!(!CONDUCTA_CHAT.to_lowercase().contains("herramienta"));
+        assert!(CONDUCTA_CHAT.contains("es una conversación"));
         assert!(CONDUCTA_TRABAJO.contains("write_file"));
     }
 

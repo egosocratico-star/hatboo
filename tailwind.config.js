@@ -94,11 +94,11 @@ export default {
         // el filete de luz se usó `shadow-[var(--filo-luz)]`, que no depende del
         // config y se genera escaneando el fuente.
       },
-      // `ease-suave` en cualquier componente: la curva vive en index.css, así
-      // que cambiar el frenado de la interfaz entera es una línea.
-      transitionTimingFunction: {
-        suave: "var(--curva-suave)",
-      },
+      // Sin `transitionTimingFunction`: la curva la pone una sola regla de
+      // `src/index.css` sobre el `*` y fuera de capa, que gana a cualquier utilidad
+      // de Tailwind. Definir `ease-suave` aquí era tener una clase que no manda.
+      // Si algún día hace falta una segunda curva, se saca como variable y se
+      // reabre esta puerta con su caso en `npm run prueba-movimiento`.
     },
   },
   plugins: [],

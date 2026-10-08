@@ -457,7 +457,7 @@ export default function ProviderModelPicker() {
               )}
             </button>
             <div
-              className={`grid transition-[grid-template-rows,opacity] duration-normal ease-out ${
+              className={`grid transition-[grid-template-rows,opacity] duration-normal ${
                 reasonOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
               }`}
             >

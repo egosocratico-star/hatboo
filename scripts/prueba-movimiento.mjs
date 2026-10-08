@@ -8,6 +8,10 @@
 // existe para que el vaciado no vaya a menos: si alguien escribe un
 // `duration-[350ms]` nuevo, la puerta corta y dice en qué fichero.
 //
+// Desde el 06-10 comprueba además la **curva**, que es el otro dueño posible del
+// mismo gesto: un `ease-*` en el JSX no hace nada (ver `src/index.css`) pero se
+// lee como si mandara. Dos cuentas, dos presupuestos, y ambos solo pueden bajar.
+//
 // `PRESUPUESTO` **solo puede bajar**. Cuando llegue a 0 se borra la lista de
 // permitidos y la duración fuera de la tokenizada deja de ser legal en el repo.
 
@@ -32,6 +36,16 @@ const TOKENIZADAS = new Set([
 // quedaban en `src` pasaron a la tokenizada. El 0 es la guardia anti-regresión.
 const PRESUPUESTO = 0;
 
+// La curva única. `src/index.css` pone `transition-timing-function:
+// var(--curva-suave)` sobre `*` **fuera de capa**, y una regla sin capa gana a las
+// utilidades de Tailwind, que van en capa. O sea: un `ease-*` escrito en un
+// componente no hace nada —estaba muerto—, pero se lee como si mandara él. Diez los
+// había el 06-10 (5 `ease-[cubic-bezier(.2,.8,.2,1)]` en los plegados de panel, 3
+// `ease-out` y 2 `ease-suave`); se borraron sin que cambiara un píxel. Ninguna
+// escritura de curva es legal, así que no hay lista de permitidos.
+const CURVAS = /(?:^|[\s"`])ease-(?:\[[^\]]*\]|[-\w]+)/g;
+const PRESUPUESTO_CURVAS = 0;
+
 function ficheros(dir) {
   const out = [];
   for (const e of readdirSync(dir, { withFileTypes: true })) {
@@ -46,6 +60,8 @@ function ficheros(dir) {
 const conteo = new Map();
 let total = 0;
 const valores = new Map();
+const curvas = new Map();
+let total_curvas = 0;
 for (const f of ficheros(join(RAIZ, "src"))) {
   const texto = readFileSync(f, "utf8");
   const hits = (texto.match(OCURRENCIAS) ?? []).filter((h) => !TOKENIZADAS.has(h));
@@ -53,6 +69,11 @@ for (const f of ficheros(join(RAIZ, "src"))) {
     conteo.set(relative(RAIZ, f).replace(/\\/g, "/"), hits.length);
     total += hits.length;
     for (const h of hits) valores.set(h, (valores.get(h) ?? 0) + 1);
+  }
+  const rutas = (texto.match(CURVAS) ?? []).map((h) => h.trim());
+  if (rutas.length) {
+    curvas.set(relative(RAIZ, f).replace(/\\/g, "/"), rutas.length);
+    total_curvas += rutas.length;
   }
 }
 
@@ -90,6 +111,23 @@ const lista = [...conteo.entries()].sort((a, b) => b[1] - a[1]);
 if (lista.length) {
   console.log("  dónde quedan:");
   for (const [f, n] of lista) console.log(`   ${String(n).padStart(4)}  ${f}`);
+}
+
+console.log(`curvas escritas en un componente: ${total_curvas} (presupuesto ${PRESUPUESTO_CURVAS})`);
+if (total_curvas > PRESUPUESTO_CURVAS) {
+  console.error(
+    "\nHan aparecido " +
+      (total_curvas - PRESUPUESTO_CURVAS) +
+      " decisiones de curva en el JSX. La pone una sola línea de src/index.css " +
+      "sobre el * fuera de capa, y una regla sin capa gana a las utilidades de " +
+      "Tailwind: un ease-* escrito en un componente no hace nada, solo finge " +
+      "mandarla. Si de verdad hace falta otra curva, se añade como variable y se " +
+      "saca de esta guardia en el mismo commit, no se escribe a mano.",
+  );
+  for (const [f, n] of [...curvas.entries()].sort((a, b) => b[1] - a[1])) {
+    console.error(`   ${String(n).padStart(4)}  ${f}`);
+  }
+  roto = true;
 }
 
 process.exit(roto ? 1 : 0);

@@ -28,6 +28,7 @@ import Popover from "./Popover";
 import { useChatStore } from "../store/chatStore";
 import { haceRelativo, fmtDate } from "../time";
 import type { Message } from "../types";
+import { NIVEL_A_PALABRAS } from "../types";
 
 interface Props {
   message: Message;
@@ -421,40 +422,52 @@ function MessageBubble({
           } catch {
             return null;
           }
-          const color =
+          // El punto de color solo se enciende en los dos estados que son un hecho:
+          // verificado (verde) y rechazado (rojo). «Propuesto» y «sin verificar» son
+          // lo normal de un chat —no había comandos con los que comprobar una
+          // respuesta a «hola»—, y pintarlos con un ámbar encendido delante de cada
+          // mensaje convertía la conversación en un tablero de avisos.
+          const punto =
             d.estado === "Verificado"
               ? "bg-emerald-400"
-              : d.estado === "Propuesto"
-                ? "bg-amber-400"
-                : "bg-zinc-500";
+              : d.estado === "Rechazado"
+                ? "bg-red-400"
+                : null;
+          // Las cuatro palabras del crate traducidas a lo que significan para
+          // quien lee: `Propuesto` era el nombre de una variante interna, no un
+          // estado que nadie entiende en una burbuja. Y `Rechazado` se estaba
+          // pintando con la etiqueta «Sin verificar», que es otra cosa: ahí el
+          // stream se retractó por fallar el formato, y decirlo es obligatorio.
           const etiqueta =
             d.estado === "Verificado"
               ? t("Verificado")
-              : d.estado === "Propuesto"
-                ? t("Propuesto")
-                : t("Sin verificar");
+              : d.estado === "Rechazado"
+                ? t("Rechazado por el formato")
+                : t("Sin comprobar");
           return (
-            <div className="mt-1.5 text-etiqueta text-zinc-400">
+            <div className="mt-1.5 text-micro text-zinc-600">
               <div className="flex items-center gap-1.5">
-                <span
-                  aria-hidden
-                  className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${color}`}
-                />
+                {punto && (
+                  <span
+                    aria-hidden
+                    className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${punto}`}
+                  />
+                )}
                 <span>{etiqueta}</span>
                 {d.ms > 0 && (
-                  <span className="tabular-nums text-zinc-500">
-                    · {(d.ms / 1000).toFixed(1)} s
+                  <span className="tabular-nums">
+                    · {(d.ms / 1000).toFixed(1).replace(".", ",")} s
                     {d.toks != null && ` · ${d.toks} tok`}
                   </span>
                 )}
               </div>
               {d.porque && (
                 <details className="mt-0.5">
-                  <summary className="cursor-pointer list-none select-none text-zinc-500 transition-colors hover:text-zinc-300">
+                  <summary className="cursor-pointer list-none select-none text-zinc-600 transition-colors hover:text-zinc-400">
                     {t("¿Por qué?")}
                   </summary>
-                  <p className="mt-1 max-w-prose leading-snug text-zinc-500">
-                    {d.nivel && <>{d.nivel} · </>}
+                  <p className="mt-1 max-w-prose leading-snug text-zinc-600">
+                    {d.nivel && <>{t(NIVEL_A_PALABRAS[d.nivel] ?? d.nivel)} · </>}
                     {d.modelo && <>{d.modelo} · </>}
                     {d.porque}
                   </p>

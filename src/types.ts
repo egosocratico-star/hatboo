@@ -517,8 +517,9 @@ export interface PendingApproval {
 }
 
 /** Lo que decidió el crate `hatboo-brain` en el turno que acaba de responder.
- *  Los valores de `nivel`, `contrato`, `verificacion` y `estadoSalida` los escribe
- *  el crate en español: se muestran tal cual, sin traducirlos a medias. */
+ *  Los valores de `contrato`, `verificacion` y `estadoSalida` los escribe el crate
+ *  en español: se muestran tal cual, sin traducirlos a medias. `nivel` no —llega
+ *  como el nombre de la variante, `N0`—, y por eso pasa por `NIVEL_A_PALABRAS`. */
 export interface TrazaCerebro {
   nivel: string;
   intent: string;
@@ -533,3 +534,14 @@ export interface TrazaCerebro {
   reintentos: number;
   duracionMs: number;
 }
+
+/** El nivel en las palabras del producto. `nivel` viene del `{:?}` de Rust, así que
+ *  sin este mapa el hilo mostraba el nombre del depurador («N0») en la interfaz.
+ *  Son las cuatro etiquetas de `Level::etiqueta()` en el crate: no las inventa la
+ *  app, y si el crate cambia una, cambia aquí. */
+export const NIVEL_A_PALABRAS: Record<string, string> = {
+  N0: "Instantáneo",
+  N1: "Normal",
+  N2: "Enfocado",
+  N3: "Profundo",
+};

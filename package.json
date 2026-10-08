@@ -1,7 +1,7 @@
 {
   "name": "hatboo",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.7.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -19,6 +19,7 @@
     "prueba-contraste": "node scripts/prueba-contraste.mjs",
     "prueba-grano": "node scripts/prueba-grano.mjs",
     "prueba-movimiento": "node scripts/prueba-movimiento.mjs",
+    "prueba-radios": "node scripts/prueba-radios.mjs",
     "prueba-tipografia": "node scripts/prueba-tipografia.mjs",
     "prueba-version": "node scripts/prueba-version.mjs",
     "tauri": "tauri"

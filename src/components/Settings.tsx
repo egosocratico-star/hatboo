@@ -53,24 +53,37 @@ type CategoryId =
   | "system"
   | "data";
 
+/** Dónde cae cada página. El corte Básico/Avanzado es el del plan de 0.7: lo que
+ *  hace falta para usar la app arriba, y la maquinaria del agente, el Brain, el
+ *  disco y los datos debajo. «Acerca de» no es un ajuste —es información sobre el
+ *  programa—, así que va en su propio tramo, fuera de los dos. */
+type Nivel = "basico" | "avanzado" | "info";
+
 const CATEGORIES: Array<{
   id: CategoryId;
   label: string;
   icon: typeof Cpu;
   ready: boolean;
+  nivel: Nivel;
 }> = [
-  { id: "general", label: "General", icon: SlidersHorizontal, ready: true },
-  { id: "appearance", label: "Apariencia", icon: Palette, ready: true },
-  { id: "api", label: "API y modelos", icon: Cpu, ready: true },
-  { id: "agent", label: "Agente", icon: Bot, ready: true },
-  { id: "skills", label: "Skills", icon: Sparkles, ready: true },
-  { id: "profile", label: "Perfil", icon: User, ready: true },
-  { id: "memoria", label: "Memoria", icon: Brain, ready: true },
-  { id: "adjuntos", label: "Adjuntos", icon: Paperclip, ready: true },
-  { id: "system", label: "Sistema", icon: HardDrive, ready: true },
-  { id: "data", label: "Datos", icon: Database, ready: true },
-  { id: "shortcuts", label: "Atajos", icon: Keyboard, ready: true },
-  { id: "about", label: "Acerca de", icon: Info, ready: true },
+  { id: "general", label: "General", icon: SlidersHorizontal, ready: true, nivel: "basico" },
+  { id: "appearance", label: "Apariencia", icon: Palette, ready: true, nivel: "basico" },
+  { id: "api", label: "API y modelos", icon: Cpu, ready: true, nivel: "basico" },
+  { id: "profile", label: "Perfil", icon: User, ready: true, nivel: "basico" },
+  { id: "shortcuts", label: "Atajos", icon: Keyboard, ready: true, nivel: "basico" },
+  { id: "agent", label: "Agente", icon: Bot, ready: true, nivel: "avanzado" },
+  { id: "skills", label: "Skills", icon: Sparkles, ready: true, nivel: "avanzado" },
+  { id: "memoria", label: "Memoria", icon: Brain, ready: true, nivel: "avanzado" },
+  { id: "adjuntos", label: "Adjuntos", icon: Paperclip, ready: true, nivel: "avanzado" },
+  { id: "system", label: "Sistema", icon: HardDrive, ready: true, nivel: "avanzado" },
+  { id: "data", label: "Datos", icon: Database, ready: true, nivel: "avanzado" },
+  { id: "about", label: "Acerca de", icon: Info, ready: true, nivel: "info" },
+];
+
+const GRUPOS: Array<{ id: Nivel; titulo: string }> = [
+  { id: "basico", titulo: "Básico" },
+  { id: "avanzado", titulo: "Avanzado" },
+  { id: "info", titulo: "" },
 ];
 
 export default function Settings() {
@@ -231,30 +244,47 @@ export default function Settings() {
             />
           </div>
           <div className="space-y-1">
-            {visible.map((c) => {
-              const Icon = c.icon;
-              const active = c.id === cat;
+            {GRUPOS.map((g) => {
+              const items = visible.filter((c) => c.nivel === g.id);
+              if (items.length === 0) return null;
               return (
-                <button
-                  key={c.id}
-                  onClick={() => setCat(c.id)}
-                  className={`relative w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-colors text-left ${
-                    active
-                      ? "bg-accent/15 text-accent-soft"
-                      : "text-zinc-400 hover:bg-base-hover hover:text-zinc-200"
-                  }`}
-                >
-                  {active && (
-                    <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-accent" />
+                <div key={g.id} className="space-y-1">
+                  {g.titulo ? (
+                    <p className="px-2.5 pt-2 pb-0.5 text-micro uppercase tracking-wide text-zinc-600">
+                      {t(g.titulo)}
+                    </p>
+                  ) : (
+                    /* «Acerca de» no es un ajuste: línea aparte y sin rótulo, para
+                        que no parezca una tercera categoría. */
+                    <p className="mt-2 border-t border-base-border/50" aria-hidden />
                   )}
-                  <Icon className="w-4 h-4 shrink-0" />
-                  <span className="flex-1">{t(c.label)}</span>
-                  {!c.ready && (
-                    <span className="text-micro uppercase tracking-wide text-zinc-600">
-                      pronto
-                    </span>
-                  )}
-                </button>
+                  {items.map((c) => {
+                    const Icon = c.icon;
+                    const active = c.id === cat;
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => setCat(c.id)}
+                        className={`relative w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-colors text-left ${
+                          active
+                            ? "bg-accent/15 text-accent-soft"
+                            : "text-zinc-400 hover:bg-base-hover hover:text-zinc-200"
+                        }`}
+                      >
+                        {active && (
+                          <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-accent" />
+                        )}
+                        <Icon className="w-4 h-4 shrink-0" />
+                        <span className="flex-1">{t(c.label)}</span>
+                        {!c.ready && (
+                          <span className="text-micro uppercase tracking-wide text-zinc-600">
+                            pronto
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               );
             })}
             {visible.length === 0 && (

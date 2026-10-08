@@ -173,7 +173,7 @@ export default function TaskList({
       {tasks.length > 0 && (
         <div className="h-px shrink-0 bg-base-border">
           <div
-            className="h-px bg-accent-soft transition-[width] duration-lento ease-out"
+            className="h-px bg-accent-soft transition-[width] duration-lento"
             style={{ width: `${Math.round((hechos / tasks.length) * 100)}%` }}
           />
         </div>

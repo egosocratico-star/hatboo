@@ -2,7 +2,7 @@
 //! Cargo `cerebro` (ver `cerebro/mod.rs`): sin ella el chat no ve al crate.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
@@ -20,7 +20,7 @@ use hatboo_brain::api::vocab::{ApprovalLevel, ExecutionPolicy, Mode, ThinkingLev
 use hatboo_brain::brain::{Brain, Montaje, OpcionesDeCorrida};
 use hatboo_brain::config::schema::{BrainConfig, Flags};
 use hatboo_brain::decision::rules::Reglas;
-use hatboo_brain::models::{ModeloCargado, Registry};
+use hatboo_brain::models::{ModelInfo, ModeloCargado, Registry};
 use hatboo_brain::observability::events::{BrainEvent, CancelToken, Emitidor};
 use hatboo_brain::prompt::{Estimador, Identidad};
 use hatboo_brain::providers::ModelProvider;
@@ -297,18 +297,50 @@ impl ResourceProbe for Sonda {
     }
 }
 
-/// Lo que Ollama declara por `/api/show` (contexto máximo, capacidades, perfil)
-/// con encima la RAM residente medida en esta máquina. Las dos mitades hacen
-/// falta: sin `ram_mb_by_ctx` el Governor descarta todo local (§X del Canon: lo
-/// que no está medido no se afirma), y sin el resto el Selector no sabe qué puede
-/// pedirle al modelo.
+/// Cuánto vive la caché del listado de Ollama. Medido el 06-10 en esta máquina:
+/// reconocerla costaba **~4,4 s por turno** —1,4 s de `/api/tags` más 3,0 s de las
+/// once fichas pedidas de una en una—, y se hacía en cada mensaje antes de decidir
+/// nada. Ese era el «el brain continúa después de que cargue el modelo» que él veía.
+/// Con las fichas en paralelo (306 ms) y esta caché, el segundo turno de una charla
+/// no paga reconocimiento; el precio es que un modelo recién instalado entra al
+/// Brain con hasta 90 s de retraso.
+const REGISTRO_CADUCA: Duration = Duration::from_secs(90);
+
+/// El listado de Ollama con la marca de cuándo se tomó.
+type RegistroOllama = (Instant, Vec<ModelInfo>);
+
+static REGISTRO: OnceLock<Mutex<Option<RegistroOllama>>> = OnceLock::new();
+
+/// El `OnceLock` es para no obligar a nadie a pasar el estado de Tauri hasta el
+/// adaptador: la caché es por proceso, y Ollama es un servidor único.
+fn cerrojo_del_registro() -> &'static Mutex<Option<RegistroOllama>> {
+    REGISTRO.get_or_init(|| Mutex::new(None))
+}
+
+/// Lo que Ollama declara por `/api/show` (contexto máximo, capacidades, perfil) con
+/// encima la RAM residente medida en esta máquina. Las dos mitades hacen falta: sin
+/// `ram_mb_by_ctx` el Governor descarta todo local (§X del Canon: lo que no está
+/// medido no se afirma), y sin el resto el Selector no sabe qué puede pedirle al
+/// modelo.
 pub(crate) async fn function_registry(desde: &OllamaProvider) -> Result<Registry, String> {
+    if let Ok(cerrado) = cerrojo_del_registro().lock() {
+        if let Some((cuando, modelos)) = cerrado.as_ref() {
+            if cuando.elapsed() < REGISTRO_CADUCA {
+                return Ok(Registry::nuevo(modelos.clone()));
+            }
+        }
+    }
     let mut modelos = desde
         .list_models()
         .await
         .map_err(|e| format!("Ollama no describió sus modelos: {e}"))?;
     for m in &mut modelos {
-        let escalones = [2048u32, 4096, 8192];
+        // Los cinco peldaños de la escalera del Governor. Los dos bajos (512, 1024)
+        // son los que le permiten **apretar la ventana en vez de negar el turno**;
+        // sin su fila en `medidas` no existen para él, porque `ram_para` no
+        // interpola. Se filtra por lo medido, así que un hueco aquí no infla la
+        // escalera con una cifra inventada.
+        let escalones = [512u32, 1024, 2048, 4096, 8192];
         let tabla: std::collections::BTreeMap<u32, u64> = escalones
             .iter()
             .filter_map(|c| medidas::residente(&m.id, *c).map(|mb| (*c, mb)))
@@ -316,6 +348,9 @@ pub(crate) async fn function_registry(desde: &OllamaProvider) -> Result<Registry
         if !tabla.is_empty() {
             m.ram_mb_by_ctx = tabla;
         }
+    }
+    if let Ok(mut abierto) = cerrojo_del_registro().lock() {
+        *abierto = Some((Instant::now(), modelos.clone()));
     }
     Ok(Registry::nuevo(modelos))
 }
@@ -458,6 +493,13 @@ pub async fn turno(
 ) -> Result<Option<String>, ProviderError> {
     let ollama = Arc::new(OllamaProvider::con_base(settings.local_endpoint.clone()));
     let sonda = Arc::new(Sonda::nueva());
+    // Qué tiene cargado el servidor, antes de decidir: con la lista vacía el
+    // Governor propone cargar lo que ya está residente y se apunta una recarga de
+    // 3,7 s que no existió. Se arranca **antes** de montar el Brain y se espera
+    // después porque las dos lecturas de Ollama son independientes: esperarlas de
+    // una en otra sumaba su latencia al principio del turno. Si no contesta se
+    // sigue con lo que se sepa.
+    let cargado = sonda.refrescar(&ollama);
     let (cerebro, req) = match preparar(&settings, &messages, &ollama, &sonda, &data_dir).await {
         Ok(preparado) => preparado,
         Err(motivo) => {
@@ -465,10 +507,7 @@ pub async fn turno(
             return proveedor.stream_response(messages, tx).await.map(|_| None);
         }
     };
-    // Qué tiene cargado el servidor, antes de decidir: con la lista vacía el
-    // Governor propone cargar lo que ya está residente y se apunta una recarga de
-    // 3,7 s que no existió. Si Ollama no contesta se sigue con lo que se sepa.
-    sonda.refrescar(&ollama).await;
+    cargado.await;
 
     let traza = Arc::new(Mutex::new(Traza::default()));
     let texto_emitido = Arc::new(AtomicUsize::new(0));
@@ -626,7 +665,7 @@ fn avisa(app: &tauri::AppHandle, conv_id: &str, porque: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::{aplicable, es_negativa_de_modelo};
+    use super::{aplicable, es_negativa_de_modelo, Instant};
     use crate::providers::{ChatMessage, ImagePart, ProviderError};
     use crate::state::Settings;
     use hatboo_brain::api::error::BrainError;
@@ -756,20 +795,41 @@ mod tests {
         assert!(s.cargados().is_empty());
     }
 
-    /// Medición con el Ollama y la RAM de esta máquina, por el config que arma
-    /// Hatboo. Temporal: se corre a mano y se borra.
+    /// Sonda de tiempos del camino del Brain, con el Ollama y la RAM de esta
+    /// máquina. No la corre la CI: sin la feature `cerebro` esto ni se compila, y
+    /// necesita el servidor de pie. A mano:
+    /// `cargo test --no-default-features --features cerebro temp_mide -- --nocapture`
+    ///
+    /// Existe porque el «va lento» de él no era el modelo: era el reconocimiento de
+    /// la máquina que se pagaba en CADA turno antes de decidir nada.
     #[tokio::test]
-    async fn temp_mide_la_negativa_con_el_config_de_hatboo() {
-        use super::{preparar, OllamaProvider};
-        for modelo in ["qwen3:1.7b", "gemma3:1b"] {
-            let s = Settings {
-                brain_enabled: true,
-                active_provider: "local".into(),
-                local_model: modelo.into(),
-                ..Default::default()
-            };
-            let ollama = std::sync::Arc::new(OllamaProvider::con_base(s.local_endpoint.clone()));
+    async fn temp_mide_lo_que_tarda_el_preparado_del_cerebro() {
+        use super::{function_registry, preparar, OllamaProvider};
+        let base = Settings {
+            brain_enabled: true,
+            active_provider: "local".into(),
+            ..Default::default()
+        };
+        let ollama = std::sync::Arc::new(OllamaProvider::con_base(base.local_endpoint.clone()));
+
+        let t = Instant::now();
+        let frio = function_registry(&ollama).await.expect("registry en frío");
+        let ms_frio = t.elapsed().as_millis();
+        let t = Instant::now();
+        let caliente = function_registry(&ollama).await.expect("registry en caliente");
+        let ms_caliente = t.elapsed().as_millis();
+        assert_eq!(frio.modelos.len(), caliente.modelos.len());
+        println!(
+            "registry: frío {ms_frio} ms · con la caché puesta {ms_caliente} ms · {} modelos",
+            frio.modelos.len()
+        );
+        assert!(ms_caliente < ms_frio, "la caché no calentó: {ms_caliente} vs {ms_frio}");
+
+        for modelo in ["qwen2.5-coder:1.5b", "qwen3:1.7b", "gemma3:1b"] {
+            let mut s = base.clone();
+            s.local_model = modelo.into();
             let sonda = std::sync::Arc::new(super::Sonda::nueva());
+            let t = Instant::now();
             let (cerebro, req) = preparar(
                 &s,
                 &turno("hola", 0),
@@ -779,15 +839,17 @@ mod tests {
             )
             .await
             .expect("el Brain se monta contra el Ollama de esta máquina");
-            println!(
-                "RAM libre {} MB de {} MB",
-                sonda.libre_mb().unwrap_or(0),
-                sonda.total_mb().unwrap_or(0)
-            );
+            let ms_preparar = t.elapsed().as_millis();
+            let t = Instant::now();
             // `plan` pasa por el mismo `planificar` que `run` y no llama al modelo.
             match cerebro.plan(&req).await {
-                Ok(p) => println!("  {modelo} → PLAN: {} a {}", p.model, p.num_ctx),
-                Err(e) => println!("  {modelo} → NEGATIVA: {e}"),
+                Ok(p) => println!(
+                    "  {modelo} · preparar {ms_preparar} ms · decidir {} ms · PLAN a ctx {} y keep_alive {:?}",
+                    t.elapsed().as_millis(),
+                    p.num_ctx,
+                    p.keep_alive
+                ),
+                Err(e) => println!("  {modelo} · preparar {ms_preparar} ms · NEGATIVA: {e}"),
             }
         }
     }

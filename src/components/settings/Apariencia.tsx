@@ -231,7 +231,7 @@ export default function AjustesApariencia({
                 <span
                   className={`inline-block max-w-full truncate px-3 py-1.5 text-xs ${
                     b.id === "solida"
-                      ? "rounded-3xl bg-accent-dim text-white"
+                      ? "rounded-entrada bg-accent-dim text-white"
                       : "rounded-xl border border-accent/40 bg-accent/20 text-layer"
                   }`}
                 >

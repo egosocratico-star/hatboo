@@ -165,7 +165,7 @@ export default function ProjectsView() {
                       abrir(p);
                     }
                   }}
-                  className="group relative z-0 flex min-h-[132px] cursor-pointer flex-col gap-3 rounded-tarjeta border border-base-border/60 bg-base-card p-5 shadow-apoyada transition-[background-color,border-color,box-shadow] duration-normal ease-suave hover:z-10 hover:border-accent/50 hover:bg-base-raised hover:shadow-flotante"
+                  className="group relative z-0 flex min-h-[132px] cursor-pointer flex-col gap-3 rounded-tarjeta border border-base-border/60 bg-base-card p-5 shadow-apoyada transition-[background-color,border-color,box-shadow] duration-normal hover:z-10 hover:border-accent/50 hover:bg-base-raised hover:shadow-flotante"
                 >
                   <div className="flex items-start gap-2.5">
                     {/* La casilla del icono va HUNDIDA (`.pozo`), que es el mismo
@@ -232,7 +232,7 @@ export default function ProjectsView() {
                         idioma de los mandos de la lateral y de la cabecera del
                         trabajo. Sigue apareciendo al pasar el ratón o al enfocar
                         desde el teclado, no con `hidden`. */}
-                    <span className="ml-auto flex shrink-0 items-center gap-0.5 rounded-md border border-base-border/70 bg-base-card p-0.5 opacity-0 shadow-apoyada transition-[opacity,box-shadow] duration-normal ease-suave focus-within:opacity-100 group-hover:opacity-100">
+                    <span className="ml-auto flex shrink-0 items-center gap-0.5 rounded-md border border-base-border/70 bg-base-card p-0.5 opacity-0 shadow-apoyada transition-[opacity,box-shadow] duration-normal focus-within:opacity-100 group-hover:opacity-100">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();

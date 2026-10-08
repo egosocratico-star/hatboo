@@ -416,7 +416,7 @@ export default function ProjectView() {
         />
       )}
       <div
-        className={`shrink-0 overflow-clip bg-base-raised filo-luz transition-[width] duration-normal ease-[cubic-bezier(.2,.8,.2,1)] ${
+        className={`shrink-0 overflow-clip bg-base-raised filo-luz transition-[width] duration-normal ${
           filesOpen ? "border-r border-base-border" : "w-0"
         }`}
         style={{ width: filesOpen ? filesPx : 0 }}
@@ -854,7 +854,7 @@ export default function ProjectView() {
         />
       )}
       <div
-        className={`shrink-0 overflow-clip bg-base-raised filo-luz transition-[width] duration-normal ease-[cubic-bezier(.2,.8,.2,1)] ${
+        className={`shrink-0 overflow-clip bg-base-raised filo-luz transition-[width] duration-normal ${
           tasksOpen ? "border-l border-base-border" : "w-0"
         }`}
         style={{ width: tasksOpen ? tasksPx : 0 }}

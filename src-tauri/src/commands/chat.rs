@@ -392,6 +392,25 @@ pub struct ContextUsage {
     pub history_chars: usize,
 }
 
+/// El recuento, separado del comando. El comando necesita el estado de Tauri —la
+/// base y los ajustes—; esto es aritmética sobre lo ya leído, que es lo que puede
+/// estar mal (el `est_tokens`, las imágenes contadas aparte, el `trim()` del system)
+/// y hasta el 06-10 no lo cubría ninguna prueba.
+fn sumar_uso(messages: &[crate::providers::ChatMessage], system: &str) -> ContextUsage {
+    let system_chars = system.trim().chars().count();
+    let history_chars: usize = messages.iter().map(|m| m.content.chars().count()).sum();
+    let images: usize = messages.iter().map(|m| m.images.len()).sum();
+    let chars = system_chars + history_chars;
+    ContextUsage {
+        chars,
+        est_tokens: chars / 4,
+        messages: messages.len(),
+        images,
+        system_chars,
+        history_chars,
+    }
+}
+
 /// Lo que ocuparía el prompt del próximo turno de esta conversación. Cuenta el
 /// mismo `history()` que usa `spawn_chat_stream`, así que el adjunto ya va
 /// antepuesto como `[Archivo adjunto: …]` y el número no se desvía del real.
@@ -409,17 +428,53 @@ pub fn context_usage(app: State<AppState>, conversation_id: String) -> Result<Co
         ..
     } = ContextService::material_de_chat(&app)?;
     let system = chat_system_prompt(&settings, &skills, &memoria);
+    Ok(sumar_uso(&messages, &system))
+}
 
-    let system_chars = system.trim().chars().count();
-    let history_chars: usize = messages.iter().map(|m| m.content.chars().count()).sum();
-    let images: usize = messages.iter().map(|m| m.images.len()).sum();
-    let chars = system_chars + history_chars;
-    Ok(ContextUsage {
-        chars,
-        est_tokens: chars / 4,
-        messages: messages.len(),
-        images,
-        system_chars,
-        history_chars,
-    })
+#[cfg(test)]
+mod tests {
+    use super::sumar_uso;
+    use crate::providers::{ChatMessage, ImagePart};
+
+    fn mensaje(role: &str, content: &str, imagenes: usize) -> ChatMessage {
+        ChatMessage {
+            role: role.into(),
+            content: content.into(),
+            images: (0..imagenes)
+                .map(|_| ImagePart {
+                    media_type: "image/png".into(),
+                    data_base64: "zz".into(),
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn el_system_se_cuenta_sin_el_relleno_de_sobra() {
+        let u = sumar_uso(&[mensaje("user", "hola", 0)], "  eres hatboo\n\n");
+        assert_eq!(u.system_chars, 11, "los espacios del traje no viajan al proveedor");
+        assert_eq!(u.history_chars, 4);
+        assert_eq!(u.chars, 15);
+        assert_eq!(u.messages, 1);
+    }
+
+    #[test]
+    fn las_imagenes_no_entran_en_los_caracteres_de_texto() {
+        // Viajan en base64 y dominan el coste real: si se mezclaran con el texto,
+        // el número dejaría de significar lo que dice.
+        let u = sumar_uso(&[mensaje("user", "mira", 2)], "sistema");
+        assert_eq!(u.images, 2);
+        assert_eq!(u.chars, 7 + 4, "solo el system y el texto del mensaje");
+        assert_eq!(u.est_tokens, 11 / 4);
+    }
+
+    #[test]
+    fn se_cuentan_caracteres_no_bytes() {
+        // «añ» son dos caracteres y tres bytes UTF-8. El medidor lo dice en
+        // caracteres, que es lo que compara con el `chars` del historial real.
+        let u = sumar_uso(&[mensaje("user", "añ", 0)], "");
+        assert_eq!(u.history_chars, 2);
+        assert_eq!(u.chars, 2);
+        assert_eq!(u.est_tokens, 0, "a ~4 caracteres por token, esto es una estimación");
+    }
 }

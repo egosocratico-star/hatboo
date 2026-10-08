@@ -14,6 +14,34 @@ use tauri::{Manager, State};
 
 // ---------- Fase 4: Ajustes → Sistema y Datos (solo lectura) ----------
 
+/// Apaga la app desde detrás. La X de la barra llama a `destroy()` de la ventana, y
+/// medido el 07-10 en esta máquina hay instancias ya usadas en las que ese `destroy`
+/// no volvía: la pantalla se quedaba en «Cerrando Hatboo» y el proceso seguía vivo
+/// (una llevaba desde las 14:47 sin poder morir). El frontend espera cuatro segundos
+/// antes de llamar aquí, así que para cuando esto corre el stream ya está parado y los
+/// borradores guardados —que es lo que el usuario pidió al pulsar la X—.
+#[tauri::command]
+pub fn salir_de_vez(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
+/// El vigilante del apagado, **del lado de Rust**. La causa, medida el 07-10: con la
+/// ventana minimizada, Windows **congela el proceso** de una app WebView2 (el subproceso
+/// de render se pausa y el bucle de eventos deja de bombear). En ese estado no corre el
+/// JS del cierre ni se procesa la petición de salida: la X no hacía nada y el proceso
+/// se quedaba vivo —así estuvo una instancia desde las 14:47 hasta la 01:56 de la
+/// madrugada, y se descongelaba solo al restaurar la ventana—. Por eso el vigilante no
+/// espera a la webview: **mata el proceso** a los diez segundos, que es lo único que
+/// funciona contra un proceso congelado. Diez es generoso porque el camino normal para
+/// el stream y guarda los borradores con relojes de 2,5 s por paso, y esos pasos sí
+/// corren cuando la ventana está visible.
+pub(crate) fn vigilar_apagado() {
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(10));
+        std::process::exit(0);
+    });
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StorageInfo {

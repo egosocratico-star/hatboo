@@ -680,7 +680,7 @@ export default function Sidebar() {
       : "idle";
 
   if (hidden) {
-    return <aside className="w-0 shrink-0 overflow-clip transition-[width] duration-normal ease-[cubic-bezier(.2,.8,.2,1)]" />;
+    return <aside className="w-0 shrink-0 overflow-clip transition-[width] duration-normal" />;
   }
 
   /** Menú rápido de la tarjeta de perfil. El mismo contenido en el panel ancho y
@@ -758,7 +758,7 @@ export default function Sidebar() {
 
   if (compact) {
     return (
-      <aside className="w-14 shrink-0 h-full flex flex-col gap-1 px-2.5 py-2 border-r border-base-border bg-base-raised filo-luz transition-[width] duration-normal ease-[cubic-bezier(.2,.8,.2,1)]">
+      <aside className="w-14 shrink-0 h-full flex flex-col gap-1 px-2.5 py-2 border-r border-base-border bg-base-raised filo-luz transition-[width] duration-normal">
         {/* El logo, el plegado y la búsqueda viven ahora en la barra de título:
             el rail empieza directo por lo que hace. */}
         <button
@@ -855,7 +855,7 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="w-64 shrink-0 h-full flex flex-col border-r border-base-border bg-base-raised filo-luz transition-[width] duration-normal ease-[cubic-bezier(.2,.8,.2,1)]">
+    <aside className="w-64 shrink-0 h-full flex flex-col border-r border-base-border bg-base-raised filo-luz transition-[width] duration-normal">
       {/* Zona de acción. Era una píldora morada centrada que competía con todo
           lo de abajo; ahora es un control del mismo nivel que las filas: caja
           discreta, icono a la izquierda y el atajo a la derecha. */}
@@ -1104,9 +1104,11 @@ export default function Sidebar() {
             abajo cuando sobra sitio y lo deja colar cuando la lista crece. */}
         {/* Pie: antes la mascota flotaba centrada en medio del hueco y debajo,
             centrada también, la frase del atajo — dos cosas sueltas que no eran
-            de ninguna lista. Ahora una sola fila alineada con las demás: la
-            mascota a la izquierda (sigue siendo el estado de la carpeta abierta)
-            y el aviso a su lado, en la línea que pisa el pie. */}
+            de ninguna lista. La frase del `Ctrl+K` se fue el 06-10: repetía el
+            botón de la barra de título y además contaba menos de lo que busca la
+            paleta (su propio placeholder dice «chats, sesiones, proyectos o
+            modelos»). Queda la mascota, que sí dice algo —el estado del agente de
+            la carpeta abierta— y ahora lo dice también su título. */}
         <div className="mt-auto pt-4">
           {archivadasTotal > 0 && (
             <button
@@ -1121,12 +1123,16 @@ export default function Sidebar() {
             </button>
           )}
           <div className="flex items-center gap-2 px-2 pb-1 pt-0.5">
-            <span aria-hidden className="shrink-0 opacity-[0.55]">
+            <span
+              role="img"
+              aria-label={t("Estado del agente de la carpeta abierta")}
+              title={t(
+                "La mascota es el estado del agente en esta carpeta: trabajando, esperando tu aprobación, confundido si algo falló, o dormido cuando no está en nada.",
+              )}
+              className="shrink-0 opacity-[0.55]"
+            >
               <Mascot state={poseLateral} size={26} />
             </span>
-            <p className="min-w-0 flex-1 text-micro leading-snug text-zinc-600">
-              {t("Ctrl+K busca en chats, sesiones y carpetas")}
-            </p>
           </div>
         </div>
       </nav>

@@ -9,7 +9,6 @@
 export const en: Record<string, string> = {
   "1 resultado": "1 result",
   "¡Necesita tu aprobación!": "Needs your approval!",
-  "¿Cómo se aprueban las acciones de Hatboo?": "How are Hatboo's actions approved?",
   "¿Qué quieres hacer en este proyecto?": "What do you want to do in this project?",
   "{m} quedó fuera de la memoria.": "{m} was unloaded from memory.",
   "{n} archivo escrito en esta sesión": "{n} file written in this session",
@@ -47,8 +46,10 @@ export const en: Record<string, string> = {
   "Últimos 7 días": "Last 7 days",
   "Últimos 30 días": "Last 30 days",
   "Más antiguos": "Older",
-  "Ctrl+K busca en chats, sesiones y carpetas":
-    "Ctrl+K searches chats, sessions and folders",
+  "Estado del agente de la carpeta abierta":
+    "Agent status for the open folder",
+  "La mascota es el estado del agente en esta carpeta: trabajando, esperando tu aprobación, confundido si algo falló, o dormido cuando no está en nada.":
+    "The mascot is the agent's state in this folder: working, waiting for your approval, confused when something failed, or asleep when it is doing nothing.",
   // ---- Variantes de mensaje (‹ 2/3 ›). ----
   "Versión anterior de este mensaje": "Previous version of this message",
   "Versión siguiente de este mensaje": "Next version of this message",
@@ -136,7 +137,8 @@ export const en: Record<string, string> = {
   "Buscar en Ajustes": "Search in Settings",
   "Buscar en el chat": "Search in this chat",
   "Buscar en la conversación": "Search the conversation",
-  "Buscar en todos los chats (Ctrl+K)": "Search all chats (Ctrl+K)",
+  "Buscar en chats, sesiones, proyectos o modelos (Ctrl+K)":
+    "Search chats, sessions, projects or models (Ctrl+K)",
   "Buscar chats, sesiones, proyectos o modelos…": "Search chats, sessions, projects or models…",
   "Buscar chats, sesiones, proyectos o modelos": "Search chats, sessions, projects or models",
   "buscando…": "searching…",
@@ -320,12 +322,10 @@ export const en: Record<string, string> = {
   "Mostrar en el explorador de archivos": "Show in file explorer",
   "Mostrar la salida": "Show output",
   "Margen de RAM bajo (250 MB)": "Low RAM margin (250 MB)",
-  "La spec fija 1500 MB libres que no se tocan, y con esa cifra en 8,45 GB no cabe ningún modelo local: el Brain cortaría todos los pedidos. Marcado se bajan a 250 MB, que es lo medido para que quepan gemma3:1b y qwen3.5:0.8b. Es salirse de la spec y deja la máquina al borde: apaga los programas de antes.":
-    "The spec reserves 1500 MB of free RAM, and with that figure no local model fits in 8.45 GB: the brain would cut every request. Marked, it drops to 250 MB, which is what was measured to fit gemma3:1b and qwen3.5:0.8b. It steps outside the spec and leaves the machine at the edge: close what you had open first.",
+  "La spec fija 1500 MB libres que no se tocan. Marcado se bajan a 250 MB, que es lo medido para que gemma3:1b y qwen3.5:0.8b quepan sin gastar colchón. Desde el 05-10 el margen dejó de ser una puerta: con 1500 el turno se corre igual, apretando la ventana o usando el margen, y la nota lo dice. Bajarlo deja la máquina más holgada; subirlo no te quita respuesta, solo margen de seguridad.":
+    "The spec reserves 1500 MB of free RAM. Marked, it drops to 250 MB, which is what was measured so gemma3:1b and qwen3.5:0.8b fit without spending the cushion. Since 05-10 the margin is no longer a gate: with 1500 the turn still runs, tightening the window or spending the margin, and the note says so. Lowering it leaves the machine roomier; raising it does not take the answer away, only the safety margin.",
   "Nivel de aprobación: {l} — {h}": "Approval level: {l} — {h}",
   "no ejecuta nada todavía": "doesn't run anything yet",
-  "No hay proyecto abierto: se guarda como nivel por defecto de los proyectos nuevos.":
-    "No project open: saved as the default level for new projects.",
   "No se pudieron leer los ajustes": "Settings could not be read",
   "No se pudo leer el estado de almacenamiento.": "Storage status could not be read.",
   "No se pudo listar los modelos de Ollama.": "Ollama models could not be listed.",
@@ -391,15 +391,20 @@ export const en: Record<string, string> = {
   "Revisar el plan antes de ejecutarlo": "Review the plan before running it",
   "Revisión de código": "Code review",
   "Rust · SQLite · keyring": "Rust · SQLite · keyring",
-  "Sin verificar": "Unverified",
   "Verificado": "Verified",
-  "Propuesto": "Proposed",
+  "Rechazado por el formato": "Rejected by the format",
+  // Las cuatro palabras del nivel (`NIVEL_A_PALABRAS` en `types.ts`): se pasan por
+  // `t()` con una variable, así que el patrón de claves literales no las ve y la
+  // única forma de que no se queden en español en la interfaz en inglés es que
+  // estén aquí escritas. `Normal` ya estaba por otros sitios.
+  Instantáneo: "Instant",
+  Enfocado: "Focused",
+  Profundo: "Deep",
   "¿Por qué?": "Why?",
   "Salir de Acceso total": "Leave Full access",
   "Salir del modo foco (Ctrl+.)": "Leave focus mode (Ctrl+.)",
   "Salto de línea en el campo": "Newline in the field",
   "Se aplica a cada respuesta": "Applies to every answer",
-  "Se guarda en el proyecto «{n}».": "Saved in the project “{n}”.",
   "Servidor local": "Local server",
   "Si la petición admite dos interpretaciones, pregunta cuál quiere en vez de elegir tú una. Máximo una pregunta por turno.":
     "If the request has two readings, ask which one they want instead of picking. One question per turn at most.",
@@ -513,6 +518,7 @@ export const en: Record<string, string> = {
   Imágenes: "Images",
   Sesión: "Session",
   Código: "Code",
+  Web: "Web",
   código: "code",
   Versión: "Version",
   "¡Listo!": "Done!",
@@ -564,8 +570,8 @@ export const en: Record<string, string> = {
     "When the agent proposes its steps it stops and shows them to you: you can rewrite them, drop some or add more, and whatever comes out becomes the plan. Without this it runs as-is.",
   "Cerebro": "Brain",
   "Cerebro aparte para el chat": "A separate brain for the chat",
-  "El chat pasa por el crate que decide el nivel, firma un Plan y recorta el contexto antes de llamar al modelo. Solo actúa con el proveedor local y sin imágenes en el mensaje: con una nube activa, con una imagen adjunta, o si el Brain se cae antes de la primera letra, se responde por el camino de siempre y la nota de encima del compositor dice por qué. El modelo que tú eliges es el que corre: si no cabe en la RAM no se responde con otro, se para el turno y el aviso trae las cifras del Governor —necesitas, margen, libres—.":
-    "The chat goes through the crate that picks the level, signs a Plan and trims the context before calling the model. It only acts with the local provider and no images in the message: with a cloud provider active, with an attachment, or if the brain fails before the first character, the answer comes the usual way and the note above the composer says why. The model you pick is the model that runs: if it doesn't fit in RAM you don't get an answer from a different one — the turn stops and the warning carries the Governor's numbers —needed, margin, free—.",
+  "El chat pasa por el crate que decide el nivel, firma un Plan y recorta el contexto antes de llamar al modelo. Solo actúa con el proveedor local y sin imágenes en el mensaje: con una nube activa, con una imagen adjunta, o si el Brain se cae antes de la primera letra, se responde por el camino de siempre y la nota de encima del compositor dice por qué. El modelo que tú eliges es el que corre: si la RAM no llega no se responde con otro ni se para el turno —se aprieta la ventana o se gasta el margen, y la nota del Brain dice cuánto—.":
+    "The chat goes through the crate that picks the level, signs a Plan and trims the context before calling the model. It only acts with the local provider and no images in the message: with a cloud provider active, with an attachment, or if the brain fails before the first character, the answer comes the usual way and the note above the composer says why. The model you pick is the model that runs: if the RAM is not enough you do not get an answer from a different one and the turn does not stop —the window tightens or the margin gets spent, and the brain's note says how much—.",
   "El nivel de aprobación se ajusta por proyecto en la vista de Trabajo.":
     "The approval level is set per project in the Work view.",
   "«Sistema» sigue el claro/oscuro de Windows mientras la app esté abierta. Las paletas de debajo son fijas y se aplican al pulsarlas.":
@@ -738,14 +744,15 @@ export const en: Record<string, string> = {
   "Ajustes → Skills": "Settings → Skills",
   "Elige la plantilla": "Choose the template",
   "Plantilla instalada.": "Template installed.",
-  "Nivel por defecto para lo que abras · {l}": "Default level for what you open · {l}",
   "Niveles de aprobación": "Approval levels",
-  "Cada proyecto guarda su propio nivel; sin proyecto abierto, esto es el valor por defecto. Con «Acceso total» Hatboo no pide aprobación, pero las tools siguen encerradas en la carpeta del proyecto: el sandbox de rutas no se relaja nunca.": "Each project keeps its own level; with no project open this is the default. With Full access Hatboo asks for nothing, but the tools stay inside the project folder: the path sandbox is never relaxed.",
+  "Solo cambia lo que heredan los proyectos nuevos: los que ya tienen nivel propio no se tocan.":
+    "Only changes what new projects inherit: the ones that already have their own level are untouched.",
+  "Cada proyecto guarda su propio nivel; sin proyecto abierto, esto es el valor por defecto. Con «Acceso total» Hatboo no pide aprobación, pero las tools siguen encerradas en la carpeta del proyecto: el sandbox de rutas no se relaja nunca.":
+    "Each project keeps its own level; with no project open this is the default. With Full access Hatboo asks for nothing, but the tools stay inside the project folder: the path sandbox is never relaxed.",
   "Cada tool, también leer.": "Every tool, reading included.",
   "Lee sola; pregunta al escribir, ejecutar o commitear.": "Reads on its own; asks before writing, running or committing.",
   "Lee y escribe solo dentro del proyecto.": "Reads and writes only inside the project.",
   "Sin preguntar. Sigue encerrado en la carpeta del proyecto.": "No questions asked. Still locked inside the project folder.",
-  "Este proyecto · {l}": "This project · {l}",
   "Ollama sin modelos": "Ollama has no models",
   "{n} modelos en este PC": "{n} models on this PC",
   "Clave en el llavero": "Key in the keychain",

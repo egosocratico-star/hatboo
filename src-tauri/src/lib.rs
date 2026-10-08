@@ -22,6 +22,18 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
+        // El aviso de cierre se entrega a la página, y con la ventana minimizada
+        // Chromium la tiene congelada: el `onCloseRequested` del frontend no llega a
+        // correr y la X no cerraba nada (medido el 07-10). Aquí se arma el vigilante
+        // del lado de Rust, que no depende de que la página despierte.
+        .on_window_event(|window, evento| {
+            if matches!(evento, tauri::WindowEvent::CloseRequested { .. }) {
+                // Primero se despierta la ventana: si estaba minimizada, la webview está
+                // en pausa y el cierre elegante del frontend no llegaría a correr.
+                let _ = window.unminimize();
+                commands::system::vigilar_apagado();
+            }
+        })
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             let conn = db::connect(&data_dir.join("hatboo.db"))?;
@@ -102,6 +114,7 @@ pub fn run() {
             commands::projects::set_project_approval_level,
             commands::projects::set_project_pinned,
             commands::system::test_notification,
+            commands::system::salir_de_vez,
             commands::chat::context_usage,
             commands::chat::branch_conversation,
             commands::files::fetch_github,

@@ -236,7 +236,11 @@ function promptsDeLaApp() {
   const parte = (titulo) => {
     const i = texto.indexOf(`## ${titulo} (`);
     if (i < 0) throw new Error(`el volcado no tiene «${titulo}»: regenéralo`);
-    const m = texto.slice(i).match(/```\n([\s\S]*?)\n```/);
+    // `?[\r\n]` y no `\n` a secas: el volcado lo escribe Rust con saltos `\n`, pero
+    // git con `core.autocrlf` lo entrega con `\r\n` en el árbol de trabajo y con el
+    // literal estricto el bloque «existía» y se leía vacío (medido el 06-10, el
+    // piloto por la puerta de la app no arrancaba).
+    const m = texto.slice(i).match(/```\r?\n([\s\S]*?)\r?\n```/);
     if (!m) throw new Error(`el bloque de «${titulo}» está vacío`);
     return m[1];
   };
@@ -444,15 +448,26 @@ async function recarga() {
 
 /** §X pide `ram_estimate_mb` MEDIDO por modelo. Se carga cada uno con un prompt
  *  de dos tokens, se lee /api/ps y se expulsa. La cuota de 8192 mide cuánto
- *  añade el KV: si un modelo no cabe, eso también es un dato del Governor. */
+ *  añade el KV: si un modelo no cabe, eso también es un dato del Governor.
+ *
+ *  Desde el 05-10 la escalera del Governor baja a 512 y 1024, y esos peldaños no
+ *  estaban medidos: sin cifra propia `ram_para` devuelve `None` y el Governor no
+ *  puede apretar la ventana —seguiría negando el turno por RAM—. Se mide 2048 en
+ *  la misma corrida para que el ratio del KV salga de un mismo estado de la
+ *  máquina, y 4096/8192 se quedan con lo del 03-10 (no hace falta volver a pagar
+ *  esa carga para lo que se consulta). */
 async function rama() {
   const { models } = await json(`${OLLAMA}/api/tags`);
+  const escalera = (bander("escalera", "512,1024,2048") || "")
+    .split(",")
+    .map((x) => Number(x))
+    .filter((n) => n > 0);
   const locales = models
     .filter((m) => m.size > 0 && !/(^|[:_-])cloud\b/i.test(m.name))
     .sort((a, b) => a.size - b.size);
   const fila = [];
   for (const m of locales) {
-    for (const ctx of [2048, 8192]) {
+    for (const ctx of escalera) {
       // Margen: lo que pesa en disco + holgura. El KV de 8192 vale lo que el de
       // 2048 multiplicado por cuatro, y eso hay que pagarlo antes de cargar.
       const falta = m.size / 1e9 + (ctx >= 8192 ? 0.9 : 0.5);

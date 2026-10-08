@@ -11,7 +11,7 @@ import Compositor from "./Compositor";
 import SaludoChat from "./SaludoChat";
 import { useSoltados } from "../hooks/useSoltados";
 import type { Attachment, MascotState } from "../types";
-import { CHAT_FONT_SIZES, CHAT_FONT_STACKS } from "../types";
+import { CHAT_FONT_SIZES, CHAT_FONT_STACKS, NIVEL_A_PALABRAS } from "../types";
 import { modeloActivo } from "../proveedores";
 
 export default function ChatWindow() {
@@ -276,8 +276,9 @@ export default function ChatWindow() {
 
   // Tres clases se arreglan todas en el mismo sitio: falta la clave, la rechazó
   // el proveedor (401) o nadie escucha en el endpoint. El texto ya lo dice, pero
-  // sin atajo hay que adivinar adónde ir. Con `modelo-no-corre` también: la salida
-  // es cambiar de modelo o bajar el margen, y las dos cosas están ahí.
+  // sin atajo hay que adivinar adónde ir. Con `modelo-no-corre` también, que desde
+  // el 05-10 solo salta si no hay forma de firmar nada (el modelo no llega al suelo
+  // del nivel o nadie le midió la RAM): la salida sigue estando en Ajustes.
   const llevaAjustes =
     errorClase === "clave" ||
     errorClase === "ajustes" ||
@@ -466,20 +467,26 @@ export default function ChatWindow() {
                 {searchNote && !searching && (
                   <p className="mb-1 text-xs text-amber-400/80">{searchNote}</p>
                 )}
-                {/* Qué decidió el crate: nivel, contrato, modelo y el presupuesto
-                    firmado. El motivo completo va en el título, porque lo escribe el
-                    crate en su propio idioma y no es una cadena de la interfaz. */}
+                {/* Qué decidió el crate mientras llega la respuesta. Una línea
+                    discreta y en palabras del producto: estaba pintada en morado
+                    fuerte y con la frase cruda del crate («regla «charla-corta» ·
+                    Instantáneo · ctx 2048 · salida 192»), que en un hilo de chat
+                    parecía un aviso del sistema. Las cifras y el motivo del crate
+                    siguen ahí, a un clic. */}
                 {brain && (
-                  <details className="mb-1 text-xs text-violet-400/80">
-                    <summary className="cursor-pointer list-none select-none">
-                      {t("Cerebro")} · {brain.nivel} · {brain.contrato} · {brain.modelo} ·{" "}
-                      {brain.numCtx}
+                  <details className="mb-1 text-micro text-zinc-600">
+                    <summary className="cursor-pointer list-none select-none transition-colors hover:text-zinc-400">
+                      {t("Cerebro")} ·{" "}
+                      {t(NIVEL_A_PALABRAS[brain.nivel] ?? brain.nivel)} · {brain.modelo}
+                    </summary>
+                    <p className="mt-1 max-w-prose leading-snug">
+                      {brain.contrato} · ctx {brain.numCtx}
                       {" → "}
                       {brain.salidaMax}
                       {brain.verificacion && <> · {brain.verificacion}</>}
-                    </summary>
+                    </p>
                     {brain.porque && (
-                      <p className="mt-1 max-w-prose text-violet-300/70">{brain.porque}</p>
+                      <p className="mt-0.5 max-w-prose leading-snug">{brain.porque}</p>
                     )}
                   </details>
                 )}

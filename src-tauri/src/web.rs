@@ -64,6 +64,12 @@ pub async fn search_web(query: &str) -> Result<Vec<WebSource>, String> {
     let url = format!("{ENDPOINT}{}", percent_encode(query.as_str()));
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(8))
+        // Sin seguir redirects (T7 del threat-model): el destino del `GET` es un
+        // endpoint fijo, pero un `3xx` podía mover la petición a otra máquina —por
+        // ejemplo a `127.0.0.1:11434`, que en este equipo es Ollama escuchando—. Si
+        // DuckDuckGo empieza a redirigir, esto pasa a ser un error visible y se
+        // arregla aquí, no con la superficie abierta.
+        .redirect(reqwest::redirect::Policy::none())
         .user_agent(USER_AGENT)
         .build()
         .map_err(|e| e.to_string())?;
@@ -77,6 +83,9 @@ pub async fn search_web(query: &str) -> Result<Vec<WebSource>, String> {
         .text()
         .await
         .map_err(|e| format!("Respuesta ilegible de DuckDuckGo: {e}"))?;
+    if status.is_redirection() {
+        return Err("DuckDuckGo redirigió la búsqueda y Hatboo no sigue redirects".to_string());
+    }
     if !status.is_success() {
         return Err(format!("DuckDuckGo devolvió {status}"));
     }
@@ -95,6 +104,9 @@ pub(crate) fn parse_results(html: &str) -> Vec<WebSource> {
         let url = clean_url(&caps[1]);
         let title = text_of(&caps[2]);
         if title.is_empty() || url.is_empty() || is_internal(&url) {
+            continue;
+        }
+        if !es_destino_aceptable(&url) {
             continue;
         }
         if sources.iter().any(|s: &WebSource| s.url == url) {
@@ -137,6 +149,89 @@ fn clean_url(href: &str) -> String {
 
 fn is_internal(url: &str) -> bool {
     url.contains("duckduckgo.com")
+}
+
+/// Si la dirección de un resultado es un destino que se puede nombrar. El enlace
+/// que devuelve DuckDuckGo es una redirección suya (`uddg=`), así que el destino lo
+/// escribe **quien publicó la página**, no el buscador: sin este filtro un resultado
+/// podía apuntar a `http://127.0.0.1:11434/…` (Ollama en esta máquina), al endpoint de
+/// metadatos de una nube o a un `file://`, y se listaba en la burbuja como una fuente
+/// más —T7 del threat-model, y la puerta que hay que cerrar antes de hablar de ningún
+/// Browser Runtime (G.4)—.
+///
+/// Acepta `http` y `https` con host público. Rechaza el resto de esquemas, los hosts
+/// vacíos, los nombres de resolución local y las direcciones privadas, de bucle
+/// invertido, link-local y multicast.
+fn es_destino_aceptable(url: &str) -> bool {
+    let Some(rest) = url
+        .strip_prefix("https://")
+        .or_else(|| url.strip_prefix("http://"))
+    else {
+        return false;
+    };
+    let Some(host) = host_de(rest) else {
+        return false;
+    };
+    !es_host_local_o_privado(host)
+}
+
+/// El host de lo que queda detrás de `esquema://`: sin user:pass, sin puerto y sin
+/// camino. `None` si no hay un host mínimo creíble.
+fn host_de(rest: &str) -> Option<&str> {
+    let hasta = rest.split(['/', '?', '#']).next().unwrap_or(rest);
+    let sin_credenciales = hasta.rsplit('@').next().unwrap_or(hasta);
+    let host = if let Some(cerrada) = sin_credenciales.strip_prefix('[') {
+        // IPv6 entre corchetes: `[::1]:8080`.
+        cerrada.split(']').next().unwrap_or_default()
+    } else {
+        sin_credenciales.split(':').next().unwrap_or(sin_credenciales)
+    };
+    if host.is_empty() {
+        return None;
+    }
+    Some(host)
+}
+
+fn es_host_local_o_privado(host: &str) -> bool {
+    let h = host.to_ascii_lowercase();
+    if h == "localhost"
+        || h.ends_with(".localhost")
+        || h.ends_with(".local")
+        || h.ends_with(".internal")
+        || h == "metadata.google.internal"
+    {
+        return true;
+    }
+    // IPv4 literal. Un nombre de dominio no pasa por aquí porque tiene letras.
+    let partes: Vec<&str> = h.split('.').collect();
+    if partes.len() == 4 {
+        if let Ok(n) = partes.iter().map(|p| p.parse::<u8>()).collect::<Result<Vec<u8>, _>>() {
+            let (a, b) = (n[0], n[1]);
+            // 0/8 «esta red», 10/8 privada, 127/8 bucle invertido, 169.254/16
+            // link-local (de ahí se lee el metadata de la nube), 172.16-31 y
+            // 192.168 privadas, ≥224 multicast y reservadas.
+            if a == 0 || a == 10 || a == 127 || a >= 224 {
+                return true;
+            }
+            if a == 169 && b == 254 {
+                return true;
+            }
+            if a == 172 && (16..=31).contains(&b) {
+                return true;
+            }
+            if a == 192 && b == 168 {
+                return true;
+            }
+            return false;
+        }
+        // Cuatro tramos que no son números: es un dominio con puntos, normal.
+        return false;
+    }
+    // IPv6: bucle invertido, link-local y única-local (fc00::/7).
+    if h == "::1" || h.starts_with("fe80:") || h.starts_with("fc") || h.starts_with("fd") {
+        return true;
+    }
+    false
 }
 
 /// Quita las etiquetas y deja el texto legible de un resultado.
@@ -361,5 +456,42 @@ mod tests {
         let ctx = as_context(&sources, "prueba");
         assert!(ctx.contains("https://example.com/nota"));
         assert!(ctx.contains("2. Otra fuente"));
+    }
+
+    #[test]
+    fn un_resultado_no_puede_apuntar_a_la_maquina() {
+        // T7: el `uddg=` de DuckDuckGo lo escribe quien publicó la página. Estos son
+        // los destinos que no tienen que salir nunca en la lista de fuentes.
+        for mala in [
+            "http://127.0.0.1:11434/api/tags",
+            "http://localhost:3000/",
+            "http://169.254.169.254/latest/meta-data/",
+            "http://10.0.0.12/",
+            "http://192.168.1.1/admin",
+            "http://[::1]:8080/",
+            "file:///C:/Users/User/.ssh/id_ed25519",
+            "http://metadata.google.internal/",
+            "gopher://example.com/",
+            "https://",
+        ] {
+            assert!(!es_destino_aceptable(mala), "se coló {mala}");
+        }
+        for buena in [
+            "https://example.com/nota",
+            "http://example.org/a?b=1",
+            "https://sub.domain.co.uk/x",
+            "https://example.com:8443/",
+        ] {
+            assert!(es_destino_aceptable(buena), "se descartó {buena}");
+        }
+    }
+
+    #[test]
+    fn el_parseo_descarta_los_destinos_que_no_pueden_ser_fuentes() {
+        let html = r#"<div class="result__a" href="https://duckduckgo.com/l/?uddg=http%3A%2F%2F127.0.0.1%3A11434%2Fapi%2Ftags">Ollama</a>
+            <div class="result__a" href="https://duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fsi">Publicable</a>"#;
+        let fuentes = parse_results(html);
+        let urls: Vec<&str> = fuentes.iter().map(|s| s.url.as_str()).collect();
+        assert_eq!(urls, vec!["https://example.com/si"], "{urls:?}");
     }
 }

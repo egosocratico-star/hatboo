@@ -91,6 +91,18 @@ pub(crate) fn chat_system_prompt(settings: &state::Settings, skills: &str, memor
          mismo, así que lo que digas de actualidad sale de memoria y conviene decirlo."
     };
     let hoy = crate::behavior::hoy(settings.tz_offset_min);
+    // Lo de los resultados de búsqueda solo va cuando la búsqueda está encendida:
+    // apagada, el bloque que se describe no aparece nunca y la frase es material
+    // suelto que un modelo pequeño comenta en vez de contestar.
+    let chat = if settings.web_search {
+        format!(
+            "{}\n{}",
+            crate::behavior::CONDUCTA_CHAT,
+            crate::behavior::CONDUCTA_BUSQUEDA
+        )
+    } else {
+        crate::behavior::CONDUCTA_CHAT.to_string()
+    };
     let mut system = format!(
         "## Asistente\n\
          Eres Hatboo, el asistente de escritorio del usuario. Tu nombre es Hatboo y no \
@@ -108,7 +120,7 @@ pub(crate) fn chat_system_prompt(settings: &state::Settings, skills: &str, memor
          Tipo: chat (sin proyecto abierto).\n\
          {busqueda}\n",
         conducta = crate::behavior::CONDUCTA,
-        chat = crate::behavior::CONDUCTA_CHAT,
+        chat = chat,
     );
     if settings.code_mode {
         system.push_str(CODE_MODE_PROMPT);
@@ -159,7 +171,7 @@ mod tests {
             assert!(por_defecto.contains("Búsqueda web: apagada"), "{por_defecto}");
             // Y deja claro que aquí no toca archivos, para que no lo finja.
             assert!(
-                por_defecto.contains("no tienes herramientas de disco"),
+                por_defecto.contains("es una conversación"),
                 "{por_defecto}"
             );
 
@@ -170,6 +182,25 @@ mod tests {
             let con_busqueda = chat_system_prompt(&aj, "", "");
             assert!(con_busqueda.contains("Búsqueda web: activada"));
             assert!(!con_busqueda.contains("Búsqueda web: apagada"));
+            // El bloque de resultados solo se describe cuando puede aparecer. Con la
+            // búsqueda apagada era texto muerto que el modelo parafraseaba.
+            assert!(con_busqueda.contains("bloque de resultados de búsqueda"));
+            assert!(
+                !por_defecto.contains("bloque de resultados de búsqueda"),
+                "{por_defecto}"
+            );
+        }
+
+        /// Medido en la BD de la app el 07-10: a «todo bien» el modelo respondió
+        /// «¿Qué tal te fue en el trabajo hoy?». El prompt sigue mandando ocuparse del
+        /// momento de la persona, pero no abrir el interrogatorio.
+        #[test]
+        fn el_chat_no_pregunta_por_la_vida_del_usuario() {
+            let p = chat_system_prompt(&state::Settings::default(), "", "");
+            assert!(p.contains("lo que no dijo no se sondea"), "{p}");
+            // Y la guía de sensibilidad no se fue con el recorte.
+            assert!(p.contains("Personas:"), "{p}");
+            assert!(p.contains("No le pongas etiquetas clínicas"), "{p}");
         }
 
         #[test]
@@ -224,7 +255,7 @@ mod tests {
             );
             let texto = format!(
                 "# System prompt de Hatboo, volcado desde el código\n\n\
-                 Generado por `volcar_system_prompt_para_el_arnes` (src-tauri/src/commands.rs), {hecho}.\n\n\
+                 Generado por `volcar_system_prompt_para_el_arnes` (src-tauri/src/commands/_comunes.rs), {hecho}.\n\n\
                  **Es una copia y puede derivar.** Si cambia el código, se vuelve a generar con:\n\
                  `HATBOO_VOLCAR_PROMPT=1 cargo test --manifest-path src-tauri/Cargo.toml --lib volcar_system_prompt`\n\n\
                  Ni una de las dos versiones lleva tools, historial de sesión, skills ni\n\

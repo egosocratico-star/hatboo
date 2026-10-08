@@ -2,7 +2,11 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import { t } from "../../i18n";
 import { SectionTitle } from "./piezas";
-import { APPROVAL_LEVELS, type Settings as SettingsType } from "../../types";
+import {
+  APPROVAL_LEVELS,
+  type ApprovalLevel,
+  type Settings as SettingsType,
+} from "../../types";
 
 /** Ajustes → Agente. Lo que puede hacer en la vista de Trabajo y qué carpetas
  *  no se le enseñan (la misma lista que ve el árbol de Archivos). */
@@ -16,6 +20,20 @@ export default function AjustesAgente({
   /** Lo escrito en el campo de «carpeta que no quiero ver», antes de añadirlo a
    *  la lista de los ajustes. */
   const [nuevaIgnorada, setNuevaIgnorada] = useState("");
+  /** El nivel por defecto es el único ajuste de esta pantalla que puede dejar al
+   *  agente sin ninguna aprobación, así que entrar y salir de «Acceso total» pide
+   *  confirmación igual que el selector por proyecto de la vista de Trabajo. */
+  const [confirmando, setConfirmando] = useState<ApprovalLevel | null>(null);
+  const nivel = draft.defaultApprovalLevel ?? "approve_for_me";
+  const aplicar = (id: ApprovalLevel) => {
+    setDraft({ ...draft, defaultApprovalLevel: id });
+    setConfirmando(null);
+  };
+  const elegir = (id: ApprovalLevel) => {
+    if (id === nivel) return;
+    if (id === "full_access" || nivel === "full_access") setConfirmando(id);
+    else aplicar(id);
+  };
 
   /** Añade a la lista de ignoradas lo escrito en el campo. Se guarda solo el
    *  nombre: si alguien pega `C:\\Users\\x\\My Games`, lo que compara el árbol
@@ -50,9 +68,67 @@ export default function AjustesAgente({
               </li>
             ))}
           </ul>
-          <p className="text-etiqueta leading-snug text-zinc-500">
-            {t("Cada proyecto guarda su propio nivel; sin proyecto abierto, esto es el valor por defecto. Con «Acceso total» Hatboo no pide aprobación, pero las tools siguen encerradas en la carpeta del proyecto: el sandbox de rutas no se relaja nunca.")}
-          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {APPROVAL_LEVELS.map((l) => {
+              const activo = l.id === nivel;
+              return (
+                <button
+                  key={l.id}
+                  onClick={() => elegir(l.id)}
+                  aria-pressed={activo}
+                  title={t(l.help)}
+                  className={`rounded-full border px-2.5 py-1 text-etiqueta transition-colors ${
+                    activo
+                      ? l.id === "full_access"
+                        ? "border-red-500/60 bg-red-500/10 text-red-300"
+                        : "border-accent/60 bg-accent/10 text-accent-soft"
+                      : "border-base-border text-zinc-400 hover:bg-base-hover hover:text-zinc-100"
+                  }`}
+                >
+                  {t(l.short)}
+                </button>
+              );
+            })}
+          </div>
+          {confirmando ? (
+            <div className="space-y-2 rounded-lg border border-red-500/40 bg-red-500/[0.06] px-2.5 py-2">
+              <p className="text-xs font-medium text-zinc-100">
+                {confirmando === "full_access"
+                  ? t("Activar Acceso total")
+                  : t("Salir de Acceso total")}
+              </p>
+              <p className="text-etiqueta leading-snug text-zinc-400">
+                {confirmando === "full_access"
+                  ? t("Hatboo ejecutará TODAS las acciones sin pedir aprobación, incluida escritura de archivos y comandos. El sandbox de rutas dentro de la carpeta del proyecto se mantiene.")
+                  : t("Vas a cambiar fuera de Acceso total: las tools de alto riesgo volverán a pedir aprobación.")}
+              </p>
+              <p className="text-etiqueta leading-snug text-zinc-500">
+                {t("Solo cambia lo que heredan los proyectos nuevos: los que ya tienen nivel propio no se tocan.")}
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setConfirmando(null)}
+                  className="rounded-lg border border-base-border px-2.5 py-1 text-xs text-zinc-300 hover:border-zinc-500"
+                >
+                  {t("Cancelar")}
+                </button>
+                <button
+                  onClick={() => void aplicar(confirmando)}
+                  className={`rounded-lg px-2.5 py-1 text-xs text-white ${
+                    confirmando === "full_access"
+                      ? "bg-red-500 hover:bg-red-600"
+                      : "bg-accent hover:bg-accent-dim"
+                  }`}
+                >
+                  {t("Confirmar")}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-etiqueta leading-snug text-zinc-500">
+              {t("Cada proyecto guarda su propio nivel; sin proyecto abierto, esto es el valor por defecto. Con «Acceso total» Hatboo no pide aprobación, pero las tools siguen encerradas en la carpeta del proyecto: el sandbox de rutas no se relaja nunca.")}
+            </p>
+          )}
         </div>
         <label className="flex items-start gap-3 rounded-xl border border-base-border bg-base-card px-3 py-3 cursor-pointer">
           <input
@@ -105,7 +181,7 @@ export default function AjustesAgente({
               {t("Cerebro aparte para el chat")}
             </span>
             <span className="block text-xs text-zinc-500">
-              {t("El chat pasa por el crate que decide el nivel, firma un Plan y recorta el contexto antes de llamar al modelo. Solo actúa con el proveedor local y sin imágenes en el mensaje: con una nube activa, con una imagen adjunta, o si el Brain se cae antes de la primera letra, se responde por el camino de siempre y la nota de encima del compositor dice por qué. El modelo que tú eliges es el que corre: si no cabe en la RAM no se responde con otro, se para el turno y el aviso trae las cifras del Governor —necesitas, margen, libres—.")}
+              {t("El chat pasa por el crate que decide el nivel, firma un Plan y recorta el contexto antes de llamar al modelo. Solo actúa con el proveedor local y sin imágenes en el mensaje: con una nube activa, con una imagen adjunta, o si el Brain se cae antes de la primera letra, se responde por el camino de siempre y la nota de encima del compositor dice por qué. El modelo que tú eliges es el que corre: si la RAM no llega no se responde con otro ni se para el turno —se aprieta la ventana o se gasta el margen, y la nota del Brain dice cuánto—.")}
             </span>
           </span>
         </label>
@@ -123,7 +199,7 @@ export default function AjustesAgente({
               {t("Margen de RAM bajo (250 MB)")}
             </span>
             <span className="block text-xs text-zinc-500">
-              {t("La spec fija 1500 MB libres que no se tocan, y con esa cifra en 8,45 GB no cabe ningún modelo local: el Brain cortaría todos los pedidos. Marcado se bajan a 250 MB, que es lo medido para que quepan gemma3:1b y qwen3.5:0.8b. Es salirse de la spec y deja la máquina al borde: apaga los programas de antes.")}
+              {t("La spec fija 1500 MB libres que no se tocan. Marcado se bajan a 250 MB, que es lo medido para que gemma3:1b y qwen3.5:0.8b quepan sin gastar colchón. Desde el 05-10 el margen dejó de ser una puerta: con 1500 el turno se corre igual, apretando la ventana o usando el margen, y la nota lo dice. Bajarlo deja la máquina más holgada; subirlo no te quita respuesta, solo margen de seguridad.")}
             </span>
           </span>
         </label>

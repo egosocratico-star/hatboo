@@ -184,31 +184,50 @@ export default function App() {
       e.preventDefault();
       if (cerrandoRef.current) return;
       cerrandoRef.current = true;
+      // Que se vea el apagado si estaba guardada en la barra de tareas. El vigilante de
+      // verdad está en Rust (`on_window_event`), porque con la ventana minimizada esta
+      // página está congelada y aquí no se ejecutaría nada (medido el 07-10).
+      void ventana.unminimize().catch(() => {});
       const desde = Date.now();
       setCerrando(true);
       const marca = (id: string) =>
         setPasosCierre((p) => p.map((s) => (s.id === id ? { ...s, listo: true } : s)));
       const chat = useChatStore.getState();
       const trabajo = useWorkStore.getState();
-      // Lo primero es lo que sigue escribiendo: si no se detiene aquí, el stream
-      // o el agente quedan trabajando contra una ventana que ya se cierra.
-      if (chat.status === "streaming") await conReloj(chat.stopStreaming(), 2500);
-      const tab = trabajo.activeProjectId ? trabajo.tabs[trabajo.activeProjectId] : undefined;
-      if (tab && (tab.agentStatus === "running" || tab.agentStatus === "awaiting")) {
-        await conReloj(trabajo.cancelTask(), 2500);
-      }
-      marca("detener");
-      await conReloj(chat.flushDrafts(), 2500);
-      marca("guardar");
-      await hastaElMinimo(desde, MUESTRA_CIERRE_MIN_MS);
       try {
-        await ventana.destroy();
+        // Lo primero es lo que sigue escribiendo: si no se detiene aquí, el stream
+        // o el agente quedan trabajando contra una ventana que ya se cierra.
+        if (chat.status === "streaming") await conReloj(chat.stopStreaming(), 2500);
+        const tab = trabajo.activeProjectId ? trabajo.tabs[trabajo.activeProjectId] : undefined;
+        if (tab && (tab.agentStatus === "running" || tab.agentStatus === "awaiting")) {
+          await conReloj(trabajo.cancelTask(), 2500);
+        }
+        marca("detener");
+        await conReloj(chat.flushDrafts(), 2500);
+        marca("guardar");
+        await hastaElMinimo(desde, MUESTRA_CIERRE_MIN_MS);
       } catch {
-        // Si la ventana no se apaga, quedarse encerrado en esta pantalla sería
-        // peor que el fallo: se vuelve atrás para que el siguiente intento
-        // (los pasos ya están hechos) lo intente de nuevo.
-        cerrandoRef.current = false;
-        setCerrando(false);
+        // Un paso que lanza no puede dejar la app encendida para siempre: se apaga
+        // igual. Vale perderse el último guardado; no vale que la X muera sin
+        // remedio —hasta aquí el `catch` solo cubría el `destroy`, así que un
+        // fallo en cualquier paso anterior dejaba `cerrandoRef` en `true` y la
+        // ventana ya no volvía a cerrar nunca más.
+      } finally {
+        // Cuatro segundos de espera al `destroy`, y si no volvió, la app se apaga por
+        // detrás. Medido el 07-10: en una instancia ya usada la X dejaba la pantalla de
+        // «Cerrando» colgada y el proceso vivo, y no había segundo clic que valiera.
+        const apagada = await Promise.race([
+          ventana
+            .destroy()
+            .then(() => true)
+            .catch(() => false),
+          new Promise<boolean>((resolver) => setTimeout(() => resolver(false), 4000)),
+        ]);
+        if (!apagada) {
+          cerrandoRef.current = false;
+          setCerrando(false);
+          await invoke("salir_de_vez").catch(() => {});
+        }
       }
     });
     return () => {
