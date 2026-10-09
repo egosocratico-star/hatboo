@@ -214,11 +214,24 @@ máquina que costaba 4,4 s por mensaje quedó cacheado.
   primera letra de un saludo), Normal sube como mucho a Bajo, y Enfocado/Profundo honran
   lo que elegiste. Cuando el nivel apaga lo pedido, se lee en el «¿Por qué?» de la
   respuesta en vez de quedarse callado.
+- **El selector de modelos lista modelos, no filas de Ollama.** El servidor devuelve
+  cada modelo varias veces: dos digests distintos contestan al mismo tag y cada gguf
+  importado sale además con su alias `llamacpp:<hash>`. Medido el 08-10 en esta máquina:
+  **14 filas para 10 modelos**, con `gemma3:1b` y `qwen3.5:0.8b` repetidos en la lista.
+  Fuera los alias duplicados y fuera la segunda fila de un mismo tag, y de paso las
+  fichas (`/api/show`) se piden **todas a la vez** en vez de una detrás de otra —los
+  3028 ms medidos el 06-10 con once modelos, que se pagaban cada vez que se abría el
+  selector—.
+- **Regenerar sobre una pregunta que se quedó sin respuesta.** Si el último mensaje es
+  del usuario, no había nada que retroceder y el botón contestaba «No hay respuesta que
+  regenerar» —el estado exacto que dejaba el turno perdido del 07-10—. Ahora ese caso
+  corre el stream sobre la pregunta directamente. Una conversación vacía sigue diciendo
+  que no.
 - **Lo que NO cambió, para que no se lea como resuelto.** El bloque de conducta del chat
-  sigue siendo fijo: 3883 caracteres ≈ 1110 tokens que entran en cada turno, medido
-  sobre la copia volcada del prompt. Con el recorte de arriba el crate deja de añadirle
-  lo suyo, pero la prosa del producto es materia de otra decisión —qué se queda, qué se
-  acorta— y se acorta solo si él lo decide.
+  sigue entrando entero en cada turno: 3745 caracteres ≈ 1070 tokens después del recorte
+  de arriba (eran 3878 ≈ 1108 antes), medido sobre la copia volcada del prompt. El crate
+  ya no le añade lo suyo, pero la prosa del producto es materia de otra decisión —qué se
+  queda, qué se acorta— y se acorta solo si él lo decide.
 
 ## [0.6.0] - 2026-09-29
 

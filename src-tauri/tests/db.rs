@@ -35,6 +35,32 @@ fn crud_roundtrip() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// El caso que dejó el `Timeout` del 07-10: la conversación tiene la pregunta y
+/// ninguna respuesta, y el botón de regenerar contestaba «no hay respuesta que
+/// regenerar». Con una hoja que es del usuario sí hay turno que correr; con una
+/// conversación vacía no hay nada, y eso sigue diciendo que no.
+#[test]
+fn regenerar_sobre_una_pregunta_pendiente() {
+    let dir = std::env::temp_dir().join(format!("hatboo-test-{}", uuid::Uuid::new_v4()));
+    let conn = db::connect(&dir.join("test.db")).expect("connect+migrate");
+
+    let vacia = db::create_conversation(&conn, "vacía", None).unwrap();
+    assert!(
+        !db::preparar_regeneracion(&conn, &vacia.id).unwrap(),
+        "sin mensajes no hay nada que regenerar"
+    );
+
+    let conv = db::create_conversation(&conn, "con pregunta", None).unwrap();
+    db::add_message(&conn, &conv.id, "user", "hola", None).unwrap();
+    assert!(
+        db::preparar_regeneracion(&conn, &conv.id).unwrap(),
+        "la hoja es la pregunta: se deja correr el stream"
+    );
+    assert_eq!(db::hilo_activo(&conn, &conv.id).unwrap().len(), 1);
+
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 #[test]
 fn attachments_roundtrip_and_clear_messages() {
     let dir = std::env::temp_dir().join(format!("hatboo-test-{}", uuid::Uuid::new_v4()));
@@ -209,10 +235,17 @@ fn una_base_vieja_se_migra_sin_perder_mensajes() {
         .collect();
     assert_eq!(despues, antes, "el orden y el contenido se conservan");
     assert_eq!(db::list_messages(&v, "c1").unwrap().len(), 3);
-    // Y la hoja quedó en el último, así que ya se puede regenerar sin perderlo.
+    // Y la hoja quedó en el último, que es una pregunta: no hay nada que retroceder,
+    // pero el turno se debe poder correr (antes contestaba «no hay respuesta que
+    // regenerar» a una pregunta plantada — medido el 07-10).
     assert!(
-        !db::preparar_regeneracion(&v, "c1").unwrap(),
-        "el hilo termina en un mensaje propio: no hay respuesta que regenerar"
+        db::preparar_regeneracion(&v, "c1").unwrap(),
+        "la hoja es la pregunta: se contesta"
+    );
+    assert_eq!(
+        db::hilo_activo(&v, "c1").unwrap().len(),
+        3,
+        "preparar no borra la pregunta"
     );
     db::add_message(&v, "c1", "assistant", "cuarto", None).unwrap();
     assert!(db::preparar_regeneracion(&v, "c1").unwrap());

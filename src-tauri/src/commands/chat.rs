@@ -172,7 +172,8 @@ pub async fn send_message(
 
 /// Regenera la última respuesta del asistente. No la borra: retrocede el hilo al
 /// mensaje del usuario y la respuesta nueva nace como hermana de la anterior, así
-/// que «‹ 1/2 ›» deja ver las dos.
+/// que «‹ 1/2 ›» deja ver las dos. Si lo último es la pregunta y no hay respuesta
+/// —el turno se perdió por el camino— no hay nada que retroceder: se contesta.
 #[tauri::command]
 pub async fn regenerate_response(
     app: tauri::AppHandle,

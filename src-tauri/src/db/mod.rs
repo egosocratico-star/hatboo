@@ -600,7 +600,12 @@ pub fn preparar_regeneracion(conn: &Connection, conversation_id: &str) -> Result
     let Some(h) = hoja else { return Ok(false) };
     let m = mensaje_completo(conn, &h)?;
     if m.role != "assistant" {
-        return Ok(false);
+        // La hoja es la pregunta y no hay respuesta: el turno se perdió por el
+        // camino (el `Timeout` del 07-10 dejaba exactamente este estado, y el botón
+        // de regenerar contestaba «no hay respuesta que regenerar» a una pregunta
+        // plantada). No hay nada que retroceder, pero sí hay pregunta que contestar,
+        // así que se deja correr el stream sobre la hoja actual.
+        return Ok(m.role == "user");
     }
     if let Some(p) = &m.parent_id {
         conn.execute("UPDATE messages SET preferido = NULL WHERE id = ?1", params![p])

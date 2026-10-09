@@ -223,38 +223,82 @@ pub async fn list_ollama_models(endpoint: &str) -> Result<Vec<OllamaModel>, Stri
         .json()
         .await
         .map_err(|e| format!("Respuesta inesperada de Ollama: {e}"))?;
-    let mut models: Vec<OllamaModel> = value["models"]
-        .as_array()
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|m| {
-                    let name = m["name"].as_str()?;
-                    Some(OllamaModel {
-                        name: name.to_string(),
-                        parameter_size: m["details"]["parameter_size"]
-                            .as_str()
-                            .unwrap_or("")
-                            .to_string(),
-                        size_bytes: m["size"].as_i64().unwrap_or(0),
-                        capabilities: Vec::new(),
-                        context_tokens: 0,
-                        context_es_num_ctx: false,
-                    })
-                })
-                .collect()
-        })
-        .unwrap_or_default();
+    let mut models = modelos_de_tags(&value);
     // Un /api/show por modelo: es la única fuente que declara visión, tools y la
-    // ventana de una vez. Es local y rápido; si uno falla, ese modelo se queda
-    // sin declarar nada.
-    for m in &mut models {
-        let name = m.name.clone();
-        let (caps, ventana, es_num_ctx) = show_info(&client, base, &name).await;
+    // ventana de una vez. Pero **todos a la vez** —de uno en uno costaba 3028 ms con
+    // los once modelos del equipo, medido el 06-10— y si uno falla, ese modelo se
+    // queda sin declarar nada.
+    let fichas =
+        futures_util::future::join_all(models.iter().map(|m| show_info(&client, base, &m.name)))
+            .await;
+    for (m, (caps, ventana, es_num_ctx)) in models.iter_mut().zip(fichas) {
         m.capabilities = caps;
         m.context_tokens = ventana;
         m.context_es_num_ctx = es_num_ctx;
     }
     Ok(models)
+}
+
+/// Las filas de `/api/tags` convertidas en los modelos que se listan. Ollama repite
+/// un nombre por cada digest que contesta a ese tag y añade un alias
+/// `llamacpp:<hash>` por cada gguf importado: medido el 08-10 en este equipo, **14
+/// filas para 10 modelos**. Sin el filtro, el selector muestra `gemma3:1b` dos veces
+/// y ofrece un `llamacpp:83be9dbf…` que nadie pidió por ese nombre.
+///
+/// La misma regla está en `hatboo-brain` (`providers/ollama.rs::bases_de_tags`) sobre
+/// su propio tipo. Se duplica a propósito: este camino es el del chat **sin** el
+/// cerebro compilado, y no puede depender de la feature para enseñar la lista.
+fn modelos_de_tags(value: &serde_json::Value) -> Vec<OllamaModel> {
+    struct Fila {
+        modelo: OllamaModel,
+        digest: String,
+    }
+    let filas: Vec<Fila> = value["models"]
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|m| {
+                    let name = m["name"].as_str()?;
+                    Some(Fila {
+                        modelo: OllamaModel {
+                            name: name.to_string(),
+                            parameter_size: m["details"]["parameter_size"]
+                                .as_str()
+                                .unwrap_or("")
+                                .to_string(),
+                            size_bytes: m["size"].as_i64().unwrap_or(0),
+                            capabilities: Vec::new(),
+                            context_tokens: 0,
+                            context_es_num_ctx: false,
+                        },
+                        digest: m["digest"].as_str().unwrap_or("").to_string(),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let con_nombre: std::collections::HashSet<String> = filas
+        .iter()
+        .filter(|f| !f.modelo.name.starts_with("llamacpp:") && !f.digest.is_empty())
+        .map(|f| f.digest.clone())
+        .collect();
+    let mut vistos: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut out = Vec::new();
+    for f in filas {
+        if f.modelo.name.starts_with("llamacpp:")
+            && !f.digest.is_empty()
+            && con_nombre.contains(&f.digest)
+        {
+            continue;
+        }
+        // Dos filas con el mismo tag: se guarda la primera, que es el orden en que
+        // Ollama la devuelve y el que resuelve el propio servidor.
+        if !vistos.insert(f.modelo.name.clone()) {
+            continue;
+        }
+        out.push(f.modelo);
+    }
+    out
 }
 
 /// Pregunta a `/api/show` por lo que el modelo sabe hacer y cuánto admite. El
@@ -638,6 +682,34 @@ pub async fn list_hf_models(endpoint: &str) -> Result<Vec<String>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Las 14 filas que `/api/tags` devuelve en este equipo por 10 modelos (medido el
+    /// 08-10): dos digests por tag y el alias `llamacpp:<hash>` de cada importado.
+    #[test]
+    fn el_selector_no_repite_modelo_ni_ofrece_el_alias() {
+        let fila = |name: &str, digest: &str| {
+            serde_json::json!({
+                "name": name, "digest": digest, "size": 815_000_000,
+                "details": {"parameter_size": "1B"}
+            })
+        };
+        let v = serde_json::json!({ "models": [
+            fila("qwen3.5:0.8b", "34227f3b"),
+            fila("qwen3.5:0.8b", "f1e6f068"),
+            fila("llamacpp:f1e6f068", "f1e6f068"),
+            fila("gemma3:1b", "766eb44b"),
+            fila("gemma3:1b", "83be9dbf"),
+            fila("llamacpp:83be9dbf", "83be9dbf"),
+            fila("llamacpp:aaaa1111", "aaaa1111"),
+            fila("deepseek-r1:1.5b", "e0979632"),
+        ]});
+        let nombres: Vec<String> = modelos_de_tags(&v).into_iter().map(|m| m.name).collect();
+        assert_eq!(
+            nombres,
+            vec!["qwen3.5:0.8b", "gemma3:1b", "llamacpp:aaaa1111", "deepseek-r1:1.5b"],
+            "{nombres:?}"
+        );
+    }
 
     #[test]
     fn las_capacidades_salen_del_show() {
