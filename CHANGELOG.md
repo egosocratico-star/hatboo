@@ -227,6 +227,18 @@ máquina que costaba 4,4 s por mensaje quedó cacheado.
   regenerar» —el estado exacto que dejaba el turno perdido del 07-10—. Ahora ese caso
   corre el stream sobre la pregunta directamente. Una conversación vacía sigue diciendo
   que no.
+- **El selector de modelos se lee de arriba abajo.** Cada fila lleva ahora el nombre,
+  **su tamaño en disco** (lo que Ollama dice que ocupa: en una máquina de 8,45 GB es lo
+  que decide si un modelo entra) y lo que declara saber hacer —visión y herramientas,
+  siempre en su sitio, atenuadas cuando el modelo no las declara—. Antes los iconos solo
+  salían cuando existían y cuatro filas se leían como cuatro listas distintas. Los grupos
+  llevan recuento («En este PC · 4») y en la nube no se pinta nada que no se sepa: allí
+  lo único cierto es el id.
+- **El menú del «+» con una sola voz.** Todas las filas al mismo cuerpo de letra
+  (`text-ui`, el que usa el resto de la interfaz: eran 14 px en un menú y 12 px en los
+  demás) y las pistas de la derecha —«sin clonar», «plantillas y sesión»— en un solo
+  sitio y un solo peso. La de «Captura» pasa a ámbar cuando el modelo no está marcado
+  como vidente: es la única que pide que hagas algo, y en gris no se veía.
 - **Lo que NO cambió, para que no se lea como resuelto.** El bloque de conducta del chat
   sigue entrando entero en cada turno: 3745 caracteres ≈ 1070 tokens después del recorte
   de arriba (eran 3878 ≈ 1108 antes), medido sobre la copia volcada del prompt. El crate

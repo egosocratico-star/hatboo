@@ -272,7 +272,13 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
   );
 
   const item =
-    "w-full flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-200 hover:bg-base-raised rounded-lg transition-colors text-left";
+    "w-full flex items-center gap-2.5 px-3 py-2 text-ui text-zinc-200 hover:bg-base-raised rounded-lg transition-colors text-left";
+  /** La pista de la derecha: un solo sitio y un solo peso. Antes cada fila la
+   *  ponía como podía y el menú se leía como cuatro menús distintos. */
+  const pista = "shrink-0 text-micro text-zinc-600";
+  /** La pista que pide acción: el modelo no está marcado como vidente y la
+   *  captura se va a adjuntar igual. Ámbar, no gris: hay algo que hacer. */
+  const pistaAviso = "shrink-0 text-micro text-amber-400/90";
 
   /** Si el proveedor que ya usa para el texto también dibuja (Gemini u OpenAI),
    *  no hay que ir a Ajustes a elegir lo que ya está delante. Son los dos únicos
@@ -329,7 +335,7 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
             <button onClick={() => setCara("github")} className={item}>
               <Github className="w-4 h-4 text-accent-soft shrink-0" />
               <span className="flex-1">{t("GitHub")}</span>
-              <span className="text-micro text-zinc-600">{t("sin clonar")}</span>
+              <span className={pista}>{t("sin clonar")}</span>
               <ChevronRight className="h-3.5 w-3.5 shrink-0 text-zinc-600" />
             </button>
           )}
@@ -379,9 +385,7 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
                 className={`w-4 h-4 shrink-0 ${visionOk ? "text-accent-soft" : "text-zinc-500"}`}
               />
               <span className="flex-1">{t("Captura")}</span>
-              {!visionOk && (
-                <span className="text-micro text-zinc-500">{t("sin marcar")}</span>
-              )}
+              {!visionOk && <span className={pistaAviso}>{t("sin marcar")}</span>}
             </button>
           )}
           {cara === "anadir" &&
@@ -397,7 +401,7 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
               >
                 <WandSparkles className="w-4 h-4 text-accent-soft shrink-0" />
                 <span className="flex-1">{imageBusy ? t("Dibujando…") : t("Imagen")}</span>
-                <span className="text-micro text-zinc-600">{motor.corto}</span>
+                <span className={pista}>{motor.corto}</span>
                 <ChevronRight className="h-3.5 w-3.5 shrink-0 text-zinc-600" />
               </button>
             ) : motorDelActivo ? (
@@ -411,9 +415,7 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
               >
                 <WandSparkles className="w-4 h-4 text-accent-soft shrink-0" />
                 <span className="flex-1">{t("Imagen")}</span>
-                <span className="shrink-0 text-micro text-zinc-500">
-                  {t("encender {p}", { p: motorDelActivo.corto })}
-                </span>
+                <span className={pista}>{t("encender {p}", { p: motorDelActivo.corto })}</span>
               </button>
             ) : (
               <button
@@ -430,7 +432,7 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
               >
                 <WandSparkles className="w-4 h-4 text-zinc-500 shrink-0" />
                 <span className="flex-1">{t("Imagen")}</span>
-                <span className="shrink-0 text-micro text-zinc-500">{t("Ajustes → API")}</span>
+                <span className={pista}>{t("Ajustes → API")}</span>
               </button>
             ))}
           {cara === "imagen" && motor && (
@@ -470,7 +472,7 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
               <button onClick={() => setCara("mas")} className={item}>
                 <Ellipsis className="w-4 h-4 text-accent-soft shrink-0" />
                 <span className="flex-1">{t("Más")}</span>
-                <span className="text-micro text-zinc-600">{t("plantillas y sesión")}</span>
+                <span className={pista}>{t("plantillas y sesión")}</span>
                 <ChevronRight className="h-3.5 w-3.5 shrink-0 text-zinc-600" />
               </button>
             </>
@@ -494,7 +496,7 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
               >
                 <Plus className="w-4 h-4 text-accent-soft shrink-0" />
                 <span className="flex-1">{t("Crear plantilla")}</span>
-                <span className="shrink-0 text-micro text-zinc-500">{t("Ajustes → Skills")}</span>
+                <span className={pista}>{t("Ajustes → Skills")}</span>
               </button>
               <button onClick={() => void instalarPlantilla()} className={item}>
                 <Download className="w-4 h-4 text-accent-soft shrink-0" />
@@ -566,7 +568,7 @@ export default function ChatPlusMenu({ onPickFiles, onInsertTemplate, disabled }
             <button onClick={declararVision} className={`${item} mt-0.5`}>
               <Eye className="w-4 h-4 shrink-0 text-accent-soft" />
               <span className="flex-1">{t("Mi modelo sí lee imágenes")}</span>
-              <span className="shrink-0 text-micro text-zinc-500">{t("marcar")}</span>
+              <span className={pistaAviso}>{t("marcar")}</span>
             </button>
           )}
       </Popover>

@@ -35,7 +35,23 @@ import {
 import { CORTOS, PROVEEDORES, campoModelo, endpointDe, modeloActivo } from "../proveedores";
 
 /** Fila ya normalizada de la lista de modelos (Ollama o el router de HF). */
-type FilaModelo = { nombre: string; nivel: NivelModelo | null; nube: boolean; caps: string[] };
+type FilaModelo = {
+  nombre: string;
+  nivel: NivelModelo | null;
+  nube: boolean;
+  caps: string[];
+  /** Bytes en disco, cuando el proveedor lo dice. En la nube de Ollama no se sabe
+   *  lo que pesa lo que no está en tu disco, y poner un hueco vacío sería mentir. */
+  bytes: number | null;
+  /** Si el proveedor declaró capacidades de este modelo. `false` = no sabemos
+   *  nada más que el id, y entonces la fila no pinta iconos. */
+  declarado: boolean;
+};
+
+/** Como lo escribe esta app en español: coma decimal y una sola unidad. */
+function gigabytes(bytes: number): string {
+  return `${(bytes / 1024 ** 3).toFixed(1).replace(".", ",")} GB`;
+}
 
 type Probe = "checking" | "ok" | "error" | null;
 
@@ -172,12 +188,16 @@ export default function ProviderModelPicker() {
         nivel: nivelModelo(m),
         nube: esNube(m.name),
         caps: capsVisibles(m.capabilities),
+        bytes: m.sizeBytes > 0 ? m.sizeBytes : null,
+        declarado: m.capabilities.length > 0,
       }))
     : (nubeModelos ?? []).map((n) => ({
         nombre: n,
         nivel: nivelPorNombre(n),
         nube: true,
         caps: [],
+        bytes: null,
+        declarado: false,
       }));
   // Búsqueda por subcadena sin distinguir mayúsculas: los nombres llevan
   // dos-points, barras y guiones, y uno escribe «qwen» a secas.
@@ -199,7 +219,11 @@ export default function ProviderModelPicker() {
           : "bg-zinc-600";
   const fuera = saleDelEquipo(settings.activeProvider, model);
 
-  /** Una fila de la lista: nombre, para qué da y, en Ollama, expulsar de RAM. */
+  /** Una fila de la lista: nombre, tamaño en disco y lo que declara saber hacer.
+   *  Antes los iconos solo aparecían cuando la capacidad existía y cuatro filas se
+   *  leían como cuatro listas distintas; ahora el hueco está siempre y lo que falta
+   *  se ve atenuado. En la nube lo único que se sabe es el id, así que ahí no se
+   *  pinta nada: sería fingir que se sabe. */
   const fila = (f: FilaModelo) => {
     const activo = model === f.nombre;
     return (
@@ -216,25 +240,47 @@ export default function ProviderModelPicker() {
             } as Partial<Settings>);
             setOpen(false);
           }}
-          className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1 text-left text-xs font-mono text-zinc-300"
+          title={f.nombre}
+          className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left"
         >
-          <span className="truncate">{f.nombre}</span>
+          <span className="min-w-0 flex-1">
+            <span
+              className={`block truncate font-mono text-ui ${
+                activo ? "text-zinc-100" : "text-zinc-300"
+              }`}
+            >
+              {f.nombre}
+            </span>
+            {f.declarado && (
+              <span className="mt-0.5 flex items-center gap-2 text-micro text-zinc-600">
+                {f.bytes != null && (
+                  <span className="tabular-nums">{gigabytes(f.bytes)}</span>
+                )}
+                <span
+                  title={f.caps.includes("vision") ? t("Ve imágenes") : t("No declara visión")}
+                  className={f.caps.includes("vision") ? "text-zinc-400" : "text-zinc-700"}
+                >
+                  <Eye className="h-3 w-3" />
+                </span>
+                <span
+                  title={
+                    f.caps.includes("tools")
+                      ? t("Puede llamar a herramientas")
+                      : t("No declara herramientas")
+                  }
+                  className={f.caps.includes("tools") ? "text-zinc-400" : "text-zinc-700"}
+                >
+                  <Wrench className="h-3 w-3" />
+                </span>
+              </span>
+            )}
+          </span>
           {f.nivel && (
             <span
               title={t(NIVELES[f.nivel].aviso)}
               className={`shrink-0 rounded-full px-1.5 py-px font-sans text-micro ${NIVELES[f.nivel].clases}`}
             >
               {t(NIVELES[f.nivel].corto)}
-            </span>
-          )}
-          {f.caps.includes("vision") && (
-            <span title={t("Ve imágenes")} className="flex shrink-0 items-center">
-              <Eye className="h-3 w-3 text-zinc-500" />
-            </span>
-          )}
-          {f.caps.includes("tools") && (
-            <span title={t("Puede llamar a herramientas")} className="flex shrink-0 items-center">
-              <Wrench className="h-3 w-3 text-zinc-500" />
             </span>
           )}
           {activo && <Check className="ml-auto h-3.5 w-3.5 shrink-0 text-accent-soft" />}
@@ -391,14 +437,15 @@ export default function ProviderModelPicker() {
               <div className="max-h-56 space-y-0.5 overflow-y-auto">
                 {enPc.length > 0 && (
                   <div className="px-2 pt-1 pb-0.5 text-micro uppercase tracking-wider text-zinc-600">
-                    {t("En este PC")}
+                    {t("En este PC")} · {enPc.length}
                   </div>
                 )}
                 {enPc.map(fila)}
                 {enNube.length > 0 && (
                   <>
                     <div className="px-2 pt-2 pb-0.5 text-micro uppercase tracking-wider text-zinc-600">
-                      {esLocal ? t("Vía Ollama Cloud") : t("Vía {p}", { p: cortos })}
+                      {esLocal ? t("Vía Ollama Cloud") : t("Vía {p}", { p: cortos })} ·{" "}
+                      {enNube.length}
                     </div>
                     {enNube.map(fila)}
                   </>
