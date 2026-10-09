@@ -17,18 +17,17 @@ src-tauri/target/release/bundle/msi/Hatboo_0.7.0_x64_en-US.msi    8,56 MB
 src-tauri/target/release/bundle/nsis/Hatboo_0.7.0_x64-setup.exe   5,41 MB
 ```
 
-**Los dos ficheros son de las 15:51 del 08-10 y llevan el corte entero** (el stream
-letra a letra, el prompt adaptado al Plan sin nombrar capacidades, el `think: false`
-explícito, el tope de inactividad, el techo de razonamiento llegando al Plan y las dos
-notas nuevas del chat). Los de las 14:24 del 07-10 se habían quedado fuera, y también los
-dos recompilados aquel día (19:51 y 21:55): al primero le faltaba el arreglo del `Timeout`
-que se comió un «hola», y a los dos la recitación del prompt. Comprobado sobre el binario,
-no sobre la esperanza: en `hatboo.exe` están las cadenas `Este turno se responde con
-texto`, `Turno: una pregunta`, `apagado por el nivel` (crate) y `es una conversación`
-(app), y en el ACL generado `core:window:allow-destroy` —el permiso que faltaba y por el
-que la X no cerraba la app, sino que la reiniciaba—. Cerrado el binario nuevo con una
-petición de cierre normal, el proceso **termina**; el anterior llevaba desde las 14:47 del
-07-10 sin poder morir.
+**Los dos ficheros son de las 10:50 del 09-10 y son los primeros reproducibles**: el
+`src-tauri/Cargo.lock` resuelve `hatboo-brain` contra `main#48d3dee` publicado en GitHub,
+no contra un directorio del portátil — el `[patch]` local se apartó, el lock se
+regeneró, se verificó que el exe lleva las cadenas de este corte (crate: «Este turno se
+responde con texto», «apagado por el nivel», «Turno: una pregunta»; app: «es una
+conversación», y el `dist/` con «No declara visión» del selector nuevo) y los paquetes
+npm de Tauri se alinearon con los crates (api 2.12 · opener 2.7 · dialog 2.8, que el
+regen del lock había dejado por detrás). En el ACL generado sigue
+`core:window:allow-destroy` —el permiso que faltaba y por el que la X no cerraba la
+app—. Cerrado el binario con una petición de cierre normal, el proceso **termina** con la
+ventana a la vista; con ella minimizada no llega el aviso y queda anotado (tarea #48).
 
 Verificado sobre el binario, no sobre la esperanza: el `Cargo.lock` resuelve
 `hatboo-brain` **sin `source`**, o sea por el `[patch]` local, así que el instalador
